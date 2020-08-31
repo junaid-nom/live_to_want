@@ -7,7 +7,7 @@ mod tests {
 }
 
 use std::cmp::Ordering;
-use std::{cell::RefCell, rc::Rc};
+use std::{cell::{Ref, RefCell}, rc::Rc};
 use std::collections::HashMap;
 use std::ops::Deref;
 use std::borrow::Borrow;
@@ -71,7 +71,9 @@ impl GoalCacheNode<'_> {
         // NOTE: Could make an outer struct "GoalCacheNetwork", that holds a root_node and the existing_cache and auto create network?
     }
 
-    fn setup_children(goal_cache: &mut GoalCacheNode, map_state :&MapState, c_state : &CreatureState, existing_caches: &mut HashMap<&str, Rc<RefCell<GoalCacheNode>>>) {
+    fn setup_children<'a>(goal_cache:  Rc<RefCell<GoalCacheNode<'a>>>, map_state :&MapState, c_state : &CreatureState, existing_caches: &'a mut HashMap<&'a str, Rc<RefCell<GoalCacheNode<'a>>>>) {
+        let goal_cache = goal_cache.clone();
+        let mut goal_cache = goal_cache.borrow_mut();
         if let Some(_) = goal_cache.children {
             // this node is setup already
             return;
@@ -79,14 +81,16 @@ impl GoalCacheNode<'_> {
             goal_cache.children = Some(Vec::new());
             for child_goal in &goal_cache.goal.children {
                 if existing_caches.contains_key(child_goal.child.name) {
-                    let cref = existing_caches.get(child_goal.child.name).as_mut().unwrap();
-                    GoalCacheNode::setup_children(cref.get_mut(), map_state, c_state, existing_caches);
-                    goal_cache.children.unwrap().push((*cref).clone());
+                    let cref: Rc<RefCell<GoalCacheNode<'a>>> = existing_caches.get(child_goal.child.name).unwrap().clone();
+                    GoalCacheNode::setup_children( cref.clone(), map_state, c_state, existing_caches);
+                    if let Some(children) = &mut goal_cache.children {
+                        children.push(cref.clone());
+                    }
                 } else {
-                    let mut new_child = Rc::new(RefCell::new(GoalCacheNode::new(child_goal.child, map_state, c_state)));
-                    let name = new_child.clone().get_mut().goal.name;
+                    let new_child = Rc::new(RefCell::new(GoalCacheNode::new(child_goal.child, map_state, c_state)));
+                    let name: &'a str = new_child.deref().borrow().goal.name;
                     existing_caches.insert(name, new_child.clone());
-                    GoalCacheNode::setup_children(new_child.get_mut(), map_state, c_state, existing_caches);
+                    GoalCacheNode::setup_children(new_child.clone(), map_state, c_state, existing_caches);
                 };
             }
         }
@@ -111,62 +115,65 @@ impl GoalCacheNode<'_> {
     }
 
     fn get_final_command<'a, 'b>(goal_node: &'a GoalNode, map_state :&MapState, c_state : &'b CreatureState) -> Option<CreatureCommand<'b>> { 
-        let mut parent = GoalCacheNode::new(goal_node, map_state, c_state);
+        let parent = Rc::new(RefCell::new(GoalCacheNode::new(goal_node, map_state, c_state)));
         let mut existing_caches: HashMap<&str, Rc<RefCell<GoalCacheNode>>> = HashMap::new();
-        GoalCacheNode::setup_children(&mut parent, map_state, c_state, &mut existing_caches);
-        GoalCacheNode::setup_global_stats(&mut parent, map_state, c_state);
+        GoalCacheNode::setup_children(parent, map_state, c_state, &mut existing_caches);
+        GoalCacheNode::setup_global_stats(parent.get_mut(), map_state, c_state);
 
         // now go through the tree. if requirements met, go into it, if not ignore it. Find best
         // Node. then run the command function on that node.
         let mut to_visit : Vec<&GoalCacheNode>= Vec::new();
         let mut visited : usize = 0;
-        to_visit.push(&parent);
-        let mut best_node : Option<&GoalCacheNode> = None;
+        // let b= parent.deref().borrow();
+        // //let c: Ref<GoalCacheNode> = parent.borrow(); // this only works if u uncomment use std::borrow:Borrow
+        // to_visit.push(&*b);
+        // let mut best_node : Option<&GoalCacheNode> = None;
 
-        while to_visit.len() - visited > 0 {
-            visited+=1;
-            let look_at: &GoalCacheNode = to_visit[visited];
-            let actionable  = match look_at.goal.get_command {
-                Some(_) => true,
-                None => false
-            };
-            let req_met = (look_at.goal.get_requirements_met)(map_state, c_state);
+        // while to_visit.len() - visited > 0 {
+        //     visited+=1;
+        //     let look_at: &GoalCacheNode = to_visit[visited];
+        //     let actionable  = match look_at.goal.get_command {
+        //         Some(_) => true,
+        //         None => false
+        //     };
+        //     let req_met = (look_at.goal.get_requirements_met)(map_state, c_state);
 
-            // NOTE, children of a node can have higher motivation!
-            // A child can also have requirements met even if parent doesn't
+        //     // NOTE, children of a node can have higher motivation!
+        //     // A child can also have requirements met even if parent doesn't
 
-            // Example: Looting dead deer met, which is child of attack deer.
-            // No deer around so cant attack deer, but can loot it
-            // looting dead deer is low effort so is way higher motivation too
+        //     // Example: Looting dead deer met, which is child of attack deer.
+        //     // No deer around so cant attack deer, but can loot it
+        //     // looting dead deer is low effort so is way higher motivation too
 
-            // so need to look at ALL NODES basically always
-            // they can only be a "best node" if they are actionable and req met though
-            if actionable && req_met {
-                match best_node {
-                    Some(n) => {
-                        if look_at.motivation_global >= n.motivation_global {
-                            best_node = Some(look_at);
-                        }
-                    },
-                    None => {
-                        best_node = Some(look_at);
-                    }
-                }
-            }
+        //     // so need to look at ALL NODES basically always
+        //     // they can only be a "best node" if they are actionable and req met though
+        //     if actionable && req_met {
+        //         match best_node {
+        //             Some(n) => {
+        //                 if look_at.motivation_global >= n.motivation_global {
+        //                     best_node = Some(look_at);
+        //                 }
+        //             },
+        //             None => {
+        //                 best_node = Some(look_at);
+        //             }
+        //         }
+        //     }
             
-            for c in & look_at.children.unwrap() {
-                let c_ref = (*c).clone().get_mut();
+        //     for c in & look_at.children.unwrap() {
+        //         let c_ref = (*c).clone().get_mut();
 
-                if !(to_visit.iter().any(|c| c.goal.name == c_ref.goal.name)) {
-                    to_visit.push((*c).clone().get_mut());
-                }
-            }
-        }
+        //         if !(to_visit.iter().any(|c| c.goal.name == c_ref.goal.name)) {
+        //             to_visit.push((*c).clone().get_mut());
+        //         }
+        //     }
+        // }
 
-        match best_node {
-            Some(n) => Some((n.goal.get_command).unwrap()(map_state, c_state)),
-            None => None
-        }
+        // match best_node {
+        //     Some(n) => Some((n.goal.get_command).unwrap()(map_state, c_state)),
+        //     None => None
+        // }
+        None
     }
 }
 
