@@ -71,7 +71,7 @@ impl GoalCacheNode<'_> {
         // NOTE: Could make an outer struct "GoalCacheNetwork", that holds a root_node and the existing_cache and auto create network?
     }
 
-    fn setup_children<'a>(goal_cache:  Rc<RefCell<GoalCacheNode<'a>>>, map_state :&MapState, c_state : &CreatureState, existing_caches: &'a mut HashMap<&'a str, Rc<RefCell<GoalCacheNode<'a>>>>) {
+    fn setup_children<'a>(goal_cache:  Rc<RefCell<GoalCacheNode<'a>>>, map_state :&MapState, c_state : &CreatureState, existing_caches: Rc<RefCell<HashMap<&'a str, Rc<RefCell<GoalCacheNode<'a>>>>>>) {
         let goal_cache = goal_cache.clone();
         let mut goal_cache = goal_cache.borrow_mut();
         if let Some(_) = goal_cache.children {
@@ -80,35 +80,55 @@ impl GoalCacheNode<'_> {
         } else {
             goal_cache.children = Some(Vec::new());
             for child_goal in &goal_cache.goal.children {
-                if existing_caches.contains_key(child_goal.child.name) {
-                    let cref: Rc<RefCell<GoalCacheNode<'a>>> = existing_caches.get(child_goal.child.name).unwrap().clone();
-                    GoalCacheNode::setup_children( cref.clone(), map_state, c_state, existing_caches);
-                    if let Some(children) = &mut goal_cache.children {
-                        children.push(cref.clone());
-                    }
+                let existing_caches = existing_caches.clone();
+                let mut existing_cache_ref = existing_caches.borrow_mut();
+                let entry = existing_cache_ref.entry(child_goal.child.name).or_insert(
+        {
+                    Rc::new(RefCell::new(GoalCacheNode::new(child_goal.child, map_state, c_state)))
+                });
+                let cref: Rc<RefCell<GoalCacheNode<'a>>> = entry.clone();
+                GoalCacheNode::setup_children( cref.clone(), map_state, c_state, existing_caches.clone());
+                // is always true...
+                if let Some(children) = &mut goal_cache.children {
+                    children.push(cref.clone());
                 } else {
-                    let new_child = Rc::new(RefCell::new(GoalCacheNode::new(child_goal.child, map_state, c_state)));
-                    let name: &'a str = new_child.deref().borrow().goal.name;
-                    existing_caches.insert(name, new_child.clone());
-                    GoalCacheNode::setup_children(new_child.clone(), map_state, c_state, existing_caches);
-                };
+                    panic!("This should never happen");
+                }
+                // if true {
+                //     let cref: Rc<RefCell<GoalCacheNode<'a>>> = existing_caches.get(child_goal.child.name).unwrap().clone();
+                //     GoalCacheNode::setup_children( cref.clone(), map_state, c_state, existing_caches);
+                //     if let Some(children) = &mut goal_cache.children {
+                //         children.push(cref.clone());
+                //     }
+                // } else {
+                //     let new_child = ;
+                //     let name: &'a str = new_child.deref().borrow().goal.name;
+                //     existing_caches.insert(name, new_child.clone());
+                //     GoalCacheNode::setup_children(new_child.clone(), map_state, c_state, existing_caches);
+                // };
             }
         }
     }
 
     //note must call setup_children first
-    fn setup_global_stats(goal_cache: &mut GoalCacheNode, map_state :&MapState, c_state : &CreatureState) {
+    fn setup_global_stats(goal_cache:  Rc<RefCell<GoalCacheNode>>, map_state :&MapState, c_state : &CreatureState) {
+        let goal_cache = goal_cache.clone();
+        let mut goal_cache = goal_cache.borrow_mut();
         if let Some(_) = goal_cache.motivation_global {
             return
         } else {
             let mut sum_motivation: f32 = goal_cache.want_local as f32;
-            for c in &mut goal_cache.children.unwrap() {
-                let c_ref = c.get_mut();
-                if let None = c_ref.motivation_global {
-                    GoalCacheNode::setup_global_stats(c_ref, map_state, c_state);
+            if let Some(children) = &goal_cache.children {
+                for c in children {
+                    let c_ref = c.clone();
+                    
+                    if let None = c_ref.borrow_mut().motivation_global {
+                        GoalCacheNode::setup_global_stats(c_ref.clone(), map_state, c_state);
+                    }
+
+                    sum_motivation += c_ref.borrow_mut().motivation_global.unwrap();
+                    sum_motivation = sum_motivation / (goal_cache.effort_local as f32);
                 }
-                sum_motivation += c_ref.motivation_global.unwrap();
-                sum_motivation = sum_motivation / (goal_cache.effort_local as f32);
             }
             goal_cache.motivation_global = Some(sum_motivation);
         }
@@ -116,64 +136,65 @@ impl GoalCacheNode<'_> {
 
     fn get_final_command<'a, 'b>(goal_node: &'a GoalNode, map_state :&MapState, c_state : &'b CreatureState) -> Option<CreatureCommand<'b>> { 
         let parent = Rc::new(RefCell::new(GoalCacheNode::new(goal_node, map_state, c_state)));
-        let mut existing_caches: HashMap<&str, Rc<RefCell<GoalCacheNode>>> = HashMap::new();
-        GoalCacheNode::setup_children(parent, map_state, c_state, &mut existing_caches);
-        GoalCacheNode::setup_global_stats(parent.get_mut(), map_state, c_state);
+        let existing_caches: Rc<RefCell<HashMap<&str, Rc<RefCell<GoalCacheNode>>>>> = Rc::new(RefCell::new(HashMap::new()));
+        GoalCacheNode::setup_children(parent.clone(), map_state, c_state, existing_caches);
+        GoalCacheNode::setup_global_stats(parent.clone(), map_state, c_state);
 
         // now go through the tree. if requirements met, go into it, if not ignore it. Find best
         // Node. then run the command function on that node.
-        let mut to_visit : Vec<&GoalCacheNode>= Vec::new();
+        let mut to_visit : Vec<Box<&GoalCacheNode>> = Vec::new();
         let mut visited : usize = 0;
-        // let b= parent.deref().borrow();
-        // //let c: Ref<GoalCacheNode> = parent.borrow(); // this only works if u uncomment use std::borrow:Borrow
-        // to_visit.push(&*b);
-        // let mut best_node : Option<&GoalCacheNode> = None;
+        let b= parent.deref().borrow();
+        //let c: Ref<GoalCacheNode> = parent.borrow(); // this only works if u uncomment use std::borrow:Borrow
+        to_visit.push(Box::new(&*b));
+        let mut best_node : Option<&GoalCacheNode> = None;
 
-        // while to_visit.len() - visited > 0 {
-        //     visited+=1;
-        //     let look_at: &GoalCacheNode = to_visit[visited];
-        //     let actionable  = match look_at.goal.get_command {
-        //         Some(_) => true,
-        //         None => false
-        //     };
-        //     let req_met = (look_at.goal.get_requirements_met)(map_state, c_state);
+        while to_visit.len() - visited > 0 {
+            visited+=1;
+            let look_at: &GoalCacheNode = *to_visit[visited];
+            let actionable  = match look_at.goal.get_command {
+                Some(_) => true,
+                None => false
+            };
+            let req_met = (look_at.goal.get_requirements_met)(map_state, c_state);
 
-        //     // NOTE, children of a node can have higher motivation!
-        //     // A child can also have requirements met even if parent doesn't
+            // NOTE, children of a node can have higher motivation!
+            // A child can also have requirements met even if parent doesn't
 
-        //     // Example: Looting dead deer met, which is child of attack deer.
-        //     // No deer around so cant attack deer, but can loot it
-        //     // looting dead deer is low effort so is way higher motivation too
+            // Example: Looting dead deer met, which is child of attack deer.
+            // No deer around so cant attack deer, but can loot it
+            // looting dead deer is low effort so is way higher motivation too
 
-        //     // so need to look at ALL NODES basically always
-        //     // they can only be a "best node" if they are actionable and req met though
-        //     if actionable && req_met {
-        //         match best_node {
-        //             Some(n) => {
-        //                 if look_at.motivation_global >= n.motivation_global {
-        //                     best_node = Some(look_at);
-        //                 }
-        //             },
-        //             None => {
-        //                 best_node = Some(look_at);
-        //             }
-        //         }
-        //     }
+            // so need to look at ALL NODES basically always
+            // they can only be a "best node" if they are actionable and req met though
+            if actionable && req_met {
+                match best_node {
+                    Some(n) => {
+                        if look_at.motivation_global >= n.motivation_global {
+                            best_node = Some(look_at);
+                        }
+                    },
+                    None => {
+                        best_node = Some(look_at);
+                    }
+                }
+            }
+            if let Some(children) = &look_at.children {
+                for c in children {
+                    let c_ref = c.deref().borrow();
+    
+                    if !(to_visit.iter().any(|c| c.goal.name == c_ref.goal.name)) {
+                        to_visit.push(Box::new(&c_ref));
+                    }
+                }
+            }
             
-        //     for c in & look_at.children.unwrap() {
-        //         let c_ref = (*c).clone().get_mut();
+        }
 
-        //         if !(to_visit.iter().any(|c| c.goal.name == c_ref.goal.name)) {
-        //             to_visit.push((*c).clone().get_mut());
-        //         }
-        //     }
-        // }
-
-        // match best_node {
-        //     Some(n) => Some((n.goal.get_command).unwrap()(map_state, c_state)),
-        //     None => None
-        // }
-        None
+        match best_node {
+            Some(n) => Some((n.goal.get_command).unwrap()(map_state, c_state)),
+            None => None
+        }
     }
 }
 
