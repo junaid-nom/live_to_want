@@ -71,6 +71,27 @@ impl GoalCacheNode<'_> {
         // NOTE: Could make an outer struct "GoalCacheNetwork", that holds a root_node and the existing_cache and auto create network?
     }
 
+    fn my_func(num: i32, list_of_nums: &mut Vec<i32>) {
+        list_of_nums.push(num);
+        if num - 1 >= 0 {
+            GoalCacheNode::my_func(num - 1, list_of_nums);
+        }
+    }
+
+    fn my_fc() -> Option<MapState> {
+        let poop : Option<MapState>;
+        poop = Some(MapState{});
+        // MUST USE & IN FRONT OF OPTION SO IT DOESNT GET TAKEN!
+        let p: Option<MapState> = match &poop {
+            Some(n) => None,
+            None => None
+        };
+        match poop {
+            Some(_n) => None,
+            None => None
+        }
+    }
+
     fn setup_children<'a>(goal_cache:  Rc<RefCell<GoalCacheNode<'a>>>, map_state :&MapState, c_state : &CreatureState, existing_caches: Rc<RefCell<HashMap<&'a str, Rc<RefCell<GoalCacheNode<'a>>>>>>) {
         let goal_cache = goal_cache.clone();
         let mut goal_cache = goal_cache.borrow_mut();
@@ -142,16 +163,16 @@ impl GoalCacheNode<'_> {
 
         // now go through the tree. if requirements met, go into it, if not ignore it. Find best
         // Node. then run the command function on that node.
-        let mut to_visit : Vec<Box<&GoalCacheNode>> = Vec::new();
+        let mut to_visit : Vec<Rc<RefCell<GoalCacheNode>>> = Vec::new();
         let mut visited : usize = 0;
-        let b= parent.deref().borrow();
+        //let b= parent.deref().borrow();
         //let c: Ref<GoalCacheNode> = parent.borrow(); // this only works if u uncomment use std::borrow:Borrow
-        to_visit.push(Box::new(&*b));
-        let mut best_node : Option<&GoalCacheNode> = None;
+        to_visit.push(parent.clone());
+        let mut best_node : Option<Rc<RefCell<GoalCacheNode>>> = None;
 
         while to_visit.len() - visited > 0 {
-            visited+=1;
-            let look_at: &GoalCacheNode = *to_visit[visited];
+            let look_at = to_visit[visited].clone();
+            let look_at  = look_at.deref().borrow();
             let actionable  = match look_at.goal.get_command {
                 Some(_) => true,
                 None => false
@@ -170,29 +191,37 @@ impl GoalCacheNode<'_> {
             if actionable && req_met {
                 match best_node {
                     Some(n) => {
-                        if look_at.motivation_global >= n.motivation_global {
-                            best_node = Some(look_at);
+                        if look_at.motivation_global >= n.deref().borrow().motivation_global {
+                            best_node = Some(to_visit[visited].clone());
+                        } else {
+                            best_node = Some(n);
                         }
                     },
                     None => {
-                        best_node = Some(look_at);
+                        best_node = Some(to_visit[visited].clone());
                     }
                 }
             }
             if let Some(children) = &look_at.children {
                 for c in children {
                     let c_ref = c.deref().borrow();
-    
-                    if !(to_visit.iter().any(|c| c.goal.name == c_ref.goal.name)) {
-                        to_visit.push(Box::new(&c_ref));
+                    if !(to_visit.iter().any(|ch| ch.deref().borrow().goal.name == c_ref.goal.name)) {
+                        to_visit.push(c.clone());
                     }
                 }
             }
-            
+            visited+=1;
         }
 
         match best_node {
-            Some(n) => Some((n.goal.get_command).unwrap()(map_state, c_state)),
+            Some(n) => {
+                match &n.clone().deref().borrow().goal.get_command {
+                    Some(f) => Some(f(map_state, c_state)),
+                    None => None,
+                }
+                // Some((n.deref().borrow().goal.get_command).unwrap())
+                // None
+            },
             None => None
         }
     }
