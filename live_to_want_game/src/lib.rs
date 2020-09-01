@@ -1,10 +1,4 @@
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn it_works() {
-        assert_eq!(2 + 2, 4);
-    }
-}
+
 
 use std::cmp::Ordering;
 use std::{cell::{Ref, RefCell}, rc::Rc};
@@ -21,7 +15,9 @@ pub struct CreatureState<'a> {
     visible_state: CreatureVisibleState<'a>,
 }
 pub struct CreatureVisibleState<'a> {
-    location: &'a Location,
+    location: Location,
+    location_temp: &'a Location, // just a placeholder to force 'a necessary
+    name: String,
 }
 
 pub struct CreatureMemory {
@@ -37,7 +33,7 @@ pub struct MapState {
 
 }
 pub enum CreatureCommand<'a>{
-    MoveTo(&'a Location),
+    MoveTo(Location),
     Chase(&'a CreatureVisibleState<'a>),
     Attack(&'a CreatureVisibleState<'a>),
 }
@@ -71,18 +67,18 @@ impl GoalCacheNode<'_> {
         // NOTE: Could make an outer struct "GoalCacheNetwork", that holds a root_node and the existing_cache and auto create network?
     }
 
-    fn my_func(num: i32, list_of_nums: &mut Vec<i32>) {
+    fn _my_func(num: i32, list_of_nums: &mut Vec<i32>) {
         list_of_nums.push(num);
         if num - 1 >= 0 {
-            GoalCacheNode::my_func(num - 1, list_of_nums);
+            GoalCacheNode::_my_func(num - 1, list_of_nums);
         }
     }
 
-    fn my_fc() -> Option<MapState> {
+    fn _my_fc() -> Option<MapState> {
         let poop : Option<MapState>;
         poop = Some(MapState{});
         // MUST USE & IN FRONT OF OPTION SO IT DOESNT GET TAKEN!
-        let p: Option<MapState> = match &poop {
+        let p: Option<MapState> = match poop.as_ref() {
             Some(n) => None,
             None => None
         };
@@ -155,7 +151,7 @@ impl GoalCacheNode<'_> {
         }
     }
 
-    fn get_final_command<'a, 'b>(goal_node: &'a GoalNode, map_state :&MapState, c_state : &'b CreatureState) -> Option<CreatureCommand<'b>> { 
+    pub fn get_final_command<'a, 'b>(goal_node: &'a GoalNode, map_state :&MapState, c_state : &'b CreatureState) -> Option<CreatureCommand<'b>> { 
         let parent = Rc::new(RefCell::new(GoalCacheNode::new(goal_node, map_state, c_state)));
         let existing_caches: Rc<RefCell<HashMap<&str, Rc<RefCell<GoalCacheNode>>>>> = Rc::new(RefCell::new(HashMap::new()));
         GoalCacheNode::setup_children(parent.clone(), map_state, c_state, existing_caches);
@@ -177,7 +173,7 @@ impl GoalCacheNode<'_> {
                 Some(_) => true,
                 None => false
             };
-            let req_met = (look_at.goal.get_requirements_met)(map_state, c_state);
+            let req_met = look_at.requirement_met;
 
             // NOTE, children of a node can have higher motivation!
             // A child can also have requirements met even if parent doesn't
@@ -277,4 +273,20 @@ impl GoalNode<'_> {
     //         &self
     //     }
     // }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::GoalNode;
+
+    // PRETTY SURE GoalNode is fucked and needs Rc in connections to work
+    // because if u return a GoalNode the connected other GoalNodes go out of scope
+    // fn generate_basic_graph() -> GoalNode {
+        
+    // }
+
+    #[test]
+    fn reality_exists() {
+        assert_eq!(2 + 2, 4);
+    }
 }
