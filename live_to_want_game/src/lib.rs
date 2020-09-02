@@ -365,9 +365,9 @@ mod tests {
             }),
             get_effort_local: Box::new(|_, c| {
                 if c.visible_state.location.x == 1 {
-                    3
+                    30
                 } else {
-                    5
+                    50
                 }
             }),
             children: Vec::new(),
@@ -385,9 +385,9 @@ mod tests {
             }),
             get_effort_local: Box::new(|_, c| {
                 if c.visible_state.location.x == 1 {
-                    3
+                    30
                 } else {
-                    5
+                    50
                 }
             }),
             children: Vec::new(),
@@ -413,7 +413,7 @@ mod tests {
                 0
             }),
             get_effort_local: Box::new(|_, _| {
-                5
+                50
             }),
             children: Vec::new(),
             name: "find_deer",
@@ -505,7 +505,7 @@ mod tests {
                 0
             }),
             get_effort_local: Box::new(|_, _| {
-                6
+                60
             }),
             children: Vec::new(),
             name: "find_wolf",
@@ -589,6 +589,21 @@ mod tests {
         //assert_eq!(r.clone().deref().borrow_mut().x, 10);
     }
 
+    #[test]
+    fn how_mut_ref_works() {
+        fn my_mut(loc: &mut Location) {
+            loc.x +=1;
+            if loc.x < 10 {
+                my_mut(loc);
+            }
+            loc.x +=1;
+        }
+        let mut loc = Location{x:0, y:0};
+        my_mut(&mut loc);
+        loc.x -= 5;
+        my_mut(&mut loc);
+        loc.y += 1;
+    }
 
     // should be
     // loc x=1, y=0 -> berry wins
@@ -664,10 +679,173 @@ mod tests {
         };
     }
     // x=5 -> attack deer
+    #[test]
+    fn attack_deer_wins() {
+        let root = generate_basic_graph();
+        let m_s = MapState{};
+        let location_temp =  Location{x: 0, y:0};
+        let c_s = CreatureState{
+            attributes: CreatureAttributes{},
+            memory: CreatureMemory{},
+            visible_state: CreatureVisibleState{
+                name: "attack_deer", 
+                location: Location{x: 5, y:0},
+                location_temp: &location_temp,
+            }
+        };
+        let res = GoalCacheNode::get_final_command(&root, &m_s, &c_s);
+        let res = res.unwrap();
+        println!("Got: {:#?}", &res);
+
+        match res {
+            CreatureCommand::MoveTo(n, _) => assert_eq!(n, "attack_deer"),
+            _ => panic!("should return moveto!"),
+        };
+    }
     // x=6 -> loot deer
+    #[test]
+    fn loot_deer_wins() {
+        let root = generate_basic_graph();
+        let m_s = MapState{};
+        let location_temp =  Location{x: 0, y:0};
+        let c_s = CreatureState{
+            attributes: CreatureAttributes{},
+            memory: CreatureMemory{},
+            visible_state: CreatureVisibleState{
+                name: "loot_deer", 
+                location: Location{x: 6, y:0},
+                location_temp: &location_temp,
+            }
+        };
+        let res = GoalCacheNode::get_final_command(&root, &m_s, &c_s);
+        let res = res.unwrap();
+        println!("Got: {:#?}", &res);
+
+        match res {
+            CreatureCommand::MoveTo(n, _) => assert_eq!(n, "loot_deer"),
+            _ => panic!("should return moveto!"),
+        };
+    }
     // x=7 y=0 -> eat deer (req met for eat if x==7 and y==0)
+    #[test]
+    fn eat_deer_wins() {
+        let root = generate_basic_graph();
+        let m_s = MapState{};
+        let location_temp =  Location{x: 0, y:0};
+        let c_s = CreatureState{
+            attributes: CreatureAttributes{},
+            memory: CreatureMemory{},
+            visible_state: CreatureVisibleState{
+                name: "eat", 
+                location: Location{x: 7, y:0},
+                location_temp: &location_temp,
+            }
+        };
+        let res = GoalCacheNode::get_final_command(&root, &m_s, &c_s);
+        let res = res.unwrap();
+        println!("Got: {:#?}", &res);
+
+        match res {
+            CreatureCommand::MoveTo(n, _) => assert_eq!(n, "eat"),
+            _ => panic!("should return moveto!"),
+        };
+    }
     // x=7 y=1 -> sell deer (req met for sell if x==7 and y==1) OR x==11 (sell wolf)
+    #[test]
+    fn sell_deer_wins() {
+        let root = generate_basic_graph();
+        let m_s = MapState{};
+        let location_temp =  Location{x: 0, y:0};
+        let c_s = CreatureState{
+            attributes: CreatureAttributes{},
+            memory: CreatureMemory{},
+            visible_state: CreatureVisibleState{
+                name: "sell", 
+                location: Location{x: 7, y:1},
+                location_temp: &location_temp,
+            }
+        };
+        let res = GoalCacheNode::get_final_command(&root, &m_s, &c_s);
+        let res = res.unwrap();
+        println!("Got: {:#?}", &res);
+
+        match res {
+            CreatureCommand::MoveTo(n, _) => assert_eq!(n, "sell"),
+            _ => panic!("should return moveto!"),
+        };
+    }
     // x=9 -> attack wolf
+    #[test]
+    fn attack_wolf_wins() {
+        let root = generate_basic_graph();
+        let m_s = MapState{};
+        let location_temp =  Location{x: 0, y:0};
+        let c_s = CreatureState{
+            attributes: CreatureAttributes{},
+            memory: CreatureMemory{},
+            visible_state: CreatureVisibleState{
+                name: "attack_wolf", 
+                location: Location{x: 9, y:0},
+                location_temp: &location_temp,
+            }
+        };
+        let res = GoalCacheNode::get_final_command(&root, &m_s, &c_s);
+        let res = res.unwrap();
+        println!("Got: {:#?}", &res);
+
+        match res {
+            CreatureCommand::MoveTo(n, _) => assert_eq!(n, "attack_wolf"),
+            _ => panic!("should return moveto!"),
+        };
+    }
+
     // x=10 -> loot wolf
+    #[test]
+    fn loot_wolf_wins() {
+        let root = generate_basic_graph();
+        let m_s = MapState{};
+        let location_temp =  Location{x: 0, y:0};
+        let c_s = CreatureState{
+            attributes: CreatureAttributes{},
+            memory: CreatureMemory{},
+            visible_state: CreatureVisibleState{
+                name: "loot_wolf", 
+                location: Location{x: 10, y:0},
+                location_temp: &location_temp,
+            }
+        };
+        let res = GoalCacheNode::get_final_command(&root, &m_s, &c_s);
+        let res = res.unwrap();
+        println!("Got: {:#?}", &res);
+
+        match res {
+            CreatureCommand::MoveTo(n, _) => assert_eq!(n, "loot_wolf"),
+            _ => panic!("should return moveto!"),
+        };
+    }
+
     // x=11 -> sell wolf
+    #[test]
+    fn sell_wolf_wins() {
+        let root = generate_basic_graph();
+        let m_s = MapState{};
+        let location_temp =  Location{x: 0, y:0};
+        let c_s = CreatureState{
+            attributes: CreatureAttributes{},
+            memory: CreatureMemory{},
+            visible_state: CreatureVisibleState{
+                name: "sell", 
+                location: Location{x: 11, y:1},
+                location_temp: &location_temp,
+            }
+        };
+        let res = GoalCacheNode::get_final_command(&root, &m_s, &c_s);
+        let res = res.unwrap();
+        println!("Got: {:#?}", &res);
+
+        match res {
+            CreatureCommand::MoveTo(n, _) => assert_eq!(n, "sell"),
+            _ => panic!("should return moveto!"),
+        };
+    }
 }
