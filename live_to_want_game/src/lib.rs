@@ -6,42 +6,51 @@ use std::collections::HashMap;
 use std::ops::Deref;
 use std::borrow::Borrow;
 
+#[derive(Debug)]
 pub struct CreatureAttributes {
 
 }
+#[derive(Debug)]
 pub struct CreatureState<'a> {
-    attributes: CreatureAttributes,
-    memory: CreatureMemory,
-    visible_state: CreatureVisibleState<'a>,
+    pub attributes: CreatureAttributes,
+    pub memory: CreatureMemory,
+    pub visible_state: CreatureVisibleState<'a>,
 }
+#[derive(Debug)]
 pub struct CreatureVisibleState<'a> {
-    location: Location,
-    location_temp: &'a Location, // just a placeholder to force 'a necessary
-    name: String,
+    pub location: Location,
+    pub location_temp: &'a Location, // just a placeholder to force 'a necessary
+    pub name: &'a str,
 }
 
+#[derive(Debug)]
 pub struct CreatureMemory {
     
 }
 
+#[derive(Debug)]
 pub struct Location {
     x: i32,
     y: i32,
 }
 
+#[derive(Debug)]
 pub struct MapState {
 
 }
+
+#[derive(Debug)]
 pub enum CreatureCommand<'a>{
-    MoveTo(Location),
-    Chase(&'a CreatureVisibleState<'a>),
-    Attack(&'a CreatureVisibleState<'a>),
+    // str here is for debugging purposes and is usually just the name of the node
+    MoveTo(&'a str, Location),
+    Chase(&'a str, &'a CreatureVisibleState<'a>),
+    Attack(&'a str, &'a CreatureVisibleState<'a>),
 }
 
 pub struct GoalConnection<'a> {
-    child: &'a GoalNode<'a>,
-    is_additive: bool,
-    amplifier: f32,
+    pub child: Rc<GoalNode<'a>>,
+    pub is_additive: bool,
+    pub amplifier: f32,
 }
 
 
@@ -98,12 +107,14 @@ impl GoalCacheNode<'_> {
             goal_cache.children = Some(Vec::new());
             for child_goal in &goal_cache.goal.children {
                 let existing_caches = existing_caches.clone();
-                let mut existing_cache_ref = existing_caches.borrow_mut();
-                let entry = existing_cache_ref.entry(child_goal.child.name).or_insert(
-        {
-                    Rc::new(RefCell::new(GoalCacheNode::new(child_goal.child, map_state, c_state)))
-                });
-                let cref: Rc<RefCell<GoalCacheNode<'a>>> = entry.clone();
+                let cref: Rc<RefCell<GoalCacheNode<'a>>> = {
+                    let mut existing_cache_ref = existing_caches.borrow_mut();
+                    let entry = existing_cache_ref.entry(child_goal.child.name).or_insert(
+            {
+                        Rc::new(RefCell::new(GoalCacheNode::new(child_goal.child.borrow(), map_state, c_state)))
+                    });
+                    entry.clone()
+                }; // need to drop borrow_mut before next call
                 GoalCacheNode::setup_children( cref.clone(), map_state, c_state, existing_caches.clone());
                 // is always true...
                 if let Some(children) = &mut goal_cache.children {
@@ -127,27 +138,65 @@ impl GoalCacheNode<'_> {
         }
     }
 
+    fn get_connection_by_name<'a>(goal_parent: &'a GoalNode, child_name: &str) -> Option<&'a GoalConnection<'a>> {
+        for c in &goal_parent.children {
+            if c.child.deref().name == child_name {
+                return Some(c);
+            }
+        }
+        None
+    }
+
     //note must call setup_children first
     fn setup_global_stats(goal_cache:  Rc<RefCell<GoalCacheNode>>, map_state :&MapState, c_state : &CreatureState) {
-        let goal_cache = goal_cache.clone();
-        let mut goal_cache = goal_cache.borrow_mut();
+        let goal_cache_c = goal_cache.clone();
+        let mut goal_cache = goal_cache_c.deref().borrow_mut();
         if let Some(_) = goal_cache.motivation_global {
             return
         } else {
-            let mut sum_motivation: f32 = goal_cache.want_local as f32;
+            let mut sum_motivation: f32 = 0.0;
+            let mut best_motivation:f32 = 0.0;
+            // Essentially, all additive connections add together
+            // example if u loot a deer u get both 10 meat and 10 bone, so additive
+            // but for the meat itself, you can EITHER eat it or sell it, so its not additive
+            // you can have a couple additive and a couple non-additive too
+            // but u cant have 2 different kinds of additive (instead make a node that has them as additive children for that)
             if let Some(children) = &goal_cache.children {
                 for c in children {
-                    let c_ref = c.clone();
+                    let need_setup = {
+                        //let c_ref = c.clone();
                     
-                    if let None = c_ref.borrow_mut().motivation_global {
-                        GoalCacheNode::setup_global_stats(c_ref.clone(), map_state, c_state);
+                        if let None = c.deref().borrow().motivation_global.as_ref() {
+                            true
+                        } else {
+                            false
+                        }
+                    };
+                    if need_setup {
+                        GoalCacheNode::setup_global_stats(c.clone(), map_state, c_state);
                     }
-
-                    sum_motivation += c_ref.borrow_mut().motivation_global.unwrap();
-                    sum_motivation = sum_motivation / (goal_cache.effort_local as f32);
+                    let conn = GoalCacheNode::get_connection_by_name(goal_cache.goal, c.deref().borrow().goal.name).unwrap();
+                    
+                    let total_mot = c.deref().borrow().motivation_global.as_ref().unwrap() * conn.amplifier;
+                    println!("total_mot {} amp {}", total_mot, conn.amplifier);
+                    if conn.is_additive {
+                        sum_motivation += total_mot;
+                    } else {
+                        if best_motivation < total_mot {
+                            best_motivation = total_mot;
+                        }
+                    }
                 }
             }
-            goal_cache.motivation_global = Some(sum_motivation);
+            
+            //let mut goal_cache = goal_cache_c.deref().borrow_mut();
+            println!("{} sum {} best {}", goal_cache.goal.name, sum_motivation, best_motivation);
+            if best_motivation < sum_motivation {
+                best_motivation = sum_motivation;
+            }
+            println!("{} true best {}", goal_cache.goal.name, best_motivation);
+            goal_cache.motivation_global = Some((best_motivation + goal_cache.want_local as f32) / (goal_cache.effort_local as f32));
+            println!("{} final {}", goal_cache.goal.name, goal_cache.motivation_global.as_ref().unwrap());
         }
     }
 
@@ -277,16 +326,348 @@ impl GoalNode<'_> {
 
 #[cfg(test)]
 mod tests {
-    use crate::GoalNode;
+    use crate::*;
+    use std::{cell::{Ref, RefCell}, rc::Rc};
+    use std::collections::HashMap;
 
     // PRETTY SURE GoalNode is fucked and needs Rc in connections to work
     // because if u return a GoalNode the connected other GoalNodes go out of scope
-    // fn generate_basic_graph() -> GoalNode {
+    fn generate_basic_graph() -> GoalNode<'static> {
+        let mut root = GoalNode {
+            get_want_local: Box::new(|_, _| 0),
+            get_effort_local: Box::new(|_, _| 1),
+            children: Vec::new(),
+            name: "root",
+            get_command: None,
+            get_requirements_met: Box::new(|_, _| false),
+        };
+        let mut gather = GoalNode {
+            get_want_local: Box::new(|_, _| 0),
+            get_effort_local: Box::new(|_, _| 1),
+            children: Vec::new(),
+            name: "gather",
+            get_command: None,
+            get_requirements_met: Box::new(|_, _| false),
+        };
+        let mut hunt = GoalNode {
+            get_want_local: Box::new(|_, _| 0),
+            get_effort_local: Box::new(|_, _| 1),
+            children: Vec::new(),
+            name: "hunt",
+            get_command: None,
+            get_requirements_met: Box::new(|_, _| false),
+        };
+
+        // gather
+        let mut berry = GoalNode {
+            get_want_local: Box::new(|_, _| {
+                100
+            }),
+            get_effort_local: Box::new(|_, c| {
+                if c.visible_state.location.x == 1 {
+                    3
+                } else {
+                    5
+                }
+            }),
+            children: Vec::new(),
+            name: "berry",
+            get_command: Some(Box::new(|_, _| CreatureCommand::MoveTo("berry", Location{x: 0, y:0}))),
+            get_requirements_met: Box::new(|_, _| true),
+        };
+        let mut fruit = GoalNode {
+            get_want_local: Box::new(|_, c| {
+                if c.visible_state.location.y == 1 {
+                    101
+                } else {
+                    99
+                }
+            }),
+            get_effort_local: Box::new(|_, c| {
+                if c.visible_state.location.x == 1 {
+                    3
+                } else {
+                    5
+                }
+            }),
+            children: Vec::new(),
+            name: "fruit",
+            get_command: Some(Box::new(|_, _| CreatureCommand::MoveTo("fruit", Location{x: 0, y:0}))),
+            get_requirements_met: Box::new(|_, _| true),
+        };
+        gather.children.push(GoalConnection{
+            child: Rc::new(berry),
+            is_additive: false,
+            amplifier: 1.0,
+        });
+        gather.children.push(GoalConnection{
+            child: Rc::new(fruit),
+            is_additive: false,
+            amplifier: 1.0,
+        });
+
+
+        //hunt stuff
+        let mut find_deer = GoalNode {
+            get_want_local: Box::new(|_, _| {
+                0
+            }),
+            get_effort_local: Box::new(|_, _| {
+                5
+            }),
+            children: Vec::new(),
+            name: "find_deer",
+            get_command: Some(Box::new(|_, _| CreatureCommand::MoveTo("find_deer", Location{x: 0, y:0}))),
+            get_requirements_met: Box::new(|_, _| true),
+        };
+        let mut attack_deer = GoalNode {
+            get_want_local: Box::new(|_, _| {
+                0
+            }),
+            get_effort_local: Box::new(|_, _| {
+                1
+            }),
+            children: Vec::new(),
+            name: "attack_deer",
+            get_command: Some(Box::new(|_, _| CreatureCommand::MoveTo("attack_deer", Location{x: 0, y:0}))),
+            get_requirements_met: Box::new(|_, c| c.visible_state.location.x==5),
+        };
+        let mut loot_deer = GoalNode {
+            get_want_local: Box::new(|_, _| {
+                0
+            }),
+            get_effort_local: Box::new(|_, _| {
+                1
+            }),
+            children: Vec::new(),
+            name: "loot_deer",
+            get_command: Some(Box::new(|_, _| CreatureCommand::MoveTo("loot_deer", Location{x: 0, y:0}))),
+            get_requirements_met: Box::new(|_, c| c.visible_state.location.x==6),
+        };
         
-    // }
+        let mut eat = GoalNode {
+            get_want_local: Box::new(|_, _| {
+                10
+            }),
+            get_effort_local: Box::new(|_, _| {
+                1
+            }),
+            children: Vec::new(),
+            name: "eat",
+            get_command: Some(Box::new(|_, _| CreatureCommand::MoveTo("eat", Location{x: 0, y:0}))),
+            get_requirements_met: Box::new(|_, c| c.visible_state.location.y==0 && c.visible_state.location.x==7),
+        };
+        let eat = Rc::new(eat);
+        let mut sell = GoalNode {
+            get_want_local: Box::new(|_, _| {
+                10
+            }),
+            get_effort_local: Box::new(|_, _| {
+                1
+            }),
+            children: Vec::new(),
+            name: "sell",
+            get_command: Some(Box::new(|_, _| CreatureCommand::MoveTo("sell", Location{x: 0, y:0}))),
+            get_requirements_met: Box::new(|_, c| c.visible_state.location.y==1 && 
+                (c.visible_state.location.x==7 || c.visible_state.location.x==11)),
+        };
+        let sell = Rc::new(sell);
+
+        loot_deer.children.push(GoalConnection{
+            child: sell.clone(),
+            is_additive: true,
+            amplifier: 4.0,
+        });
+        loot_deer.children.push(GoalConnection{
+            child: eat.clone(),
+            is_additive: true,
+            amplifier: 7.0,
+        });
+        attack_deer.children.push(GoalConnection{
+            child: Rc::new(loot_deer),
+            is_additive: false,
+            amplifier: 1.0,
+        });
+        find_deer.children.push(GoalConnection{
+            child: Rc::new(attack_deer),
+            is_additive: false,
+            amplifier: 1.0,
+        });
+        hunt.children.push(GoalConnection{
+            child: Rc::new(find_deer),
+            is_additive: false,
+            amplifier: 1.0,
+        });
+
+
+        let mut find_wolf = GoalNode {
+            get_want_local: Box::new(|_, _| {
+                0
+            }),
+            get_effort_local: Box::new(|_, _| {
+                6
+            }),
+            children: Vec::new(),
+            name: "find_wolf",
+            get_command: Some(Box::new(|_, _| CreatureCommand::MoveTo("find_wolf", Location{x: 0, y:0}))),
+            get_requirements_met: Box::new(|_, _| true),
+        };
+        let mut attack_wolf = GoalNode {
+            get_want_local: Box::new(|_, _| {
+                0
+            }),
+            get_effort_local: Box::new(|_, _| {
+                1
+            }),
+            children: Vec::new(),
+            name: "attack_wolf",
+            get_command: Some(Box::new(|_, _| CreatureCommand::MoveTo("attack_wolf", Location{x: 0, y:0}))),
+            get_requirements_met: Box::new(|_, c| c.visible_state.location.x==9),
+        };
+        let mut loot_wolf = GoalNode {
+            get_want_local: Box::new(|_, _| {
+                0
+            }),
+            get_effort_local: Box::new(|_, _| {
+                1
+            }),
+            children: Vec::new(),
+            name: "loot_wolf",
+            get_command: Some(Box::new(|_, _| CreatureCommand::MoveTo("loot_wolf", Location{x: 0, y:0}))),
+            get_requirements_met: Box::new(|_, c| c.visible_state.location.x==10),
+        };
+        loot_wolf.children.push(GoalConnection{
+            child: sell.clone(),
+            is_additive: true,
+            amplifier: 12.0,
+        });
+        attack_wolf.children.push(GoalConnection{
+            child: Rc::new(loot_wolf),
+            is_additive: false,
+            amplifier: 1.0,
+        });
+        find_wolf.children.push(GoalConnection{
+            child: Rc::new(attack_wolf),
+            is_additive: false,
+            amplifier: 1.0,
+        });
+        hunt.children.push(GoalConnection{
+            child: Rc::new(find_wolf),
+            is_additive: false,
+            amplifier: 1.0,
+        });
+
+        root.children.push(GoalConnection{
+            child: Rc::new(gather),
+            is_additive: false,
+            amplifier: 1.0,
+        });
+        root.children.push(GoalConnection{
+            child: Rc::new(hunt),
+            is_additive: false,
+            amplifier: 1.0,
+        });
+
+        root
+    }
+
+    
 
     #[test]
     fn reality_exists() {
         assert_eq!(2 + 2, 4);
     }
+    #[test]
+    #[should_panic]
+    fn how_to_rc_refcell() {
+        let r = Rc::new(RefCell::new(Location{x: 0, y:0}));
+        let mut r2 = r.deref().borrow_mut();
+        r2.x = 5;
+        let mut d = r.deref().borrow_mut();
+        d.x = 6;
+        r2.x = 10;
+        //assert_eq!(r.clone().deref().borrow_mut().x, 10);
+    }
+
+
+    // should be
+    // loc x=1, y=0 -> berry wins
+    #[test]
+    fn berry_wins() {
+        let root = generate_basic_graph();
+        let m_s = MapState{};
+        let location_temp =  Location{x: 0, y:0};
+        let c_s = CreatureState{
+            attributes: CreatureAttributes{},
+            memory: CreatureMemory{},
+            visible_state: CreatureVisibleState{
+                name: "berry", 
+                location: Location{x: 1, y:0},
+                location_temp: &location_temp,
+            }
+        };
+        let res = GoalCacheNode::get_final_command(&root, &m_s, &c_s);
+        let res = res.unwrap();
+        println!("Got: {:#?}", &res);
+
+        match res {
+            CreatureCommand::MoveTo(n, _) => assert_eq!(n, "berry"),
+            _ => panic!("should return moveto!"),
+        };
+    }
+    // loc x=1 y=1 -> fruit wins
+    #[test]
+    fn fruit_wins() {
+        let root = generate_basic_graph();
+        let m_s = MapState{};
+        let location_temp =  Location{x: 0, y:0};
+        let c_s = CreatureState{
+            attributes: CreatureAttributes{},
+            memory: CreatureMemory{},
+            visible_state: CreatureVisibleState{
+                name: "fruit", 
+                location: Location{x: 1, y:1},
+                location_temp: &location_temp,
+            }
+        };
+        let res = GoalCacheNode::get_final_command(&root, &m_s, &c_s);
+        let res = res.unwrap();
+        println!("Got: {:#?}", &res);
+
+        match res {
+            CreatureCommand::MoveTo(n, _) => assert_eq!(n, "fruit"),
+            _ => panic!("should return moveto!"),
+        };
+    }
+    // x=0 y=0 -> hunt deer wins
+    #[test]
+    fn find_deer_wins() {
+        let root = generate_basic_graph();
+        let m_s = MapState{};
+        let location_temp =  Location{x: 0, y:0};
+        let c_s = CreatureState{
+            attributes: CreatureAttributes{},
+            memory: CreatureMemory{},
+            visible_state: CreatureVisibleState{
+                name: "find_deer", 
+                location: Location{x: 0, y:0},
+                location_temp: &location_temp,
+            }
+        };
+        let res = GoalCacheNode::get_final_command(&root, &m_s, &c_s);
+        let res = res.unwrap();
+        println!("Got: {:#?}", &res);
+
+        match res {
+            CreatureCommand::MoveTo(n, _) => assert_eq!(n, "find_deer"),
+            _ => panic!("should return moveto!"),
+        };
+    }
+    // x=5 -> attack deer
+    // x=6 -> loot deer
+    // x=7 y=0 -> eat deer (req met for eat if x==7 and y==0)
+    // x=7 y=1 -> sell deer (req met for sell if x==7 and y==1) OR x==11 (sell wolf)
+    // x=9 -> attack wolf
+    // x=10 -> loot wolf
+    // x=11 -> sell wolf
 }
