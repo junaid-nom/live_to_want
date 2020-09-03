@@ -7,36 +7,96 @@ use std::ops::Deref;
 use std::borrow::Borrow;
 
 #[derive(Debug)]
+pub enum CreatureType {
+    Deer,
+    Wolf,
+    Human,
+    Tree,
+}
+impl Default for CreatureType {
+    fn default() -> Self { CreatureType::Deer }
+}
+
+#[derive(Debug)]
+pub enum ItemType {
+    Berry,
+    Meat,
+    Bones,
+    Wood,
+}
+impl Default for ItemType {
+    fn default() -> Self { ItemType::Berry }
+}
+#[derive(Debug)]
+#[derive(Default)]
 pub struct CreatureAttributes {
 
 }
+
 #[derive(Debug)]
+#[derive(Default)]
+pub struct Item {
+    pub item_type: ItemType,
+    pub quantity: u32,
+}
+
+#[derive(Debug)]
+#[derive(Default)]
 pub struct CreatureState<'a> {
     pub attributes: CreatureAttributes,
     pub memory: CreatureMemory,
     pub visible_state: CreatureVisibleState<'a>,
+    pub inventory: Vec<Box<Item>>,
 }
-#[derive(Debug)]
-pub struct CreatureVisibleState<'a> {
-    pub location: Location,
-    pub location_temp: &'a Location, // just a placeholder to force 'a necessary
-    pub name: &'a str,
+impl CreatureState<'_> {
+    fn new<'a>(loc: Location) -> CreatureState<'a> {
+        let mut ret = CreatureState::default();
+        ret.visible_state.location = loc;
+        ret
+    }
 }
 
 #[derive(Debug)]
+#[derive(Default)]
+pub struct CreatureVisibleState<'a> {
+    pub location: Location,
+    pub region: Location,
+    pub name: &'a str,
+    pub creature_type: CreatureType,
+}
+
+#[derive(Debug)]
+#[derive(Default)]
 pub struct CreatureMemory {
     
 }
 
 #[derive(Debug)]
+#[derive(Default)]
+#[derive(Copy, Clone)]
 pub struct Location {
     x: i32,
     y: i32,
 }
 
 #[derive(Debug)]
-pub struct MapState {
+#[derive(Default)]
+pub struct MapState<'a> {
+    regions: Vec<Vec<MapRegion<'a>>>,
+}
 
+#[derive(Debug)]
+#[derive(Default)]
+pub struct MapRegion<'a> {
+    grid: Vec<Vec<MapLocation<'a>>>,
+}
+
+#[derive(Debug)]
+#[derive(Default)]
+pub struct MapLocation<'a> {
+    location: Location,
+    creatures: Vec<CreatureState<'a>>,
+    items: Vec<Item>,
 }
 
 #[derive(Debug)]
@@ -83,12 +143,12 @@ impl GoalCacheNode<'_> {
         }
     }
 
-    fn _my_fc() -> Option<MapState> {
+    fn _my_fc<'a>() -> Option<MapState<'a>> {
         let poop : Option<MapState>;
-        poop = Some(MapState{});
+        poop = Some(MapState::default());
         // MUST USE & IN FRONT OF OPTION SO IT DOESNT GET TAKEN!
-        let p: Option<MapState> = match poop.as_ref() {
-            Some(n) => None,
+        let _p: Option<MapState> = match poop.as_ref() {
+            Some(_n) => None,
             None => None
         };
         match poop {
@@ -327,8 +387,8 @@ impl GoalNode<'_> {
 #[cfg(test)]
 mod tests {
     use crate::*;
-    use std::{cell::{Ref, RefCell}, rc::Rc};
-    use std::collections::HashMap;
+    use std::{cell::{RefCell}, rc::Rc};
+    //use std::collections::HashMap;
 
     // PRETTY SURE GoalNode is fucked and needs Rc in connections to work
     // because if u return a GoalNode the connected other GoalNodes go out of scope
@@ -358,8 +418,8 @@ mod tests {
             get_requirements_met: Box::new(|_, _| false),
         };
 
-        // gather
-        let mut berry = GoalNode {
+        // gather, normally these would lead to eat/sells but lazy for this test
+        let berry = GoalNode {
             get_want_local: Box::new(|_, _| {
                 100
             }),
@@ -375,7 +435,7 @@ mod tests {
             get_command: Some(Box::new(|_, _| CreatureCommand::MoveTo("berry", Location{x: 0, y:0}))),
             get_requirements_met: Box::new(|_, _| true),
         };
-        let mut fruit = GoalNode {
+        let fruit = GoalNode {
             get_want_local: Box::new(|_, c| {
                 if c.visible_state.location.y == 1 {
                     101
@@ -445,7 +505,7 @@ mod tests {
             get_requirements_met: Box::new(|_, c| c.visible_state.location.x==6),
         };
         
-        let mut eat = GoalNode {
+        let eat = GoalNode {
             get_want_local: Box::new(|_, _| {
                 10
             }),
@@ -458,7 +518,7 @@ mod tests {
             get_requirements_met: Box::new(|_, c| c.visible_state.location.y==0 && c.visible_state.location.x==7),
         };
         let eat = Rc::new(eat);
-        let mut sell = GoalNode {
+        let sell = GoalNode {
             get_want_local: Box::new(|_, _| {
                 10
             }),
@@ -605,22 +665,22 @@ mod tests {
         loc.y += 1;
     }
 
+    #[test]
+    fn how_vecs_ownership_works() { 
+        let mut vec1 = vec![MapState::default()];
+        let mut vec2 :Vec<MapState> = Vec::new();
+        let trans = vec1.remove(0);
+        vec2.push(trans);
+        assert_eq!(vec1.len() + 1, vec2.len());
+    }
+
     // should be
     // loc x=1, y=0 -> berry wins
     #[test]
     fn berry_wins() {
         let root = generate_basic_graph();
-        let m_s = MapState{};
-        let location_temp =  Location{x: 0, y:0};
-        let c_s = CreatureState{
-            attributes: CreatureAttributes{},
-            memory: CreatureMemory{},
-            visible_state: CreatureVisibleState{
-                name: "berry", 
-                location: Location{x: 1, y:0},
-                location_temp: &location_temp,
-            }
-        };
+        let m_s = MapState::default();
+        let c_s = CreatureState::new(Location{x: 1, y:0});
         let res = GoalCacheNode::get_final_command(&root, &m_s, &c_s);
         let res = res.unwrap();
         println!("Got: {:#?}", &res);
@@ -634,17 +694,8 @@ mod tests {
     #[test]
     fn fruit_wins() {
         let root = generate_basic_graph();
-        let m_s = MapState{};
-        let location_temp =  Location{x: 0, y:0};
-        let c_s = CreatureState{
-            attributes: CreatureAttributes{},
-            memory: CreatureMemory{},
-            visible_state: CreatureVisibleState{
-                name: "fruit", 
-                location: Location{x: 1, y:1},
-                location_temp: &location_temp,
-            }
-        };
+        let m_s = MapState::default();
+        let c_s = CreatureState::new(Location{x: 1, y:1});
         let res = GoalCacheNode::get_final_command(&root, &m_s, &c_s);
         let res = res.unwrap();
         println!("Got: {:#?}", &res);
@@ -658,17 +709,8 @@ mod tests {
     #[test]
     fn find_deer_wins() {
         let root = generate_basic_graph();
-        let m_s = MapState{};
-        let location_temp =  Location{x: 0, y:0};
-        let c_s = CreatureState{
-            attributes: CreatureAttributes{},
-            memory: CreatureMemory{},
-            visible_state: CreatureVisibleState{
-                name: "find_deer", 
-                location: Location{x: 0, y:0},
-                location_temp: &location_temp,
-            }
-        };
+        let m_s = MapState::default();
+        let c_s = CreatureState::new(Location{x: 0, y:0});
         let res = GoalCacheNode::get_final_command(&root, &m_s, &c_s);
         let res = res.unwrap();
         println!("Got: {:#?}", &res);
@@ -682,17 +724,8 @@ mod tests {
     #[test]
     fn attack_deer_wins() {
         let root = generate_basic_graph();
-        let m_s = MapState{};
-        let location_temp =  Location{x: 0, y:0};
-        let c_s = CreatureState{
-            attributes: CreatureAttributes{},
-            memory: CreatureMemory{},
-            visible_state: CreatureVisibleState{
-                name: "attack_deer", 
-                location: Location{x: 5, y:0},
-                location_temp: &location_temp,
-            }
-        };
+        let m_s = MapState::default();
+        let c_s = CreatureState::new(Location{x: 5, y:0});
         let res = GoalCacheNode::get_final_command(&root, &m_s, &c_s);
         let res = res.unwrap();
         println!("Got: {:#?}", &res);
@@ -706,17 +739,8 @@ mod tests {
     #[test]
     fn loot_deer_wins() {
         let root = generate_basic_graph();
-        let m_s = MapState{};
-        let location_temp =  Location{x: 0, y:0};
-        let c_s = CreatureState{
-            attributes: CreatureAttributes{},
-            memory: CreatureMemory{},
-            visible_state: CreatureVisibleState{
-                name: "loot_deer", 
-                location: Location{x: 6, y:0},
-                location_temp: &location_temp,
-            }
-        };
+        let m_s = MapState::default();
+        let c_s = CreatureState::new(Location{x: 6, y:0});
         let res = GoalCacheNode::get_final_command(&root, &m_s, &c_s);
         let res = res.unwrap();
         println!("Got: {:#?}", &res);
@@ -730,17 +754,8 @@ mod tests {
     #[test]
     fn eat_deer_wins() {
         let root = generate_basic_graph();
-        let m_s = MapState{};
-        let location_temp =  Location{x: 0, y:0};
-        let c_s = CreatureState{
-            attributes: CreatureAttributes{},
-            memory: CreatureMemory{},
-            visible_state: CreatureVisibleState{
-                name: "eat", 
-                location: Location{x: 7, y:0},
-                location_temp: &location_temp,
-            }
-        };
+        let m_s = MapState::default();
+        let c_s = CreatureState::new(Location{x: 7, y:0});
         let res = GoalCacheNode::get_final_command(&root, &m_s, &c_s);
         let res = res.unwrap();
         println!("Got: {:#?}", &res);
@@ -754,17 +769,8 @@ mod tests {
     #[test]
     fn sell_deer_wins() {
         let root = generate_basic_graph();
-        let m_s = MapState{};
-        let location_temp =  Location{x: 0, y:0};
-        let c_s = CreatureState{
-            attributes: CreatureAttributes{},
-            memory: CreatureMemory{},
-            visible_state: CreatureVisibleState{
-                name: "sell", 
-                location: Location{x: 7, y:1},
-                location_temp: &location_temp,
-            }
-        };
+        let m_s = MapState::default();
+        let c_s = CreatureState::new(Location{x: 7, y:1});
         let res = GoalCacheNode::get_final_command(&root, &m_s, &c_s);
         let res = res.unwrap();
         println!("Got: {:#?}", &res);
@@ -778,17 +784,8 @@ mod tests {
     #[test]
     fn attack_wolf_wins() {
         let root = generate_basic_graph();
-        let m_s = MapState{};
-        let location_temp =  Location{x: 0, y:0};
-        let c_s = CreatureState{
-            attributes: CreatureAttributes{},
-            memory: CreatureMemory{},
-            visible_state: CreatureVisibleState{
-                name: "attack_wolf", 
-                location: Location{x: 9, y:0},
-                location_temp: &location_temp,
-            }
-        };
+        let m_s = MapState::default();
+        let c_s = CreatureState::new(Location{x: 9, y:0});
         let res = GoalCacheNode::get_final_command(&root, &m_s, &c_s);
         let res = res.unwrap();
         println!("Got: {:#?}", &res);
@@ -803,17 +800,8 @@ mod tests {
     #[test]
     fn loot_wolf_wins() {
         let root = generate_basic_graph();
-        let m_s = MapState{};
-        let location_temp =  Location{x: 0, y:0};
-        let c_s = CreatureState{
-            attributes: CreatureAttributes{},
-            memory: CreatureMemory{},
-            visible_state: CreatureVisibleState{
-                name: "loot_wolf", 
-                location: Location{x: 10, y:0},
-                location_temp: &location_temp,
-            }
-        };
+        let m_s = MapState::default();
+        let c_s = CreatureState::new(Location{x: 10, y:0});
         let res = GoalCacheNode::get_final_command(&root, &m_s, &c_s);
         let res = res.unwrap();
         println!("Got: {:#?}", &res);
@@ -828,17 +816,8 @@ mod tests {
     #[test]
     fn sell_wolf_wins() {
         let root = generate_basic_graph();
-        let m_s = MapState{};
-        let location_temp =  Location{x: 0, y:0};
-        let c_s = CreatureState{
-            attributes: CreatureAttributes{},
-            memory: CreatureMemory{},
-            visible_state: CreatureVisibleState{
-                name: "sell", 
-                location: Location{x: 11, y:1},
-                location_temp: &location_temp,
-            }
-        };
+        let m_s = MapState::default();
+        let c_s = CreatureState::new(Location{x: 11, y:1});
         let res = GoalCacheNode::get_final_command(&root, &m_s, &c_s);
         let res = res.unwrap();
         println!("Got: {:#?}", &res);
