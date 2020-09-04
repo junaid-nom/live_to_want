@@ -113,6 +113,13 @@ pub struct GoalConnection<'a> {
     pub amplifier: f32,
 }
 
+pub struct TaskList {
+
+}
+pub struct EventChain {
+    
+}
+
 
 pub struct GoalCacheNode<'a> {
     goal: &'a GoalNode<'a>,
