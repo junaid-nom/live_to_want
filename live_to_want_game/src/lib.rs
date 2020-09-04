@@ -42,6 +42,12 @@ pub struct Item {
 
 #[derive(Debug)]
 #[derive(Default)]
+// TODO: GET RID OF ALL THESE FUCKING attribute type FIELDS
+// Instead make a big enum of "Components"
+// Components have a func "get_is_visible()"
+// Components are in a Rc<RefCell<>> so that they can be also added to a big HashTable
+// big hashtable should only have a WEAK reference and remove it self if the thing dies (save index and remove highest index first)
+// so u can do stuff like for every Metabolism component, subtract calories or something
 pub struct CreatureState<'a> {
     pub attributes: CreatureAttributes,
     pub memory: CreatureMemory,
@@ -113,11 +119,29 @@ pub struct GoalConnection<'a> {
     pub amplifier: f32,
 }
 
-pub struct TaskList {
-
+/// Is a list of all events for that target for a given frame cycle
+/// Must place all tasks for that target in here at once or could cause race conditions
+pub struct TaskList<'a> {
+    target: &'a EventTarget<'a>,
+    tasks: &'a mut Vec<EventChain>,
 }
 pub struct EventChain {
-    
+    index: usize,
+    events: Vec<Event>,
+}
+
+pub enum EventTarget<'a> {
+    LocationItemTarget(&'a mut Vec<Item>),
+    CreatureTarget(&'a mut CreatureState<'a>),
+}
+
+pub struct Event {
+    event_type: EventType,
+    get_requirements: Box<dyn Fn (&EventTarget) -> bool>,
+    on_fail: Option<EventChain>,
+}
+pub enum EventType {
+    Move(Location),
 }
 
 
@@ -350,45 +374,6 @@ pub struct GoalNode<'a> {
 }
 
 impl GoalNode<'_> {
-    // fn get_total_motivation(&mut self, map_state :&MapState, c_state : &CreatureState) -> u32 {
-    //     if let Some(cached_motivation) = self.cached_motivation {
-    //         return cached_motivation;
-    //     } else {
-    //         let mut max = 0;
-    //         for c in &mut self.children {
-    //             let c_mot = c.get_total_motivation(map_state, c_state);
-    //             if c_mot > max {
-    //                 max = c_mot;
-    //             }
-    //         }
-    //         self.cached_motivation = Some(max);
-    //         max
-    //     }
-    // }
-
-    // fn get_final_node<'a>(&'a mut self, map_state :&MapState, c_state : &CreatureState) -> &'a GoalNode {
-    //     // let max_node = self.children.iter_mut().max_by(|a, b| {
-    //     //     let a_mot = a.get_total_motivation(map_state, c_state);
-    //     //     let b_mot = b.get_total_motivation(map_state, c_state);
-    //     //     a_mot.cmp(&b_mot)
-    //     // });
-
-    //     let mut max = 0;
-    //     let mut max_node = None;
-    //     for c in &mut self.children {
-    //         let c_mot = c.get_total_motivation(map_state, c_state);
-    //         if c_mot > max {
-    //             max = c_mot;
-    //             max_node = Some(c);
-    //         }
-    //     }
-
-    //     if let Some(max_n) = max_node {
-    //         max_n
-    //     } else {
-    //         &self
-    //     }
-    // }
 }
 
 #[cfg(test)]
@@ -679,6 +664,55 @@ mod tests {
         let trans = vec1.remove(0);
         vec2.push(trans);
         assert_eq!(vec1.len() + 1, vec2.len());
+    }
+
+    #[test]
+    fn how_does_mut_ref_work() {
+        fn need_immutable(loc: &Location) -> i32 {
+            loc.x
+        }
+        fn need_mutable(loc: &mut Location) -> i32 {
+            loc.x += 1;
+            loc.x
+        }
+
+        let mut loc = Location{x: 1, y:2};
+        let loc_m = &mut loc;
+        need_immutable(loc_m);
+        need_mutable(loc_m);
+        need_immutable(loc_m);
+        need_mutable(loc_m);
+        assert_eq!(loc.x, 3);
+    }
+
+    #[test]
+    fn how_does_mut_state_work_nested_obj() {
+        struct MutMl<'a> {
+            ml: &'a mut MapLocation<'a>,
+        }
+
+        fn use_ml(ml: &MapLocation) -> i32 {
+            ml.location.x
+        }
+        fn change_ml(ml: &mut Location) {
+            ml.x += 1;
+        }
+
+        let mut ml = MapLocation{
+            location: Location{x: 0, y: 0},
+            creatures: Vec::new(),
+            items: Vec::new(),
+        };
+
+        let mml = MutMl{
+            ml: &mut ml,
+        };
+        // both of below won't work!
+        
+        // let mml2 = MutMl{
+        //     ml: &mut ml,
+        // };
+        //use_ml(&ml);
     }
 
     // should be
