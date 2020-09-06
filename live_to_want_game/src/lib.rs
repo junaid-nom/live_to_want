@@ -4,9 +4,22 @@ use std::cmp::Ordering;
 use std::{cell::{Ref, RefCell}, rc::Rc};
 use std::collections::HashMap;
 use std::ops::Deref;
-use std::borrow::Borrow;
+use std::{fmt::{Debug, Formatter}, borrow::Borrow};
+use std::sync::atomic::AtomicU64;
+use core::fmt;
 
-#[derive(Debug)]
+extern crate rayon;
+use rayon::prelude::*;
+
+// NOTE: All event chains with items need to end in a final failure case of putting item on ground.
+// this is because you can try to give an item away as someone else fills your inventory and 
+// if both giving fails and putting back into your inventory fails, need to put item somewhere, so put on ground.
+
+static COUNTER: AtomicU64 = AtomicU64::new(1); // TODO: Upgrade to a 128 bit one when it comes out of nightly build
+fn get_id() -> u64 { COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed) }
+type UID = u64;
+
+#[derive(Debug, Hash, PartialEq, Eq)]
 pub enum CreatureType {
     Deer,
     Wolf,
@@ -17,7 +30,8 @@ impl Default for CreatureType {
     fn default() -> Self { CreatureType::Deer }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
+#[derive(PartialEq, Hash, Eq)]
 pub enum ItemType {
     Berry,
     Meat,
@@ -27,59 +41,153 @@ pub enum ItemType {
 impl Default for ItemType {
     fn default() -> Self { ItemType::Berry }
 }
-#[derive(Debug)]
-#[derive(Default)]
-pub struct CreatureAttributes {
 
+trait Component {
+    fn get_visible() -> bool {
+        false
+    }
+}
+
+#[derive(Default)]
+#[derive(Debug)]
+#[derive(Hash, PartialEq, Eq)]
+pub struct ComponentMap {
+    id_component: IDComponent,
+    health_component: Option<HealthComponent>,
+    location_component: Option<LocationComponent>,
+    region_component: Option<RegionComponent>,
+    name_component: Option<NameComponent>,
+    creature_type_component: Option<CreatureTypeComponent>,
 }
 
 #[derive(Debug)]
-#[derive(Default)]
+#[derive(Hash, PartialEq, Eq)]
+struct IDComponent {
+    id: UID,
+}
+impl IDComponent {
+    fn new() -> IDComponent{
+        IDComponent{
+            id: get_id()
+        }
+    }
+}
+impl Default for IDComponent {
+    fn default() -> Self {
+        IDComponent::new()
+    }
+}
+
+#[derive(Debug)]
+#[derive(Hash, PartialEq, Eq)]
+struct HealthComponent {
+    health: i32,
+}
+impl Component for HealthComponent {
+    fn get_visible() -> bool {
+        true
+    }
+}
+#[derive(Debug, Hash, PartialEq, Eq)]
+struct LocationComponent {
+    location: Location,
+}
+impl Component for LocationComponent {
+    fn get_visible() -> bool {
+        true
+    }
+}
+#[derive(Debug, Hash, PartialEq, Eq)]
+struct RegionComponent {
+    region: Location,
+}
+impl Component for RegionComponent {
+    fn get_visible() -> bool {
+        true
+    }
+}
+#[derive(Debug, Hash, PartialEq, Eq)]
+struct NameComponent {
+
+}
+impl Component for NameComponent {
+    fn get_visible() -> bool {
+        true
+    }
+}
+#[derive(Debug, Hash, PartialEq, Eq)]
+struct CreatureTypeComponent {
+
+}
+impl Component for CreatureTypeComponent {
+    fn get_visible() -> bool {
+        true
+    }
+}
+
+// pub enum CreatureComponents {
+//     Health(i32),
+//     Location(Location),
+//     Region(Location),
+//     Name(String),
+//     CreatureType(CreatureType),
+// }
+
+#[derive(Debug)]
+#[derive(Default, Hash, PartialEq, Eq)]
 pub struct Item {
     pub item_type: ItemType,
     pub quantity: u32,
 }
 
-#[derive(Debug)]
-#[derive(Default)]
 // TODO: GET RID OF ALL THESE FUCKING attribute type FIELDS
 // Instead make a big enum of "Components"
 // Components have a func "get_is_visible()"
 // Components are in a Rc<RefCell<>> so that they can be also added to a big HashTable
 // big hashtable should only have a WEAK reference and remove it self if the thing dies (save index and remove highest index first)
 // so u can do stuff like for every Metabolism component, subtract calories or something
-pub struct CreatureState<'a> {
-    pub attributes: CreatureAttributes,
+#[derive(Debug)]
+#[derive(Hash, PartialEq, Eq)]
+pub struct CreatureState {
+    pub components: ComponentMap,
     pub memory: CreatureMemory,
-    pub visible_state: CreatureVisibleState<'a>,
-    pub inventory: Vec<Box<Item>>,
+    pub inventory: Vec<Item>,
 }
-impl CreatureState<'_> {
-    fn new<'a>(loc: Location) -> CreatureState<'a> {
+impl CreatureState {
+    fn new<'a>(loc: Location) -> CreatureState {
         let mut ret = CreatureState::default();
-        ret.visible_state.location = loc;
+        ret.components.location_component = Some(LocationComponent{location:loc});
         ret
+    }
+}
+impl Default for CreatureState {
+    fn default() -> Self {
+        CreatureState{
+            components: ComponentMap::default(),
+            memory: CreatureMemory::default(),
+            inventory: Vec::new(),
+        }
+    }
+}
+impl std::fmt::Display for CreatureState {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), std::fmt::Error> {
+        let mut fString = String::new();
+        for item in &self.inventory {
+            fString = format!("{},{}",fString, item.quantity);
+        }
+        write!(f, "{}", fString)
     }
 }
 
 #[derive(Debug)]
-#[derive(Default)]
-pub struct CreatureVisibleState<'a> {
-    pub location: Location,
-    pub region: Location,
-    pub name: &'a str,
-    pub creature_type: CreatureType,
-}
-
-#[derive(Debug)]
-#[derive(Default)]
+#[derive(Default, Hash, PartialEq, Eq)]
 pub struct CreatureMemory {
     
 }
 
 #[derive(Debug)]
 #[derive(Default)]
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Hash, PartialEq, Eq)]
 pub struct Location {
     x: i32,
     y: i32,
@@ -87,30 +195,31 @@ pub struct Location {
 
 #[derive(Debug)]
 #[derive(Default)]
-pub struct MapState<'a> {
-    regions: Vec<Vec<MapRegion<'a>>>,
+pub struct MapState {
+    regions: Vec<Vec<MapRegion>>,
 }
 
 #[derive(Debug)]
 #[derive(Default)]
-pub struct MapRegion<'a> {
-    grid: Vec<Vec<MapLocation<'a>>>,
+pub struct MapRegion {
+    grid: Vec<Vec<MapLocation>>,
 }
 
 #[derive(Debug)]
 #[derive(Default)]
-pub struct MapLocation<'a> {
+pub struct MapLocation {
+    id_component: IDComponent, 
     location: Location,
-    creatures: Vec<CreatureState<'a>>,
-    items: Vec<Item>,
+    creatures: Vec<Rc<RefCell<CreatureState>>>,
+    items: Rc<RefCell<Vec<Item>>>,
 }
 
 #[derive(Debug)]
 pub enum CreatureCommand<'a>{
     // str here is for debugging purposes and is usually just the name of the node
     MoveTo(&'a str, Location),
-    Chase(&'a str, &'a CreatureVisibleState<'a>),
-    Attack(&'a str, &'a CreatureVisibleState<'a>),
+    Chase(&'a str, &'a ComponentMap),
+    Attack(&'a str, &'a ComponentMap),
 }
 
 pub struct GoalConnection<'a> {
@@ -121,28 +230,146 @@ pub struct GoalConnection<'a> {
 
 /// Is a list of all events for that target for a given frame cycle
 /// Must place all tasks for that target in here at once or could cause race conditions
-pub struct TaskList<'a> {
-    target: &'a EventTarget<'a>,
-    tasks: &'a mut Vec<EventChain>,
+//#[derive(std::marker::Sized)] doesnt work...
+pub struct TaskList {
+    target: EventTarget,
+    tasks: Vec<EventChain>,
 }
+impl TaskList {
+    fn process(mut self) -> Vec<Option<EventChain>> {
+        let mut ret = Vec::new();
+        for task in self.tasks.into_iter() {
+            ret.push(task.process(&mut self.target));
+        }
+        ret
+    }
+}
+
+
+
+#[derive(Debug)]
 pub struct EventChain {
     index: usize,
     events: Vec<Event>,
 }
+impl EventChain {
+    fn process(self, effected: &mut EventTarget) -> Option<EventChain> {
+        let e = &self.events[*&self.index];
+        let success = e.get_requirements.deref()(&*effected);
+        if success {
+            e.mutate(effected);
+            let mut se = self;
+            se.index+=1;
+            if se.events.len() > se.index {
+                Some(se)
+            }
+            else {
+                None
+            }
+        } else {
+            let mut e = self;
+            e.events.remove(e.index).on_fail
+        }
+    }
+}
 
-pub enum EventTarget<'a> {
-    LocationItemTarget(&'a mut Vec<Item>),
-    CreatureTarget(&'a mut CreatureState<'a>),
+#[derive(Debug)]
+#[derive(PartialEq, Eq, Clone)]
+pub enum EventTarget {
+    LocationItemTarget(Rc<RefCell<Vec<Item>>>, UID),
+    CreatureTarget(Rc<RefCell<CreatureState>>),
+}
+impl EventTarget {
+    fn get_id(&self) -> UID {
+        match &self {
+            EventTarget::LocationItemTarget(_, id) => {*id}
+            EventTarget::CreatureTarget(c) => {c.deref().borrow().components.id_component.id}
+        }
+    }
 }
 
 pub struct Event {
     event_type: EventType,
     get_requirements: Box<dyn Fn (&EventTarget) -> bool>,
     on_fail: Option<EventChain>,
+    target: EventTarget,
 }
+impl Event {
+    fn mutate(&self, effected: &mut EventTarget) {
+        match &self.event_type {
+            EventType::Move(_) => {}
+            EventType::RemoveItem(q, t) => {
+                match effected {
+                    EventTarget::LocationItemTarget(v, _) => {
+                        for v in v.deref().borrow_mut().iter_mut() {
+                            if v.item_type == *t {
+                                v.quantity -= q;
+                                return;
+                            }
+                        }
+                    }
+                    EventTarget::CreatureTarget(c) => {
+                        for v in c.deref().borrow_mut().inventory.iter_mut() {
+                            if v.item_type == *t {
+                                v.quantity -= q;
+                                return;
+                            }
+                        }
+                    }
+                }
+                panic!(format!("Failed to find item in event! event: {:#?}", &self));
+            }
+            EventType::AddItem(q, t) => {
+                match effected {
+                    EventTarget::LocationItemTarget(v, _) => {
+                        let mut inventory = v.deref().borrow_mut();
+                        for v in inventory.iter_mut() {
+                            if v.item_type == *t {
+                                v.quantity += q;
+                                return;
+                            }
+                        }
+                        inventory.push(Item{
+                            item_type: *t,
+                            quantity: *q,
+                        });
+                    }
+                    EventTarget::CreatureTarget(c) => {
+                        let mut c = c.deref().borrow_mut();
+                        for v in c.inventory.iter_mut() {
+                            if v.item_type == *t {
+                                v.quantity += q;
+                                return;
+                            }
+                        }
+                        c.inventory.push(Item{
+                            item_type: *t,
+                            quantity: *q,
+                        });
+                    }
+                }
+                // TODO: Panic if inv full?>
+            }
+        }
+    }
+}
+impl Debug for Event {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Event")
+         .field("event_type", &self.event_type)
+         .field("target", &self.target)
+         .finish()
+    }
+}
+
+#[derive(Debug)]
 pub enum EventType {
     Move(Location),
+    RemoveItem(u32, ItemType),
+    AddItem(u32, ItemType),
 }
+
+
 
 
 pub struct GoalCacheNode<'a> {
@@ -174,7 +401,7 @@ impl GoalCacheNode<'_> {
         }
     }
 
-    fn _my_fc<'a>() -> Option<MapState<'a>> {
+    fn _my_fc<'a>() -> Option<MapState> {
         let poop : Option<MapState>;
         poop = Some(MapState::default());
         // MUST USE & IN FRONT OF OPTION SO IT DOESNT GET TAKEN!
@@ -379,8 +606,21 @@ impl GoalNode<'_> {
 #[cfg(test)]
 mod tests {
     use crate::*;
-    use std::{cell::{RefCell}, rc::Rc};
-    //use std::collections::HashMap;
+    // use std::{cell::{RefCell}, rc::Rc};
+    // use std::collections::HashMap;
+    
+    // extern crate rayon;
+    // use rayon::prelude::*;
+
+    use std::{cell::{Ref, RefCell}, rc::Rc};
+    use std::collections::HashMap;
+    use std::ops::Deref;
+    use std::{fmt::{Debug, Formatter}, borrow::Borrow};
+    use std::sync::atomic::AtomicU64;
+    use core::fmt;
+
+    extern crate rayon;
+    use rayon::prelude::*;
 
     // PRETTY SURE GoalNode is fucked and needs Rc in connections to work
     // because if u return a GoalNode the connected other GoalNodes go out of scope
@@ -416,7 +656,7 @@ mod tests {
                 100
             }),
             get_effort_local: Box::new(|_, c| {
-                if c.visible_state.location.x == 1 {
+                if c.components.location_component.as_ref().unwrap().location.x == 1 {
                     30
                 } else {
                     50
@@ -429,14 +669,14 @@ mod tests {
         };
         let fruit = GoalNode {
             get_want_local: Box::new(|_, c| {
-                if c.visible_state.location.y == 1 {
+                if c.components.location_component.as_ref().unwrap().location.y == 1 {
                     101
                 } else {
                     99
                 }
             }),
             get_effort_local: Box::new(|_, c| {
-                if c.visible_state.location.x == 1 {
+                if c.components.location_component.as_ref().unwrap().location.x == 1 {
                     30
                 } else {
                     50
@@ -482,7 +722,7 @@ mod tests {
             children: Vec::new(),
             name: "attack_deer",
             get_command: Some(Box::new(|_, _| CreatureCommand::MoveTo("attack_deer", Location{x: 0, y:0}))),
-            get_requirements_met: Box::new(|_, c| c.visible_state.location.x==5),
+            get_requirements_met: Box::new(|_, c| c.components.location_component.as_ref().unwrap().location.x==5),
         };
         let mut loot_deer = GoalNode {
             get_want_local: Box::new(|_, _| {
@@ -494,7 +734,7 @@ mod tests {
             children: Vec::new(),
             name: "loot_deer",
             get_command: Some(Box::new(|_, _| CreatureCommand::MoveTo("loot_deer", Location{x: 0, y:0}))),
-            get_requirements_met: Box::new(|_, c| c.visible_state.location.x==6),
+            get_requirements_met: Box::new(|_, c| c.components.location_component.as_ref().unwrap().location.x==6),
         };
         
         let eat = GoalNode {
@@ -507,7 +747,7 @@ mod tests {
             children: Vec::new(),
             name: "eat",
             get_command: Some(Box::new(|_, _| CreatureCommand::MoveTo("eat", Location{x: 0, y:0}))),
-            get_requirements_met: Box::new(|_, c| c.visible_state.location.y==0 && c.visible_state.location.x==7),
+            get_requirements_met: Box::new(|_, c| c.components.location_component.as_ref().unwrap().location.y==0 && c.components.location_component.as_ref().unwrap().location.x==7),
         };
         let eat = Rc::new(eat);
         let sell = GoalNode {
@@ -520,8 +760,8 @@ mod tests {
             children: Vec::new(),
             name: "sell",
             get_command: Some(Box::new(|_, _| CreatureCommand::MoveTo("sell", Location{x: 0, y:0}))),
-            get_requirements_met: Box::new(|_, c| c.visible_state.location.y==1 && 
-                (c.visible_state.location.x==7 || c.visible_state.location.x==11)),
+            get_requirements_met: Box::new(|_, c| c.components.location_component.as_ref().unwrap().location.y==1 && 
+                (c.components.location_component.as_ref().unwrap().location.x==7 || c.components.location_component.as_ref().unwrap().location.x==11)),
         };
         let sell = Rc::new(sell);
 
@@ -574,7 +814,7 @@ mod tests {
             children: Vec::new(),
             name: "attack_wolf",
             get_command: Some(Box::new(|_, _| CreatureCommand::MoveTo("attack_wolf", Location{x: 0, y:0}))),
-            get_requirements_met: Box::new(|_, c| c.visible_state.location.x==9),
+            get_requirements_met: Box::new(|_, c| c.components.location_component.as_ref().unwrap().location.x==9),
         };
         let mut loot_wolf = GoalNode {
             get_want_local: Box::new(|_, _| {
@@ -586,7 +826,7 @@ mod tests {
             children: Vec::new(),
             name: "loot_wolf",
             get_command: Some(Box::new(|_, _| CreatureCommand::MoveTo("loot_wolf", Location{x: 0, y:0}))),
-            get_requirements_met: Box::new(|_, c| c.visible_state.location.x==10),
+            get_requirements_met: Box::new(|_, c| c.components.location_component.as_ref().unwrap().location.x==10),
         };
         loot_wolf.children.push(GoalConnection{
             child: sell.clone(),
@@ -688,7 +928,7 @@ mod tests {
     #[test]
     fn how_does_mut_state_work_nested_obj() {
         struct MutMl<'a> {
-            ml: &'a mut MapLocation<'a>,
+            ml: &'a mut MapLocation,
         }
 
         fn use_ml(ml: &MapLocation) -> i32 {
@@ -701,7 +941,8 @@ mod tests {
         let mut ml = MapLocation{
             location: Location{x: 0, y: 0},
             creatures: Vec::new(),
-            items: Vec::new(),
+            items: Rc::new(RefCell::new(Vec::new())),
+            id_component: IDComponent::new(),
         };
 
         let mml = MutMl{
@@ -867,5 +1108,196 @@ mod tests {
             CreatureCommand::MoveTo(n, _) => assert_eq!(n, "sell"),
             _ => panic!("should return moveto!"),
         };
+    }
+
+    #[test]
+    fn test_rayon() {
+        pub struct TaskListTest {
+            ev: EventTarget,
+        }
+        let ev = vec!(EventTarget::LocationItemTarget(Rc::new(RefCell::new(Vec::new())), 1));
+        let ev = vec![Rc::new(RefCell::new(2))];
+        let ev = vec![2];
+        ev.into_par_iter().map(|x| match x {
+            EventTarget::LocationItemTarget(_, _) => {}
+            EventTarget::CreatureTarget(_) => {}
+        });
+    }
+
+    #[test]
+    fn test_chain_multithread() {
+        // make a mapstate with some deer
+        let mut region = MapRegion{
+            grid:Vec::new()
+        };
+        for x in 0..10 {
+            let mut xList  = Vec::new();
+            for y in 0..10 {
+                let loc = MapLocation{
+                    id_component: IDComponent::new(),
+                    location: Location{x, y},
+                    creatures: Vec::new(),
+                    items: Rc::new(RefCell::new(Vec::new())),
+                };
+                xList.push(loc);
+            }
+            region.grid.push(xList);
+        }
+    
+        let mut deer1 = Rc::new(RefCell::new(CreatureState{
+            components: ComponentMap::default(),
+            inventory: Vec::new(),
+            memory: CreatureMemory::default(),
+        }));
+        deer1.deref().borrow_mut().components.location_component.as_mut().unwrap().location.x = 1;
+        deer1.deref().borrow_mut().components.location_component.as_mut().unwrap().location.y = 1;
+    
+        region.grid[1][1].creatures.push(
+            deer1.clone()
+        );
+    
+        let mut deer2 = Rc::new(RefCell::new(CreatureState{
+            components: ComponentMap::default(),
+            inventory: Vec::new(),
+            memory: CreatureMemory::default(),
+        }));
+        deer2.deref().borrow_mut().components.location_component.as_mut().unwrap().location.x = 1;
+        deer2.deref().borrow_mut().components.location_component.as_mut().unwrap().location.y = 1;
+    
+        region.grid[1][1].creatures.push(
+            deer2.clone()
+        );
+    
+        region.grid[1][1].items.deref().borrow_mut().push(Item{
+            item_type: ItemType::Berry,
+            quantity: 1,
+        });
+        
+        // make some event chain examples
+        // pick up item -> remove item (if fail remove item again) (note, in rl would do reverse)
+        let pickup1 = Event {
+            event_type: EventType::AddItem(1, ItemType::Berry),
+            get_requirements: Box::new(|_| true),
+            on_fail: None,
+            target: EventTarget::CreatureTarget(deer1.clone()),
+        };
+        let pickup2 = Event {
+            event_type: EventType::AddItem(1, ItemType::Berry),
+            get_requirements: Box::new(|_| true),
+            on_fail: None,
+            target: EventTarget::CreatureTarget(deer2.clone()),
+        };
+        let pickup_fail = Event {
+            event_type: EventType::RemoveItem(1, ItemType::Berry),
+            get_requirements: Box::new(|_| true),
+            on_fail: None,
+            target: EventTarget::CreatureTarget(deer1.clone()),
+        };
+        let event_fail1 = EventChain {
+            index: 0,
+            events: vec!(pickup_fail),
+        };
+        let pickup_fail2 = Event {
+            event_type: EventType::RemoveItem(1, ItemType::Berry),
+            get_requirements: Box::new(|_| true),
+            on_fail: None,
+            target: EventTarget::CreatureTarget(deer2.clone()),
+        };
+        let event_fail2 = EventChain {
+            index: 0,
+            events: vec!(pickup_fail2),
+        };
+        let remove1=  Event {
+            event_type: EventType::RemoveItem(1, ItemType::Berry),
+            get_requirements: Box::new(|e| {
+                match e {
+                    EventTarget::LocationItemTarget(i, _) => {
+                        for item in i.deref().borrow().iter() {
+                            if item.item_type == ItemType::Berry && item.quantity > 0 {
+                                return true
+                            }
+                        }
+                        false
+                    }
+                    EventTarget::CreatureTarget(c) => {
+                        for item in c.deref().borrow().inventory.iter() {
+                            if item.item_type == ItemType::Berry && item.quantity > 0 {
+                                return true
+                            }
+                        }
+                        false
+                    }
+                }
+            }),
+            on_fail: Some(event_fail1),
+            target: EventTarget::LocationItemTarget(region.grid[1][1].items.clone(), region.grid[1][1].id_component.id)
+        };
+        let remove2=  Event {
+            event_type: EventType::RemoveItem(1, ItemType::Berry),
+            get_requirements: Box::new(|e| {
+                match e {
+                    EventTarget::LocationItemTarget(i, _) => {
+                        for item in i.deref().borrow().iter() {
+                            if item.item_type == ItemType::Berry && item.quantity > 0 {
+                                return true
+                            }
+                        }
+                        false
+                    }
+                    EventTarget::CreatureTarget(c) => {
+                        for item in c.deref().borrow().inventory.iter() {
+                            if item.item_type == ItemType::Berry && item.quantity > 0 {
+                                return true
+                            }
+                        }
+                        false
+                    }
+                }
+            }),
+            on_fail: Some(event_fail2),
+            target: EventTarget::LocationItemTarget(region.grid[1][1].items.clone(), region.grid[1][1].id_component.id)
+        };
+    
+        let deer_chain1 = EventChain {
+            index: 0,
+            events: vec![pickup1, remove1],
+        };
+        let deer_chain2 = EventChain {
+            index: 0,
+            events: vec![pickup2, remove2],
+        };
+    
+        // for all events, get current target, and make hashtable of Vec for it
+        // transfer the Vec and Targets to a TaskList
+        let event_chains = vec![deer_chain1, deer_chain2];
+    
+        let mut tasks_map: HashMap<UID, TaskList> = HashMap:: new();
+        for ec in event_chains.into_iter() {
+            let key = ec.events[ec.index].target.get_id();
+            match tasks_map.get_mut(&key) {
+                Some(tl) => {
+                    tl.tasks.push(ec);
+                }
+                None => {
+                    let tl = TaskList {
+                        target: ec.events[ec.index].target.clone(),
+                        tasks: vec![ec]
+                    };
+                    tasks_map.insert(key, tl);
+                }
+            }
+        }
+    
+        let mut task_lists =  Vec::new();
+        // Run task list, get back Next EventChain
+        for (_, task_list) in tasks_map.drain() {
+            task_lists.push(task_list);
+        }
+        //let mut test_rayon = vec![1,2,3,4,5];
+        //test_rayon.into_par_iter().map(|tl| (tl*2));
+    
+    
+        let next = task_lists.into_par_iter().flat_map(move |tl| tl.process());
+    
     }
 }
