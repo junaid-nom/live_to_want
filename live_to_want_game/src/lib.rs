@@ -15,6 +15,9 @@ use rayon::prelude::*;
 // this is because you can try to give an item away as someone else fills your inventory and 
 // if both giving fails and putting back into your inventory fails, need to put item somewhere, so put on ground.
 
+// TODO: 
+// Pretty sure items in a MapLocation and inventory in a creature state don't have to be rc<refcell<>>
+
 static COUNTER: AtomicU64 = AtomicU64::new(1); // TODO: Upgrade to a 128 bit one when it comes out of nightly build
 fn get_id() -> u64 { COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed) }
 type UID = u64;
@@ -210,8 +213,8 @@ pub struct MapRegion {
 pub struct MapLocation {
     id_component: IDComponent, 
     location: Location,
-    creatures: Vec<Rc<RefCell<CreatureState>>>,
-    items: Rc<RefCell<Vec<Item>>>,
+    creatures: Vec<CreatureState>,
+    items: Vec<Item>,
 }
 
 #[derive(Debug)]
@@ -231,11 +234,11 @@ pub struct GoalConnection<'a> {
 /// Is a list of all events for that target for a given frame cycle
 /// Must place all tasks for that target in here at once or could cause race conditions
 //#[derive(std::marker::Sized)] doesnt work...
-pub struct TaskList {
-    target: EventTarget,
+pub struct TaskList<'a> {
+    target: &'a mut EventTarget<'a>,
     tasks: Vec<EventChain>,
 }
-impl TaskList {
+impl TaskList<'_> {
     fn process(mut self) -> Vec<Option<EventChain>> {
         let mut ret = Vec::new();
         for task in self.tasks.into_iter() {
@@ -274,25 +277,25 @@ impl EventChain {
 }
 
 #[derive(Debug)]
-#[derive(PartialEq, Eq, Clone)]
-pub enum EventTarget {
-    LocationItemTarget(Rc<RefCell<Vec<Item>>>, UID),
-    CreatureTarget(Rc<RefCell<CreatureState>>),
+#[derive(PartialEq, Eq)]
+pub enum EventTarget<'a> {
+    LocationItemTarget(&'a mut Vec<Item>, UID),
+    CreatureTarget(&'a mut CreatureState),
 }
-impl EventTarget {
+impl EventTarget<'_> {
     fn get_id(&self) -> UID {
         match &self {
             EventTarget::LocationItemTarget(_, id) => {*id}
-            EventTarget::CreatureTarget(c) => {c.deref().borrow().components.id_component.id}
+            EventTarget::CreatureTarget(c) => {c.components.id_component.id}
         }
     }
 }
 
 pub struct Event {
     event_type: EventType,
-    get_requirements: Box<dyn Fn (&EventTarget) -> bool>,
+    get_requirements: Box<fn (&EventTarget) -> bool>,
     on_fail: Option<EventChain>,
-    target: EventTarget,
+    target: UID,
 }
 impl Event {
     fn mutate(&self, effected: &mut EventTarget) {
@@ -301,7 +304,7 @@ impl Event {
             EventType::RemoveItem(q, t) => {
                 match effected {
                     EventTarget::LocationItemTarget(v, _) => {
-                        for v in v.deref().borrow_mut().iter_mut() {
+                        for v in v.iter_mut() {
                             if v.item_type == *t {
                                 v.quantity -= q;
                                 return;
@@ -309,7 +312,7 @@ impl Event {
                         }
                     }
                     EventTarget::CreatureTarget(c) => {
-                        for v in c.deref().borrow_mut().inventory.iter_mut() {
+                        for v in c.inventory.iter_mut() {
                             if v.item_type == *t {
                                 v.quantity -= q;
                                 return;
@@ -322,7 +325,7 @@ impl Event {
             EventType::AddItem(q, t) => {
                 match effected {
                     EventTarget::LocationItemTarget(v, _) => {
-                        let mut inventory = v.deref().borrow_mut();
+                        let mut inventory = v;
                         for v in inventory.iter_mut() {
                             if v.item_type == *t {
                                 v.quantity += q;
@@ -335,7 +338,6 @@ impl Event {
                         });
                     }
                     EventTarget::CreatureTarget(c) => {
-                        let mut c = c.deref().borrow_mut();
                         for v in c.inventory.iter_mut() {
                             if v.item_type == *t {
                                 v.quantity += q;
@@ -941,7 +943,7 @@ mod tests {
         let mut ml = MapLocation{
             location: Location{x: 0, y: 0},
             creatures: Vec::new(),
-            items: Rc::new(RefCell::new(Vec::new())),
+            items: Vec::new(),
             id_component: IDComponent::new(),
         };
 
@@ -1112,18 +1114,109 @@ mod tests {
 
     #[test]
     fn test_rayon() {
-        pub struct TaskListTest {
-            ev: EventTarget,
+        pub struct TaskListTest<'a> {
+            ev: Vec<EventTarget<'a>>,
         }
-        let ev = vec!(EventTarget::LocationItemTarget(Rc::new(RefCell::new(Vec::new())), 1));
-        let ev = vec![Rc::new(RefCell::new(2))];
+        pub struct TaskListTest2<'a> {
+            ev: Vec<EventTarget<'a>>,
+            op: Option<EventTarget<'a>>
+        }
+        pub struct TaskListTest3<'a> {
+            ev: Vec<EventTarget<'a>>,
+            op: Option<EventTarget<'a>>,
+            re: &'a mut EventTarget<'a>,
+        }
+        pub struct TaskListTest4<'a> {
+            ev: Vec<EventTarget<'a>>,
+            op: Option<EventTarget<'a>>,
+            rc: Rc<EventTarget<'a>>,
+        }
+        pub struct TaskListTest5 {
+            b: Box<u32>,
+        }
+        pub struct TaskListTest6 {
+            b: Box<dyn Fn() -> bool>,
+        }
+        pub struct TaskListTest7 {
+            b: Box<fn() -> bool>,
+        }
+        
+
+        let mut v = Vec::new();
+        let ev = vec!(EventTarget::LocationItemTarget(&mut v, 1));
+        ev.into_par_iter().map(|x| x);
+
+        let ev = vec![Rc::new(RefCell::new(2))]; // wont work
+
         let ev = vec![2];
-        ev.into_par_iter().map(|x| match x {
-            EventTarget::LocationItemTarget(_, _) => {}
-            EventTarget::CreatureTarget(_) => {}
-        });
+        ev.into_par_iter().map(|x| x);
+
+        let ev = vec![TaskListTest {
+            ev: Vec::new()
+        }];
+        ev.into_par_iter().map(|x| x);
+
+        let ev = vec![TaskListTest2 {
+            ev: Vec::new(),
+            op: None
+        }];
+        ev.into_par_iter().map(|x| x);
+
+        let mut v = Vec::new();
+        let mut eve = EventTarget::LocationItemTarget(&mut v, 1);
+        let ev = vec![TaskListTest3 {
+            ev: Vec::new(),
+            op: None,
+            re: &mut eve,
+        }];
+        ev.into_par_iter().map(|x| x);
+
+        let mut eve = EventTarget::LocationItemTarget(&mut v, 1);
+        let ev = vec![TaskListTest4 {
+            ev: Vec::new(),
+            op: None,
+            rc: Rc::new(eve)
+        }]; // doesnt work
+        //ev.into_par_iter().map(|x| x);
+
+        let ev = vec![TaskListTest5{
+            b: Box::new(5),
+        }];
+        ev.into_par_iter().map(|x| x);
+
+        let ev = vec![TaskListTest6{
+            b: Box::new(|| false),
+        }]; // DOESNT WORK! Fucking dyn!
+        //ev.into_par_iter().map(|x| x);
+
+        let ev = vec![TaskListTest7{
+            b: Box::new(|| false),
+        }]; // DOESNT WORK! Fucking dyn!
+        ev.into_par_iter().map(|x| x);
+
+        let evl = vec![Event {
+            event_type: EventType::Move(Location::default()),
+            target: 1,
+            get_requirements: Box::new(|_| false),
+            on_fail: None,
+        }]; // DOESNT WORK!!! Probably cause of the Box
+        //evl.into_par_iter().map(|x| x);
+
+        let mut eve = EventTarget::LocationItemTarget(&mut v, 1);
+        let evc = vec![EventChain {
+            index: 0,
+            events: Vec::new(),
+        }]; // doesnt work
+        //evc.into_par_iter().map(|x| x);
+
+        let vec_tl = vec![TaskList{
+            target:&mut eve,
+            tasks: Vec::new(),
+        }]; // doesnt work...
+        //vec_tl.into_par_iter().map(|x| x);
     }
 
+    
     #[test]
     fn test_chain_multithread() {
         // make a mapstate with some deer
@@ -1137,41 +1230,53 @@ mod tests {
                     id_component: IDComponent::new(),
                     location: Location{x, y},
                     creatures: Vec::new(),
-                    items: Rc::new(RefCell::new(Vec::new())),
+                    items: Vec::new(),
                 };
                 xList.push(loc);
             }
             region.grid.push(xList);
         }
     
-        let mut deer1 = Rc::new(RefCell::new(CreatureState{
+        let mut deer1 = CreatureState{
             components: ComponentMap::default(),
             inventory: Vec::new(),
             memory: CreatureMemory::default(),
-        }));
-        deer1.deref().borrow_mut().components.location_component.as_mut().unwrap().location.x = 1;
-        deer1.deref().borrow_mut().components.location_component.as_mut().unwrap().location.y = 1;
+        };
+        deer1.components.location_component.as_mut().unwrap().location.x = 1;
+        deer1.components.location_component.as_mut().unwrap().location.y = 1;
     
-        region.grid[1][1].creatures.push(
-            deer1.clone()
-        );
+        
     
-        let mut deer2 = Rc::new(RefCell::new(CreatureState{
+        let mut deer2 =CreatureState{
             components: ComponentMap::default(),
             inventory: Vec::new(),
             memory: CreatureMemory::default(),
-        }));
-        deer2.deref().borrow_mut().components.location_component.as_mut().unwrap().location.x = 1;
-        deer2.deref().borrow_mut().components.location_component.as_mut().unwrap().location.y = 1;
-    
+        };
+        deer2.components.location_component.as_mut().unwrap().location.x = 1;
+        deer2.components.location_component.as_mut().unwrap().location.y = 1;
+        let deer1_id = deer1.components.id_component.id;
+        let deer2_id = deer2.components.id_component.id;
         region.grid[1][1].creatures.push(
-            deer2.clone()
+            deer1
         );
-    
-        region.grid[1][1].items.deref().borrow_mut().push(Item{
+        region.grid[1][1].creatures.push(
+            deer2
+        );
+        region.grid[1][1].items.push(Item{
             item_type: ItemType::Berry,
             quantity: 1,
         });
+        let berry_id = region.grid[1][1].id_component.id;
+
+        let loc = &mut region.grid[1][1];
+        let mut iter_mut = loc.creatures.iter_mut();
+        let d1_ref = iter_mut.next().unwrap();
+        let d2_ref = iter_mut.next().unwrap();
+        let loc_ref = &mut loc.items;
+
+        // let d1_ref = &mut region.grid[1][1].creatures[0];
+        // let d2_ref = &mut region.grid[1][1].creatures[1];
+        // let loc_ref = &mut region.grid[1][1].items;
         
         // make some event chain examples
         // pick up item -> remove item (if fail remove item again) (note, in rl would do reverse)
@@ -1179,19 +1284,19 @@ mod tests {
             event_type: EventType::AddItem(1, ItemType::Berry),
             get_requirements: Box::new(|_| true),
             on_fail: None,
-            target: EventTarget::CreatureTarget(deer1.clone()),
+            target: deer1_id,
         };
         let pickup2 = Event {
             event_type: EventType::AddItem(1, ItemType::Berry),
             get_requirements: Box::new(|_| true),
             on_fail: None,
-            target: EventTarget::CreatureTarget(deer2.clone()),
+            target: deer2_id,
         };
         let pickup_fail = Event {
             event_type: EventType::RemoveItem(1, ItemType::Berry),
             get_requirements: Box::new(|_| true),
             on_fail: None,
-            target: EventTarget::CreatureTarget(deer1.clone()),
+            target: deer1_id,
         };
         let event_fail1 = EventChain {
             index: 0,
@@ -1201,7 +1306,7 @@ mod tests {
             event_type: EventType::RemoveItem(1, ItemType::Berry),
             get_requirements: Box::new(|_| true),
             on_fail: None,
-            target: EventTarget::CreatureTarget(deer2.clone()),
+            target: deer2_id,
         };
         let event_fail2 = EventChain {
             index: 0,
@@ -1212,7 +1317,7 @@ mod tests {
             get_requirements: Box::new(|e| {
                 match e {
                     EventTarget::LocationItemTarget(i, _) => {
-                        for item in i.deref().borrow().iter() {
+                        for item in i.iter() {
                             if item.item_type == ItemType::Berry && item.quantity > 0 {
                                 return true
                             }
@@ -1220,7 +1325,7 @@ mod tests {
                         false
                     }
                     EventTarget::CreatureTarget(c) => {
-                        for item in c.deref().borrow().inventory.iter() {
+                        for item in c.inventory.iter() {
                             if item.item_type == ItemType::Berry && item.quantity > 0 {
                                 return true
                             }
@@ -1230,14 +1335,14 @@ mod tests {
                 }
             }),
             on_fail: Some(event_fail1),
-            target: EventTarget::LocationItemTarget(region.grid[1][1].items.clone(), region.grid[1][1].id_component.id)
+            target: berry_id
         };
         let remove2=  Event {
             event_type: EventType::RemoveItem(1, ItemType::Berry),
             get_requirements: Box::new(|e| {
                 match e {
                     EventTarget::LocationItemTarget(i, _) => {
-                        for item in i.deref().borrow().iter() {
+                        for item in i.iter() {
                             if item.item_type == ItemType::Berry && item.quantity > 0 {
                                 return true
                             }
@@ -1245,7 +1350,7 @@ mod tests {
                         false
                     }
                     EventTarget::CreatureTarget(c) => {
-                        for item in c.deref().borrow().inventory.iter() {
+                        for item in c.inventory.iter() {
                             if item.item_type == ItemType::Berry && item.quantity > 0 {
                                 return true
                             }
@@ -1255,7 +1360,7 @@ mod tests {
                 }
             }),
             on_fail: Some(event_fail2),
-            target: EventTarget::LocationItemTarget(region.grid[1][1].items.clone(), region.grid[1][1].id_component.id)
+            target: berry_id
         };
     
         let deer_chain1 = EventChain {
@@ -1272,15 +1377,32 @@ mod tests {
         let event_chains = vec![deer_chain1, deer_chain2];
     
         let mut tasks_map: HashMap<UID, TaskList> = HashMap:: new();
+        let mut uid_map: HashMap<UID, &mut EventTarget> = HashMap::new();
+        let mut ed1 = EventTarget::CreatureTarget(d1_ref);
+        let mut ed2 = EventTarget::CreatureTarget(d2_ref);
+        let mut eloc = EventTarget::LocationItemTarget(loc_ref, berry_id);
+        let mut targets = vec![ed1, ed2, eloc];
+        for t in targets.iter_mut() {
+            let id = match t {
+                EventTarget::LocationItemTarget(_, id) => {*id}
+                EventTarget::CreatureTarget(c) => {c.components.id_component.id}
+            };
+            uid_map.insert(id, t);
+        }
+        // uid_map.insert(deer1_id, ed1);
+        // uid_map.insert(deer2_id, ed2);
+        // uid_map.insert(berry_id, eloc);
+        //let uid_map_ref = &mut uid_map;
         for ec in event_chains.into_iter() {
-            let key = ec.events[ec.index].target.get_id();
+            let key = ec.events[ec.index].target;
             match tasks_map.get_mut(&key) {
                 Some(tl) => {
                     tl.tasks.push(ec);
                 }
                 None => {
+                    let m = uid_map.remove(&key).unwrap();
                     let tl = TaskList {
-                        target: ec.events[ec.index].target.clone(),
+                        target: m,
                         tasks: vec![ec]
                     };
                     tasks_map.insert(key, tl);
@@ -1298,6 +1420,6 @@ mod tests {
     
     
         let next = task_lists.into_par_iter().flat_map(move |tl| tl.process());
-    
     }
+    
 }
