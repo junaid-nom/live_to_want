@@ -137,7 +137,7 @@ impl Component for CreatureTypeComponent {
 // }
 
 #[derive(Debug)]
-#[derive(Default, Hash, PartialEq, Eq)]
+#[derive(Default, Hash, PartialEq, Eq, Clone, Copy)]
 pub struct Item {
     pub item_type: ItemType,
     pub quantity: u32,
@@ -218,11 +218,110 @@ pub struct MapLocation {
 }
 
 #[derive(Debug)]
-pub enum CreatureCommand<'a>{
+pub enum CreatureCommand<'b>{
     // str here is for debugging purposes and is usually just the name of the node
-    MoveTo(&'a str, Location),
-    Chase(&'a str, &'a ComponentMap),
-    Attack(&'a str, &'a ComponentMap),
+    MoveTo(&'static str, &'b CreatureState, Location),
+    Chase(&'static str, &'b CreatureState, &'b CreatureState),
+    Attack(&'static str, &'b CreatureState, &'b CreatureState),
+    TakeItem(&'static str, InventoryHolder<'b>, InventoryHolder<'b>, Item),
+}
+impl CreatureCommand<'_> {
+    fn to_event_chain(&self) -> Option<EventChain> {
+        match self {
+            CreatureCommand::MoveTo(_, _, _) => {}
+            CreatureCommand::Chase(_, _, _) => {}
+            CreatureCommand::Attack(_, _, _) => {}
+            CreatureCommand::TakeItem(_, src, dst, item) => {
+                // TODO: check if dst has enough space
+                // check if src has that item, if it doesnt, take as many as possible
+                let found_item = get_item_from_inventory(src, item.item_type);
+                if let None = found_item {
+                    return None;
+                }
+                let found_item = found_item.unwrap();
+                let final_item = if found_item.quantity < item.quantity {
+                    found_item
+                } else {
+                    *item
+                };
+
+                // event chain is:
+                // remove item from src. req=item exists in that quantity fail=None
+                // add item to dst. req=None(for now) fail=None
+                let remove = Event{
+                    event_type: EventType::RemoveItem(final_item.quantity, item.item_type),
+                    target: get_id_from_inventory(src),
+                    on_fail: None,
+                    get_requirements: Box::new(|e, et| {
+                        if let EventType::RemoveItem(q, it) = et {
+                            match e {
+                                EventTarget::LocationItemTarget(i, _) => {
+                                    for item in i.iter() {
+                                        if item.item_type == *it && item.quantity >= *q {
+                                            return true
+                                        }
+                                    }
+                                    return false
+                                }
+                                EventTarget::CreatureTarget(c) => {
+                                    for item in c.inventory.iter() {
+                                        if item.item_type == *it && item.quantity >= *q {
+                                            return true
+                                        }
+                                    }
+                                    return false
+                                }
+                            }
+                        }
+                        false
+                    })
+                };
+                let add = Event {
+                    event_type: EventType::AddItem(final_item.quantity, item.item_type),
+                    on_fail: None,
+                    get_requirements: Box::new(|_,_| true),
+                    target: get_id_from_inventory(dst),
+                };
+                return Some(EventChain{
+                    index: 0,
+                    events: vec![remove, add],
+                })
+            }
+        }
+        None
+    }
+}
+
+fn get_id_from_inventory(inv: &InventoryHolder) -> UID {
+    match inv {
+        InventoryHolder::CreatureInventory(c) => {c.components.id_component.id}
+        InventoryHolder::LocationInventory(l) => {l.id_component.id}
+    }
+}
+
+fn get_item_from_inventory(inv: &InventoryHolder, item_type: ItemType) -> Option<Item> {
+    match inv {
+        InventoryHolder::CreatureInventory(c) => {
+            get_item_from_vec_item(&c.inventory,item_type)
+        }
+        InventoryHolder::LocationInventory(l) => {
+            get_item_from_vec_item(&l.items,item_type)
+        }
+    }
+}
+fn get_item_from_vec_item(vec_inv: &Vec<Item>, item_type: ItemType) -> Option<Item> {
+    for i in vec_inv {
+        if i.item_type == item_type {
+            return Some(*i)
+        }
+    }
+    None
+}
+
+#[derive(Debug, Clone, Copy)]
+pub enum InventoryHolder<'a> {
+    CreatureInventory(&'a CreatureState),
+    LocationInventory(&'a MapLocation),
 }
 
 pub struct GoalConnection<'a> {
@@ -258,7 +357,7 @@ pub struct EventChain {
 impl EventChain {
     fn process(self, effected: &mut EventTarget) -> Option<EventChain> {
         let e = &self.events[*&self.index];
-        let success = e.get_requirements.deref()(&*effected);
+        let success = e.get_requirements.deref()(&*effected, &e.event_type);
         if success {
             e.mutate(effected);
             let mut se = self;
@@ -293,7 +392,7 @@ impl EventTarget<'_> {
 
 pub struct Event {
     event_type: EventType,
-    get_requirements: Box<fn (&EventTarget) -> bool>,
+    get_requirements: Box<fn (&EventTarget, &EventType) -> bool>,
     on_fail: Option<EventChain>,
     target: UID,
 }
@@ -315,6 +414,7 @@ impl Event {
                                     zero_index = Some(i);
                                 }
                             }
+                            i +=1;
                         }
                         if found {
                             if let Some(ii) = zero_index {
@@ -398,8 +498,6 @@ pub enum EventType {
 }
 
 
-
-
 pub struct GoalCacheNode<'a> {
     goal: &'a GoalNode<'a>,
     children: Option<Vec<Rc<RefCell<GoalCacheNode<'a>>>>>,
@@ -468,18 +566,6 @@ impl GoalCacheNode<'_> {
                 } else {
                     panic!("This should never happen");
                 }
-                // if true {
-                //     let cref: Rc<RefCell<GoalCacheNode<'a>>> = existing_caches.get(child_goal.child.name).unwrap().clone();
-                //     GoalCacheNode::setup_children( cref.clone(), map_state, c_state, existing_caches);
-                //     if let Some(children) = &mut goal_cache.children {
-                //         children.push(cref.clone());
-                //     }
-                // } else {
-                //     let new_child = ;
-                //     let name: &'a str = new_child.deref().borrow().goal.name;
-                //     existing_caches.insert(name, new_child.clone());
-                //     GoalCacheNode::setup_children(new_child.clone(), map_state, c_state, existing_caches);
-                // };
             }
         }
     }
@@ -624,7 +710,7 @@ pub struct GoalNode<'a> {
     get_effort_local: Box<dyn Fn(&MapState, &CreatureState) -> u32>,
     children: Vec<GoalConnection<'a>>,
     name: &'a str,  // just for debugging really
-    get_command: Option<Box<dyn for<'f> Fn(&MapState, &'f CreatureState) -> CreatureCommand<'f>>>, // Is None if this node does not lead to a category and is more of a organizing node
+    get_command: Option<Box<dyn for<'f, 'c> Fn(&MapState, &'f CreatureState) -> CreatureCommand<'f>>>, // Is None if this node does not lead to a category and is more of a organizing node
     get_requirements_met: Box<dyn Fn (&MapState, &CreatureState) -> bool>,
 }
 
@@ -692,7 +778,7 @@ mod tests {
             }),
             children: Vec::new(),
             name: "berry",
-            get_command: Some(Box::new(|_, _| CreatureCommand::MoveTo("berry", Location{x: 0, y:0}))),
+            get_command: Some(Box::new(|_, c| CreatureCommand::MoveTo("berry", c, Location{x: 0, y:0}))),
             get_requirements_met: Box::new(|_, _| true),
         };
         let fruit = GoalNode {
@@ -712,7 +798,7 @@ mod tests {
             }),
             children: Vec::new(),
             name: "fruit",
-            get_command: Some(Box::new(|_, _| CreatureCommand::MoveTo("fruit", Location{x: 0, y:0}))),
+            get_command: Some(Box::new(|_, c| CreatureCommand::MoveTo("fruit", c, Location{x: 0, y:0}))),
             get_requirements_met: Box::new(|_, _| true),
         };
         gather.children.push(GoalConnection{
@@ -737,7 +823,7 @@ mod tests {
             }),
             children: Vec::new(),
             name: "find_deer",
-            get_command: Some(Box::new(|_, _| CreatureCommand::MoveTo("find_deer", Location{x: 0, y:0}))),
+            get_command: Some(Box::new(|_, c| CreatureCommand::MoveTo("find_deer", c, Location{x: 0, y:0}))),
             get_requirements_met: Box::new(|_, _| true),
         };
         let mut attack_deer = GoalNode {
@@ -749,7 +835,7 @@ mod tests {
             }),
             children: Vec::new(),
             name: "attack_deer",
-            get_command: Some(Box::new(|_, _| CreatureCommand::MoveTo("attack_deer", Location{x: 0, y:0}))),
+            get_command: Some(Box::new(|_, c| CreatureCommand::MoveTo("attack_deer", c, Location{x: 0, y:0}))),
             get_requirements_met: Box::new(|_, c| c.components.location_component.as_ref().unwrap().location.x==5),
         };
         let mut loot_deer = GoalNode {
@@ -761,7 +847,7 @@ mod tests {
             }),
             children: Vec::new(),
             name: "loot_deer",
-            get_command: Some(Box::new(|_, _| CreatureCommand::MoveTo("loot_deer", Location{x: 0, y:0}))),
+            get_command: Some(Box::new(|_, c| CreatureCommand::MoveTo("loot_deer", c, Location{x: 0, y:0}))),
             get_requirements_met: Box::new(|_, c| c.components.location_component.as_ref().unwrap().location.x==6),
         };
         
@@ -774,7 +860,7 @@ mod tests {
             }),
             children: Vec::new(),
             name: "eat",
-            get_command: Some(Box::new(|_, _| CreatureCommand::MoveTo("eat", Location{x: 0, y:0}))),
+            get_command: Some(Box::new(|_, c| CreatureCommand::MoveTo("eat", c, Location{x: 0, y:0}))),
             get_requirements_met: Box::new(|_, c| c.components.location_component.as_ref().unwrap().location.y==0 && c.components.location_component.as_ref().unwrap().location.x==7),
         };
         let eat = Rc::new(eat);
@@ -787,7 +873,7 @@ mod tests {
             }),
             children: Vec::new(),
             name: "sell",
-            get_command: Some(Box::new(|_, _| CreatureCommand::MoveTo("sell", Location{x: 0, y:0}))),
+            get_command: Some(Box::new(|_, c| CreatureCommand::MoveTo("sell", c, Location{x: 0, y:0}))),
             get_requirements_met: Box::new(|_, c| c.components.location_component.as_ref().unwrap().location.y==1 && 
                 (c.components.location_component.as_ref().unwrap().location.x==7 || c.components.location_component.as_ref().unwrap().location.x==11)),
         };
@@ -829,7 +915,7 @@ mod tests {
             }),
             children: Vec::new(),
             name: "find_wolf",
-            get_command: Some(Box::new(|_, _| CreatureCommand::MoveTo("find_wolf", Location{x: 0, y:0}))),
+            get_command: Some(Box::new(|_, c| CreatureCommand::MoveTo("find_wolf", c, Location{x: 0, y:0}))),
             get_requirements_met: Box::new(|_, _| true),
         };
         let mut attack_wolf = GoalNode {
@@ -841,7 +927,7 @@ mod tests {
             }),
             children: Vec::new(),
             name: "attack_wolf",
-            get_command: Some(Box::new(|_, _| CreatureCommand::MoveTo("attack_wolf", Location{x: 0, y:0}))),
+            get_command: Some(Box::new(|_, c| CreatureCommand::MoveTo("attack_wolf", c, Location{x: 0, y:0}))),
             get_requirements_met: Box::new(|_, c| c.components.location_component.as_ref().unwrap().location.x==9),
         };
         let mut loot_wolf = GoalNode {
@@ -853,7 +939,7 @@ mod tests {
             }),
             children: Vec::new(),
             name: "loot_wolf",
-            get_command: Some(Box::new(|_, _| CreatureCommand::MoveTo("loot_wolf", Location{x: 0, y:0}))),
+            get_command: Some(Box::new(|_, c| CreatureCommand::MoveTo("loot_wolf", c, Location{x: 0, y:0}))),
             get_requirements_met: Box::new(|_, c| c.components.location_component.as_ref().unwrap().location.x==10),
         };
         loot_wolf.children.push(GoalConnection{
@@ -890,7 +976,6 @@ mod tests {
 
         root
     }
-
     
 
     #[test]
@@ -996,7 +1081,7 @@ mod tests {
         println!("Got: {:#?}", &res);
 
         match res {
-            CreatureCommand::MoveTo(n, _) => assert_eq!(n, "berry"),
+            CreatureCommand::MoveTo(n, _, _) => assert_eq!(n, "berry"),
             _ => panic!("should return moveto!"),
         };
     }
@@ -1011,7 +1096,7 @@ mod tests {
         println!("Got: {:#?}", &res);
 
         match res {
-            CreatureCommand::MoveTo(n, _) => assert_eq!(n, "fruit"),
+            CreatureCommand::MoveTo(n, _, _) => assert_eq!(n, "fruit"),
             _ => panic!("should return moveto!"),
         };
     }
@@ -1026,7 +1111,7 @@ mod tests {
         println!("Got: {:#?}", &res);
 
         match res {
-            CreatureCommand::MoveTo(n, _) => assert_eq!(n, "find_deer"),
+            CreatureCommand::MoveTo(n, _, _) => assert_eq!(n, "find_deer"),
             _ => panic!("should return moveto!"),
         };
     }
@@ -1041,7 +1126,7 @@ mod tests {
         println!("Got: {:#?}", &res);
 
         match res {
-            CreatureCommand::MoveTo(n, _) => assert_eq!(n, "attack_deer"),
+            CreatureCommand::MoveTo(n, _, _) => assert_eq!(n, "attack_deer"),
             _ => panic!("should return moveto!"),
         };
     }
@@ -1056,7 +1141,7 @@ mod tests {
         println!("Got: {:#?}", &res);
 
         match res {
-            CreatureCommand::MoveTo(n, _) => assert_eq!(n, "loot_deer"),
+            CreatureCommand::MoveTo(n, _, _) => assert_eq!(n, "loot_deer"),
             _ => panic!("should return moveto!"),
         };
     }
@@ -1071,7 +1156,7 @@ mod tests {
         println!("Got: {:#?}", &res);
 
         match res {
-            CreatureCommand::MoveTo(n, _) => assert_eq!(n, "eat"),
+            CreatureCommand::MoveTo(n, _, _) => assert_eq!(n, "eat"),
             _ => panic!("should return moveto!"),
         };
     }
@@ -1086,7 +1171,7 @@ mod tests {
         println!("Got: {:#?}", &res);
 
         match res {
-            CreatureCommand::MoveTo(n, _) => assert_eq!(n, "sell"),
+            CreatureCommand::MoveTo(n, _, _) => assert_eq!(n, "sell"),
             _ => panic!("should return moveto!"),
         };
     }
@@ -1101,7 +1186,7 @@ mod tests {
         println!("Got: {:#?}", &res);
 
         match res {
-            CreatureCommand::MoveTo(n, _) => assert_eq!(n, "attack_wolf"),
+            CreatureCommand::MoveTo(n, _, _) => assert_eq!(n, "attack_wolf"),
             _ => panic!("should return moveto!"),
         };
     }
@@ -1117,7 +1202,7 @@ mod tests {
         println!("Got: {:#?}", &res);
 
         match res {
-            CreatureCommand::MoveTo(n, _) => assert_eq!(n, "loot_wolf"),
+            CreatureCommand::MoveTo(n, _, _) => assert_eq!(n, "loot_wolf"),
             _ => panic!("should return moveto!"),
         };
     }
@@ -1133,7 +1218,7 @@ mod tests {
         println!("Got: {:#?}", &res);
 
         match res {
-            CreatureCommand::MoveTo(n, _) => assert_eq!(n, "sell"),
+            CreatureCommand::MoveTo(n, _, _) => assert_eq!(n, "sell"),
             _ => panic!("should return moveto!"),
         };
     }
@@ -1165,6 +1250,9 @@ mod tests {
         }
         pub struct TaskListTest7 {
             b: Box<fn() -> bool>,
+        }
+        pub struct TaskListTest8 {
+            b: Box<Box<dyn Fn() -> bool>>,
         }
         
 
@@ -1215,6 +1303,11 @@ mod tests {
         }]; // DOESNT WORK! Fucking dyn!
         //ev.into_par_iter().map(|x| x);
 
+        let ev = vec![TaskListTest8{
+            b: Box::new(Box::new(|| false)),
+        }]; // DOESNT WORK! Fucking dyn!
+        //ev.into_par_iter().map(|x| x);
+
         let ev = vec![TaskListTest7{
             b: Box::new(|| false),
         }]; // DOESNT WORK! Fucking dyn!
@@ -1223,7 +1316,7 @@ mod tests {
         let evl = vec![Event {
             event_type: EventType::Move(Location::default()),
             target: 1,
-            get_requirements: Box::new(|_| false),
+            get_requirements: Box::new(|_, _| false),
             on_fail: None,
         }]; // DOESNT WORK!!! Probably cause of the Box
         //evl.into_par_iter().map(|x| x);
@@ -1256,225 +1349,229 @@ mod tests {
     
     #[test]
     fn test_chain_multithread() {
-        // make a mapstate with some deer
-        let mut region = MapRegion{
-            grid:Vec::new()
-        };
-        for x in 0..10 {
-            let mut xList  = Vec::new();
-            for y in 0..10 {
-                let loc = MapLocation{
-                    id_component: IDComponent::new(),
-                    location: Location{x, y},
-                    creatures: Vec::new(),
-                    items: Vec::new(),
-                };
-                xList.push(loc);
-            }
-            region.grid.push(xList);
-        }
-    
-        let mut deer1 = CreatureState{
-            components: ComponentMap::default(),
-            inventory: Vec::new(),
-            memory: CreatureMemory::default(),
-        };
-        deer1.components.location_component = Some(LocationComponent {
-            location: Location{x: 1, y: 1}
-        });
-    
-        let mut deer2 =CreatureState{
-            components: ComponentMap::default(),
-            inventory: Vec::new(),
-            memory: CreatureMemory::default(),
-        };
-        deer2.components.location_component = Some(LocationComponent {
-            location: Location{x: 1, y: 1}
-        });
-        let deer1_id = deer1.components.id_component.id;
-        let deer2_id = deer2.components.id_component.id;
-        region.grid[1][1].creatures.push(
-            deer1
-        );
-        region.grid[1][1].creatures.push(
-            deer2
-        );
-        region.grid[1][1].items.push(Item{
-            item_type: ItemType::Berry,
-            quantity: 1,
-        });
-        let berry_id = region.grid[1][1].id_component.id;
-
-        let loc = &mut region.grid[1][1];
-        let mut iter_mut = loc.creatures.iter_mut();
-        let d1_ref = iter_mut.next().unwrap();
-        let d2_ref = iter_mut.next().unwrap();
-        let loc_ref = &mut loc.items;
-
-        // let d1_ref = &mut region.grid[1][1].creatures[0];
-        // let d2_ref = &mut region.grid[1][1].creatures[1];
-        // let loc_ref = &mut region.grid[1][1].items;
-        
-        // make some event chain examples
-        // pick up item -> remove item (if fail remove item again) (note, in rl would do reverse)
-        let pickup1 = Event {
-            event_type: EventType::AddItem(1, ItemType::Berry),
-            get_requirements: Box::new(|_| true),
-            on_fail: None,
-            target: deer1_id,
-        };
-        let pickup2 = Event {
-            event_type: EventType::AddItem(1, ItemType::Berry),
-            get_requirements: Box::new(|_| true),
-            on_fail: None,
-            target: deer2_id,
-        };
-        let pickup_fail = Event {
-            event_type: EventType::RemoveItem(1, ItemType::Berry),
-            get_requirements: Box::new(|_| true),
-            on_fail: None,
-            target: deer1_id,
-        };
-        let event_fail1 = EventChain {
-            index: 0,
-            events: vec!(pickup_fail),
-        };
-        let pickup_fail2 = Event {
-            event_type: EventType::RemoveItem(1, ItemType::Berry),
-            get_requirements: Box::new(|_| true),
-            on_fail: None,
-            target: deer2_id,
-        };
-        let event_fail2 = EventChain {
-            index: 0,
-            events: vec!(pickup_fail2),
-        };
-        let remove1=  Event {
-            event_type: EventType::RemoveItem(1, ItemType::Berry),
-            get_requirements: Box::new(|e| {
-                match e {
-                    EventTarget::LocationItemTarget(i, _) => {
-                        for item in i.iter() {
-                            if item.item_type == ItemType::Berry && item.quantity > 0 {
-                                return true
-                            }
-                        }
-                        false
-                    }
-                    EventTarget::CreatureTarget(c) => {
-                        for item in c.inventory.iter() {
-                            if item.item_type == ItemType::Berry && item.quantity > 0 {
-                                return true
-                            }
-                        }
-                        false
-                    }
-                }
-            }),
-            on_fail: Some(event_fail1),
-            target: berry_id
-        };
-        let remove2=  Event {
-            event_type: EventType::RemoveItem(1, ItemType::Berry),
-            get_requirements: Box::new(|e| {
-                match e {
-                    EventTarget::LocationItemTarget(i, _) => {
-                        for item in i.iter() {
-                            if item.item_type == ItemType::Berry && item.quantity > 0 {
-                                return true
-                            }
-                        }
-                        false
-                    }
-                    EventTarget::CreatureTarget(c) => {
-                        for item in c.inventory.iter() {
-                            if item.item_type == ItemType::Berry && item.quantity > 0 {
-                                return true
-                            }
-                        }
-                        false
-                    }
-                }
-            }),
-            on_fail: Some(event_fail2),
-            target: berry_id
-        };
-    
-        let deer_chain1 = EventChain {
-            index: 0,
-            events: vec![pickup1, remove1],
-        };
-        let deer_chain2 = EventChain {
-            index: 0,
-            events: vec![pickup2, remove2],
-        };
-    
-        // for all events, get current target, and make hashtable of Vec for it
-        // transfer the Vec and Targets to a TaskList
-        let event_chains = vec![deer_chain1, deer_chain2];
-        let mut ed1 = EventTarget::CreatureTarget(d1_ref);
-        let mut ed2 = EventTarget::CreatureTarget(d2_ref);
-        let mut eloc = EventTarget::LocationItemTarget(loc_ref, berry_id);
-        let mut targets = vec![ed1, ed2, eloc];
-        //let targets = &mut targets;
-        fn process_events<'a, 'b>(targets: &'a mut Vec<EventTarget<'b>>, event_chains: Vec<EventChain>) -> Vec<EventChain> {
-            println!("startin it");
-            let mut tasks_map: HashMap<UID, TaskList> = HashMap:: new();
-            let mut uid_map: HashMap<UID, & mut EventTarget<'b>> = HashMap::new();
-            {
-                for t in targets.iter_mut() {
-                    let id = match t {
-                        EventTarget::LocationItemTarget(_, id) => {*id}
-                        EventTarget::CreatureTarget(c) => {c.components.id_component.id}
+        let x: Vec<u32> = (0..100).collect();
+        let y: i32 = x.into_par_iter().map(|_| {
+            // make a mapstate with some deer
+            let mut region = MapRegion{
+                grid:Vec::new()
+            };
+            for x in 0..10 {
+                let mut xList  = Vec::new();
+                for y in 0..10 {
+                    let loc = MapLocation{
+                        id_component: IDComponent::new(),
+                        location: Location{x, y},
+                        creatures: Vec::new(),
+                        items: Vec::new(),
                     };
-                    uid_map.insert(id, t);
+                    xList.push(loc);
                 }
+                region.grid.push(xList);
             }
-            for ec in event_chains.into_iter() {
-                let key = ec.events[ec.index].target;
-                match tasks_map.get_mut(&key) {
-                    Some(tl) => {
-                        tl.tasks.push(ec);
+        
+            let mut deer1 = CreatureState{
+                components: ComponentMap::default(),
+                inventory: Vec::new(),
+                memory: CreatureMemory::default(),
+            };
+            deer1.components.location_component = Some(LocationComponent {
+                location: Location{x: 1, y: 1}
+            });
+        
+            let mut deer2 =CreatureState{
+                components: ComponentMap::default(),
+                inventory: Vec::new(),
+                memory: CreatureMemory::default(),
+            };
+            deer2.components.location_component = Some(LocationComponent {
+                location: Location{x: 1, y: 1}
+            });
+            let deer1_id = deer1.components.id_component.id;
+            let deer2_id = deer2.components.id_component.id;
+            region.grid[1][1].creatures.push(
+                deer1
+            );
+            region.grid[1][1].creatures.push(
+                deer2
+            );
+            region.grid[1][1].items.push(Item{
+                item_type: ItemType::Berry,
+                quantity: 1,
+            });
+            let berry_id = region.grid[1][1].id_component.id;
+
+            let loc = &mut region.grid[1][1];
+            let mut iter_mut = loc.creatures.iter_mut();
+            let d1_ref = iter_mut.next().unwrap();
+            let d2_ref = iter_mut.next().unwrap();
+            let loc_ref = &mut loc.items;
+
+            // let d1_ref = &mut region.grid[1][1].creatures[0];
+            // let d2_ref = &mut region.grid[1][1].creatures[1];
+            // let loc_ref = &mut region.grid[1][1].items;
+            
+            // make some event chain examples
+            // pick up item -> remove item (if fail remove item again) (note, in rl would do reverse)
+            let pickup1 = Event {
+                event_type: EventType::AddItem(1, ItemType::Berry),
+                get_requirements: Box::new(|_, _| true),
+                on_fail: None,
+                target: deer1_id,
+            };
+            let pickup2 = Event {
+                event_type: EventType::AddItem(1, ItemType::Berry),
+                get_requirements: Box::new(|_, _| true),
+                on_fail: None,
+                target: deer2_id,
+            };
+            let pickup_fail = Event {
+                event_type: EventType::RemoveItem(1, ItemType::Berry),
+                get_requirements: Box::new(|_, _| true),
+                on_fail: None,
+                target: deer1_id,
+            };
+            let event_fail1 = EventChain {
+                index: 0,
+                events: vec!(pickup_fail),
+            };
+            let pickup_fail2 = Event {
+                event_type: EventType::RemoveItem(1, ItemType::Berry),
+                get_requirements: Box::new(|_, _| true),
+                on_fail: None,
+                target: deer2_id,
+            };
+            let event_fail2 = EventChain {
+                index: 0,
+                events: vec!(pickup_fail2),
+            };
+            let remove1=  Event {
+                event_type: EventType::RemoveItem(1, ItemType::Berry),
+                get_requirements: Box::new(|e, _| {
+                    match e {
+                        EventTarget::LocationItemTarget(i, _) => {
+                            for item in i.iter() {
+                                if item.item_type == ItemType::Berry && item.quantity > 0 {
+                                    return true
+                                }
+                            }
+                            false
+                        }
+                        EventTarget::CreatureTarget(c) => {
+                            for item in c.inventory.iter() {
+                                if item.item_type == ItemType::Berry && item.quantity > 0 {
+                                    return true
+                                }
+                            }
+                            false
+                        }
                     }
-                    None => {
-                        let m = uid_map.remove(&key).unwrap();
-                        let tl = TaskList {
-                            target: m,
-                            tasks: vec![ec]
+                }),
+                on_fail: Some(event_fail1),
+                target: berry_id
+            };
+            let remove2=  Event {
+                event_type: EventType::RemoveItem(1, ItemType::Berry),
+                get_requirements: Box::new(|e, _| {
+                    match e {
+                        EventTarget::LocationItemTarget(i, _) => {
+                            for item in i.iter() {
+                                if item.item_type == ItemType::Berry && item.quantity > 0 {
+                                    return true
+                                }
+                            }
+                            false
+                        }
+                        EventTarget::CreatureTarget(c) => {
+                            for item in c.inventory.iter() {
+                                if item.item_type == ItemType::Berry && item.quantity > 0 {
+                                    return true
+                                }
+                            }
+                            false
+                        }
+                    }
+                }),
+                on_fail: Some(event_fail2),
+                target: berry_id
+            };
+        
+            let deer_chain1 = EventChain {
+                index: 0,
+                events: vec![pickup1, remove1],
+            };
+            let deer_chain2 = EventChain {
+                index: 0,
+                events: vec![pickup2, remove2],
+            };
+        
+            // for all events, get current target, and make hashtable of Vec for it
+            // transfer the Vec and Targets to a TaskList
+            let event_chains = vec![deer_chain1, deer_chain2];
+            let mut ed1 = EventTarget::CreatureTarget(d1_ref);
+            let mut ed2 = EventTarget::CreatureTarget(d2_ref);
+            let mut eloc = EventTarget::LocationItemTarget(loc_ref, berry_id);
+            let mut targets = vec![ed1, ed2, eloc];
+            //let targets = &mut targets;
+            fn process_events<'a, 'b>(targets: &'a mut Vec<EventTarget<'b>>, event_chains: Vec<EventChain>) -> Vec<EventChain> {
+                let mut tasks_map: HashMap<UID, TaskList> = HashMap:: new();
+                let mut uid_map: HashMap<UID, & mut EventTarget<'b>> = HashMap::new();
+                {
+                    for t in targets.iter_mut() {
+                        let id = match t {
+                            EventTarget::LocationItemTarget(_, id) => {*id}
+                            EventTarget::CreatureTarget(c) => {c.components.id_component.id}
                         };
-                        tasks_map.insert(key, tl);
+                        uid_map.insert(id, t);
                     }
                 }
-            }
-        
-            let mut task_lists =  Vec::new();
-            // Run task list, get back Next EventChain
-            for (_, task_list) in tasks_map.drain() {
-                task_lists.push(task_list);
-            }
-        
-            let next: Vec<Option<EventChain>> = task_lists.into_par_iter().flat_map(move |tl| tl.process()).collect();
-            let mut next_no_option = Vec::new();
-            for e in next {
-                match e {
-                    Some(ee) => next_no_option.push(ee),
-                    None => {},
+                for ec in event_chains.into_iter() {
+                    let key = ec.events[ec.index].target;
+                    match tasks_map.get_mut(&key) {
+                        Some(tl) => {
+                            tl.tasks.push(ec);
+                        }
+                        None => {
+                            let m = uid_map.remove(&key).unwrap();
+                            let tl = TaskList {
+                                target: m,
+                                tasks: vec![ec]
+                            };
+                            tasks_map.insert(key, tl);
+                        }
+                    }
                 }
+            
+                let mut task_lists =  Vec::new();
+                // Run task list, get back Next EventChain
+                for (_, task_list) in tasks_map.drain() {
+                    task_lists.push(task_list);
+                }
+            
+                let next: Vec<Option<EventChain>> = task_lists.into_par_iter().flat_map(move |tl| tl.process()).collect();
+                let mut next_no_option = Vec::new();
+                for e in next {
+                    match e {
+                        Some(ee) => next_no_option.push(ee),
+                        None => {},
+                    }
+                }
+                next_no_option
             }
-            next_no_option
-        }
-        
-        let mut next = process_events(&mut targets, event_chains);
-        while next.len() > 0 {
-            next = process_events(&mut targets, next);
-        }
-        assert_eq!(next.len(), 0);
-        assert_eq!(region.grid[1][1].items.len(), 0);
-        let total: u32 = region.grid[1][1].creatures.iter().map(|c| {
-            let ret: u32 = c.inventory.iter().map(|i| i.quantity).sum();
-            ret
+            
+            let mut next = process_events(&mut targets, event_chains);
+            while next.len() > 0 {
+                next = process_events(&mut targets, next);
+            }
+            assert_eq!(next.len(), 0);
+            assert_eq!(region.grid[1][1].items.len(), 0);
+            let total: u32 = region.grid[1][1].creatures.iter().map(|c| {
+                let ret: u32 = c.inventory.iter().map(|i| i.quantity).sum();
+                ret
+            }).sum();
+            assert_eq!(total, 1);
+            1
         }).sum();
-        assert_eq!(total, 1);
+        assert_eq!(y, 100);
     }
     
 }
