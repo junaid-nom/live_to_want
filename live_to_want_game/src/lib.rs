@@ -226,13 +226,13 @@ pub enum CreatureCommand<'b>{
     TakeItem(&'static str, InventoryHolder<'b>, InventoryHolder<'b>, Item),
 }
 impl CreatureCommand<'_> {
-    fn to_event_chain(&self) -> Option<EventChain> {
+    pub fn to_event_chain(&self) -> Option<EventChain> {
         match self {
             CreatureCommand::MoveTo(_, _, _) => {}
             CreatureCommand::Chase(_, _, _) => {}
             CreatureCommand::Attack(_, _, _) => {}
             CreatureCommand::TakeItem(_, src, dst, item) => {
-                // TODO: check if dst has enough space
+                // TODO: check if dst has enough space, though maybe just have "cant move" if your inv full
                 // check if src has that item, if it doesnt, take as many as possible
                 let found_item = get_item_from_inventory(src, item.item_type);
                 if let None = found_item {
@@ -704,13 +704,46 @@ impl GoalCacheNode<'_> {
     }
 }
 
+fn run_frame(m: MapState) -> MapState {
+    let mut root = GoalNode {
+        get_want_local: Box::new(|_, _| 0),
+        get_effort_local: Box::new(|_, _| 1),
+        children: Vec::new(),
+        name: "root",
+        get_command: None,
+        get_requirements_met: Box::new(|_, _| false),
+    };
+
+    // TODO: Maybe do something similar for every location and get 
+    // event chains for stuff to mutate in every location and other upkeep stuff?
+
+    let op_ecs: Vec<Option<EventChain>> = m.regions.par_iter().flat_map(|x| {
+        x.par_iter().flat_map(|y| {
+            y.grid.par_iter().flat_map(|xl| {
+                xl.par_iter().flat_map(|yl| {
+                    yl.creatures.par_iter().map(
+                        |c| {
+                           match GoalCacheNode::get_final_command(&root, &m, &c) {
+                               Some(cc) => {cc.to_event_chain()}
+                               None => {None}
+                           }
+                        }
+                    )
+                })
+            })
+        })
+    }).collect();
+
+
+    MapState::default()
+}
 
 pub struct GoalNode<'a> {
-    get_want_local: Box<dyn Fn(&MapState, &CreatureState) -> u32>,
-    get_effort_local: Box<dyn Fn(&MapState, &CreatureState) -> u32>,
+    get_want_local: Box<fn(&MapState, &CreatureState) -> u32>,
+    get_effort_local: Box<fn(&MapState, &CreatureState) -> u32>,
     children: Vec<GoalConnection<'a>>,
     name: &'a str,  // just for debugging really
-    get_command: Option<Box<dyn for<'f, 'c> Fn(&MapState, &'f CreatureState) -> CreatureCommand<'f>>>, // Is None if this node does not lead to a category and is more of a organizing node
+    get_command: Option<Box<for<'f, 'c> fn(&MapState, &'f CreatureState) -> CreatureCommand<'f>>>, // Is None if this node does not lead to a category and is more of a organizing node
     get_requirements_met: Box<dyn Fn (&MapState, &CreatureState) -> bool>,
 }
 
@@ -735,6 +768,17 @@ mod tests {
 
     extern crate rayon;
     use rayon::prelude::*;
+
+    #[test]
+    fn iter_iter_par() {
+        let x = vec![vec![1,2,3],vec![1,2,3],vec![1,2,3]];
+        let new: Vec<i32> = x.par_iter().flat_map(|x| {
+            let r: Vec<i32> = x.par_iter().map(|y| {
+                y+1
+            }).collect();
+            r
+        }).collect();
+    }
 
     // PRETTY SURE GoalNode is fucked and needs Rc in connections to work
     // because if u return a GoalNode the connected other GoalNodes go out of scope
