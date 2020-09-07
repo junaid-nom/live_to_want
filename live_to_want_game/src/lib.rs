@@ -234,11 +234,11 @@ pub struct GoalConnection<'a> {
 /// Is a list of all events for that target for a given frame cycle
 /// Must place all tasks for that target in here at once or could cause race conditions
 //#[derive(std::marker::Sized)] doesnt work...
-pub struct TaskList<'a> {
-    target: &'a mut EventTarget<'a>,
+pub struct TaskList<'a, 'b> {
+    target: &'a mut EventTarget<'b>,
     tasks: Vec<EventChain>,
 }
-impl TaskList<'_> {
+impl TaskList<'_, '_> {
     fn process(mut self) -> Vec<Option<EventChain>> {
         let mut ret = Vec::new();
         for task in self.tasks.into_iter() {
@@ -304,19 +304,45 @@ impl Event {
             EventType::RemoveItem(q, t) => {
                 match effected {
                     EventTarget::LocationItemTarget(v, _) => {
+                        let mut found = false;
+                        let mut zero_index = None;
+                        let mut i = 0;
                         for v in v.iter_mut() {
                             if v.item_type == *t {
                                 v.quantity -= q;
-                                return;
+                                found = true;
+                                if v.quantity == 0 {
+                                    zero_index = Some(i);
+                                }
                             }
+                        }
+                        if found {
+                            if let Some(ii) = zero_index {
+                                v.remove(ii);
+                            }
+                            return
                         }
                     }
                     EventTarget::CreatureTarget(c) => {
+                        let mut found = false;
+                        let mut zero_index = None;
+                        let mut i = 0;
                         for v in c.inventory.iter_mut() {
+                            
                             if v.item_type == *t {
                                 v.quantity -= q;
-                                return;
+                                found = true;
+                                if v.quantity == 0 {
+                                    zero_index = Some(i);
+                                }
                             }
+                            i+=1;
+                        }
+                        if found {
+                            if let Some(ii) = zero_index {
+                                c.inventory.remove(ii);
+                            }
+                            return
                         }
                     }
                 }
@@ -1216,6 +1242,17 @@ mod tests {
         //vec_tl.into_par_iter().map(|x| x);
     }
 
+    #[test]
+    fn how_does_lifetime_loops() {
+        let mut v = vec![1,2,3];
+        fn fun (vv: &mut Vec<i32>) {
+            vv[0] += 1;
+        }
+        for _ in 0..3 {
+            let f = &mut v;
+            fun(f);
+        }
+    }
     
     #[test]
     fn test_chain_multithread() {
@@ -1242,18 +1279,18 @@ mod tests {
             inventory: Vec::new(),
             memory: CreatureMemory::default(),
         };
-        deer1.components.location_component.as_mut().unwrap().location.x = 1;
-        deer1.components.location_component.as_mut().unwrap().location.y = 1;
-    
-        
+        deer1.components.location_component = Some(LocationComponent {
+            location: Location{x: 1, y: 1}
+        });
     
         let mut deer2 =CreatureState{
             components: ComponentMap::default(),
             inventory: Vec::new(),
             memory: CreatureMemory::default(),
         };
-        deer2.components.location_component.as_mut().unwrap().location.x = 1;
-        deer2.components.location_component.as_mut().unwrap().location.y = 1;
+        deer2.components.location_component = Some(LocationComponent {
+            location: Location{x: 1, y: 1}
+        });
         let deer1_id = deer1.components.id_component.id;
         let deer2_id = deer2.components.id_component.id;
         region.grid[1][1].creatures.push(
@@ -1375,51 +1412,69 @@ mod tests {
         // for all events, get current target, and make hashtable of Vec for it
         // transfer the Vec and Targets to a TaskList
         let event_chains = vec![deer_chain1, deer_chain2];
-    
-        let mut tasks_map: HashMap<UID, TaskList> = HashMap:: new();
-        let mut uid_map: HashMap<UID, &mut EventTarget> = HashMap::new();
         let mut ed1 = EventTarget::CreatureTarget(d1_ref);
         let mut ed2 = EventTarget::CreatureTarget(d2_ref);
         let mut eloc = EventTarget::LocationItemTarget(loc_ref, berry_id);
         let mut targets = vec![ed1, ed2, eloc];
-        for t in targets.iter_mut() {
-            let id = match t {
-                EventTarget::LocationItemTarget(_, id) => {*id}
-                EventTarget::CreatureTarget(c) => {c.components.id_component.id}
-            };
-            uid_map.insert(id, t);
-        }
-        // uid_map.insert(deer1_id, ed1);
-        // uid_map.insert(deer2_id, ed2);
-        // uid_map.insert(berry_id, eloc);
-        //let uid_map_ref = &mut uid_map;
-        for ec in event_chains.into_iter() {
-            let key = ec.events[ec.index].target;
-            match tasks_map.get_mut(&key) {
-                Some(tl) => {
-                    tl.tasks.push(ec);
-                }
-                None => {
-                    let m = uid_map.remove(&key).unwrap();
-                    let tl = TaskList {
-                        target: m,
-                        tasks: vec![ec]
+        //let targets = &mut targets;
+        fn process_events<'a, 'b>(targets: &'a mut Vec<EventTarget<'b>>, event_chains: Vec<EventChain>) -> Vec<EventChain> {
+            println!("startin it");
+            let mut tasks_map: HashMap<UID, TaskList> = HashMap:: new();
+            let mut uid_map: HashMap<UID, & mut EventTarget<'b>> = HashMap::new();
+            {
+                for t in targets.iter_mut() {
+                    let id = match t {
+                        EventTarget::LocationItemTarget(_, id) => {*id}
+                        EventTarget::CreatureTarget(c) => {c.components.id_component.id}
                     };
-                    tasks_map.insert(key, tl);
+                    uid_map.insert(id, t);
                 }
             }
+            for ec in event_chains.into_iter() {
+                let key = ec.events[ec.index].target;
+                match tasks_map.get_mut(&key) {
+                    Some(tl) => {
+                        tl.tasks.push(ec);
+                    }
+                    None => {
+                        let m = uid_map.remove(&key).unwrap();
+                        let tl = TaskList {
+                            target: m,
+                            tasks: vec![ec]
+                        };
+                        tasks_map.insert(key, tl);
+                    }
+                }
+            }
+        
+            let mut task_lists =  Vec::new();
+            // Run task list, get back Next EventChain
+            for (_, task_list) in tasks_map.drain() {
+                task_lists.push(task_list);
+            }
+        
+            let next: Vec<Option<EventChain>> = task_lists.into_par_iter().flat_map(move |tl| tl.process()).collect();
+            let mut next_no_option = Vec::new();
+            for e in next {
+                match e {
+                    Some(ee) => next_no_option.push(ee),
+                    None => {},
+                }
+            }
+            next_no_option
         }
-    
-        let mut task_lists =  Vec::new();
-        // Run task list, get back Next EventChain
-        for (_, task_list) in tasks_map.drain() {
-            task_lists.push(task_list);
+        
+        let mut next = process_events(&mut targets, event_chains);
+        while next.len() > 0 {
+            next = process_events(&mut targets, next);
         }
-        //let mut test_rayon = vec![1,2,3,4,5];
-        //test_rayon.into_par_iter().map(|tl| (tl*2));
-    
-    
-        let next = task_lists.into_par_iter().flat_map(move |tl| tl.process());
+        assert_eq!(next.len(), 0);
+        assert_eq!(region.grid[1][1].items.len(), 0);
+        let total: u32 = region.grid[1][1].creatures.iter().map(|c| {
+            let ret: u32 = c.inventory.iter().map(|i| i.quantity).sum();
+            ret
+        }).sum();
+        assert_eq!(total, 1);
     }
     
 }
