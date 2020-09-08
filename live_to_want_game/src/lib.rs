@@ -22,6 +22,10 @@ static COUNTER: AtomicU64 = AtomicU64::new(1); // TODO: Upgrade to a 128 bit one
 fn get_id() -> u64 { COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed) }
 type UID = u64;
 
+// game constants:
+static STARVING_SLOW_METABOLISM_FACTOR: f32 = 0.5;
+
+
 #[derive(Debug, Hash, PartialEq, Eq)]
 pub enum CreatureType {
     Deer,
@@ -57,10 +61,11 @@ trait Component {
 pub struct ComponentMap {
     id_component: IDComponent,
     health_component: Option<HealthComponent>,
-    location_component: Option<LocationComponent>,
-    region_component: Option<RegionComponent>,
+    location_component: LocationComponent,
+    region_component: RegionComponent,
     name_component: Option<NameComponent>,
     creature_type_component: Option<CreatureTypeComponent>,
+    starvation_component: Option<StarvationComponent>,
 }
 
 #[derive(Debug)]
@@ -85,13 +90,14 @@ impl Default for IDComponent {
 #[derive(Hash, PartialEq, Eq)]
 struct HealthComponent {
     health: i32,
+    max_health: i32,
 }
 impl Component for HealthComponent {
     fn get_visible() -> bool {
         true
     }
 }
-#[derive(Debug, Hash, PartialEq, Eq)]
+#[derive(Default, Debug, Hash, PartialEq, Eq)]
 struct LocationComponent {
     location: Location,
 }
@@ -100,7 +106,8 @@ impl Component for LocationComponent {
         true
     }
 }
-#[derive(Debug, Hash, PartialEq, Eq)]
+
+#[derive(Default, Debug, Hash, PartialEq, Eq)]
 struct RegionComponent {
     region: Location,
 }
@@ -123,6 +130,17 @@ struct CreatureTypeComponent {
 
 }
 impl Component for CreatureTypeComponent {
+    fn get_visible() -> bool {
+        true
+    }
+}
+#[derive(Debug)]
+#[derive(Hash, PartialEq, Eq)]
+struct StarvationComponent {
+    calories: i32,
+    metabolism: usize,
+}
+impl Component for StarvationComponent {
     fn get_visible() -> bool {
         true
     }
@@ -159,7 +177,7 @@ pub struct CreatureState {
 impl CreatureState {
     fn new<'a>(loc: Location) -> CreatureState {
         let mut ret = CreatureState::default();
-        ret.components.location_component = Some(LocationComponent{location:loc});
+        ret.components.location_component = LocationComponent{location:loc};
         ret
     }
 }
@@ -200,6 +218,7 @@ pub struct Location {
 #[derive(Default)]
 pub struct MapState {
     regions: Vec<Vec<MapRegion>>,
+    frame_count: u128,
 }
 
 #[derive(Debug)]
@@ -732,9 +751,40 @@ fn game() {
     // also can do "slow" mode with a wait
 }
 
+fn starvation_system(c: &mut CreatureState) {
+    if let Some(s) = c.components.starvation_component.as_mut() {
+        if let Some(h) = c.components.health_component.as_mut() {
+            let starving = s.calories <= 0;
+            if starving {
+                h.health -= 1;
+            }
+            let multiplier = if starving {STARVING_SLOW_METABOLISM_FACTOR} else {1.0};
+            s.calories -= (s.metabolism as f32 * multiplier) as i32;
+        } else {
+            panic!("All starvation components require health component for: {}", c)
+        }
+    }
+}
+
 fn run_frame(mut m: MapState, root: &GoalNode) -> MapState {
     // TODO: Maybe do something similar for every location and get 
     // event chains for stuff to mutate in every location and other upkeep stuff?
+
+    // Can run multiple systems here so far:
+    // Starvation system
+    m.regions.par_iter_mut().for_each(|x| {
+        x.par_iter_mut().for_each(|y| {
+            y.grid.par_iter_mut().for_each(|xl| {
+                xl.par_iter_mut().for_each(|yl| {
+                    yl.creatures.par_iter_mut().for_each(
+                        |c| {
+                            starvation_system(c);
+                        }
+                    );
+                })
+            })
+        })
+    });
 
     let op_ecs: Vec<Option<EventChain>> = m.regions.par_iter().flat_map(|x| {
         x.par_iter().flat_map(|y| {
@@ -778,13 +828,36 @@ fn run_frame(mut m: MapState, root: &GoalNode) -> MapState {
         })
     }).collect();
 
-    
     let mut next = process_events(&mut all_creature_targets, event_chains);
     while next.len() > 0 {
         next = process_events(&mut all_creature_targets, next);
     }
 
-    MapState::default()
+    // Death system
+    m.regions.par_iter_mut().for_each(|x| {
+        x.par_iter_mut().for_each(|y| {
+            y.grid.par_iter_mut().for_each(|xl| {
+                xl.par_iter_mut().for_each(|yl| {
+                    yl.creatures.retain(
+                        |c| {
+                            if let Some(h) = c.components.health_component.as_ref() {
+                                if h.health <= 0 {
+                                    false
+                                } else {
+                                    true
+                                }
+                            } else {
+                                true
+                            }
+                        }
+                    );
+                        
+                })
+            })
+        })
+    });
+
+    m
 }
 
 fn process_events<'a, 'b>(targets: &'a mut Vec<EventTarget<'b>>, event_chains: Vec<EventChain>) -> Vec<EventChain> {
@@ -839,6 +912,10 @@ fn process_events<'a, 'b>(targets: &'a mut Vec<EventTarget<'b>>, event_chains: V
 // Other solution could be to make the vec array, but then 
 // all connections are integer indexs. to that list
 // but then you need the children nodes to have immutable refs to the root node? which isn't possible?
+
+// ACTUALLY can make it work if just have a new struct, that takes in each node invididually
+// since the graph is basically static this is possible. See: tests::graph_without_vec_test
+// though requires a lil unsafe
 pub struct GoalNode<'a> {
     get_want_local: Box<fn(&MapState, &CreatureState) -> u32>,
     get_effort_local: Box<fn(&MapState, &CreatureState) -> u32>,
@@ -881,6 +958,63 @@ mod tests {
         }).collect();
     }
 
+    #[test]
+    fn graph_without_vec_test() {
+        pub struct Node<'a> {
+            children: Vec<&'a Node<'a>>,
+            my_num: u32,
+        }
+        impl Node<'_> {
+            fn new<'a>(num: u32) -> Node<'a> {
+                Node{
+                    children: Vec::new(),
+                    my_num: num,
+                }
+            }
+        }
+        pub struct NodeRoot<'a> {
+            root: Node<'a>,
+            left: Node<'a>,
+            right: Node<'a>,
+            child_both: Node<'a>,
+            child_left: Node<'a>,
+        }
+        pub struct NodeWrapper<'a> {
+            root_graph: NodeRoot<'a>,
+        }
+
+        fn make_node<'a>() -> NodeRoot<'a> {
+            let mut node_root = NodeRoot {
+                root: Node::new(0),
+                left: Node::new(1),
+                right: Node::new(2),
+                child_both: Node::new(3),
+                child_left: Node::new(4),
+            };
+            // need unsafe to self reference and return something
+            unsafe {
+                node_root.right.children.push(std::mem::transmute(&node_root.child_both));
+                node_root.left.children.push(std::mem::transmute(&node_root.child_both));
+                node_root.left.children.push(std::mem::transmute(&node_root.child_left));
+                node_root.root.children.push(std::mem::transmute(&node_root.left));
+                node_root.root.children.push(std::mem::transmute(&node_root.right));
+            }
+            
+            node_root
+        }
+        let mut root = make_node();
+        let new_c = Node::new(5);
+        root.child_both = new_c;
+        let wrap = NodeWrapper {
+            root_graph: root,
+        };
+        let wrap2 = Box::new(wrap);
+
+        assert_eq!(wrap2.deref().root_graph.root.children[0].children[0].my_num,5);
+        assert_eq!(wrap2.deref().root_graph.root.children[0].children[1].my_num,4);
+        // TODO: NOT SURE HOW TO BREAK THIS? But apparently it can be broken and is unsafe?
+    }
+
     // PRETTY SURE GoalNode is fucked and needs Rc in connections to work
     // because if u return a GoalNode the connected other GoalNodes go out of scope
     fn generate_basic_graph() -> GoalNode<'static> {
@@ -915,7 +1049,7 @@ mod tests {
                 100
             }),
             get_effort_local: Box::new(|_, c| {
-                if c.components.location_component.as_ref().unwrap().location.x == 1 {
+                if c.components.location_component.location.x == 1 {
                     30
                 } else {
                     50
@@ -928,14 +1062,14 @@ mod tests {
         };
         let fruit = GoalNode {
             get_want_local: Box::new(|_, c| {
-                if c.components.location_component.as_ref().unwrap().location.y == 1 {
+                if c.components.location_component.location.y == 1 {
                     101
                 } else {
                     99
                 }
             }),
             get_effort_local: Box::new(|_, c| {
-                if c.components.location_component.as_ref().unwrap().location.x == 1 {
+                if c.components.location_component.location.x == 1 {
                     30
                 } else {
                     50
@@ -981,7 +1115,7 @@ mod tests {
             children: Vec::new(),
             name: "attack_deer",
             get_command: Some(Box::new(|_, c| CreatureCommand::MoveTo("attack_deer", c, Location{x: 0, y:0}))),
-            get_requirements_met: Box::new(|_, c| c.components.location_component.as_ref().unwrap().location.x==5),
+            get_requirements_met: Box::new(|_, c| c.components.location_component.location.x==5),
         };
         let mut loot_deer = GoalNode {
             get_want_local: Box::new(|_, _| {
@@ -993,7 +1127,7 @@ mod tests {
             children: Vec::new(),
             name: "loot_deer",
             get_command: Some(Box::new(|_, c| CreatureCommand::MoveTo("loot_deer", c, Location{x: 0, y:0}))),
-            get_requirements_met: Box::new(|_, c| c.components.location_component.as_ref().unwrap().location.x==6),
+            get_requirements_met: Box::new(|_, c| c.components.location_component.location.x==6),
         };
         
         let eat = GoalNode {
@@ -1006,7 +1140,7 @@ mod tests {
             children: Vec::new(),
             name: "eat",
             get_command: Some(Box::new(|_, c| CreatureCommand::MoveTo("eat", c, Location{x: 0, y:0}))),
-            get_requirements_met: Box::new(|_, c| c.components.location_component.as_ref().unwrap().location.y==0 && c.components.location_component.as_ref().unwrap().location.x==7),
+            get_requirements_met: Box::new(|_, c| c.components.location_component.location.y==0 && c.components.location_component.location.x==7),
         };
         let eat = Arc::new(eat);
         let sell = GoalNode {
@@ -1019,8 +1153,8 @@ mod tests {
             children: Vec::new(),
             name: "sell",
             get_command: Some(Box::new(|_, c| CreatureCommand::MoveTo("sell", c, Location{x: 0, y:0}))),
-            get_requirements_met: Box::new(|_, c| c.components.location_component.as_ref().unwrap().location.y==1 && 
-                (c.components.location_component.as_ref().unwrap().location.x==7 || c.components.location_component.as_ref().unwrap().location.x==11)),
+            get_requirements_met: Box::new(|_, c| c.components.location_component.location.y==1 && 
+                (c.components.location_component.location.x==7 || c.components.location_component.location.x==11)),
         };
         let sell = Arc::new(sell);
 
@@ -1073,7 +1207,7 @@ mod tests {
             children: Vec::new(),
             name: "attack_wolf",
             get_command: Some(Box::new(|_, c| CreatureCommand::MoveTo("attack_wolf", c, Location{x: 0, y:0}))),
-            get_requirements_met: Box::new(|_, c| c.components.location_component.as_ref().unwrap().location.x==9),
+            get_requirements_met: Box::new(|_, c| c.components.location_component.location.x==9),
         };
         let mut loot_wolf = GoalNode {
             get_want_local: Box::new(|_, _| {
@@ -1085,7 +1219,7 @@ mod tests {
             children: Vec::new(),
             name: "loot_wolf",
             get_command: Some(Box::new(|_, c| CreatureCommand::MoveTo("loot_wolf", c, Location{x: 0, y:0}))),
-            get_requirements_met: Box::new(|_, c| c.components.location_component.as_ref().unwrap().location.x==10),
+            get_requirements_met: Box::new(|_, c| c.components.location_component.location.x==10),
         };
         loot_wolf.children.push(GoalConnection{
             child: sell.clone(),
@@ -1519,18 +1653,18 @@ mod tests {
                 inventory: Vec::new(),
                 memory: CreatureMemory::default(),
             };
-            deer1.components.location_component = Some(LocationComponent {
+            deer1.components.location_component = LocationComponent {
                 location: Location{x: 1, y: 1}
-            });
+            };
         
             let mut deer2 =CreatureState{
                 components: ComponentMap::default(),
                 inventory: Vec::new(),
                 memory: CreatureMemory::default(),
             };
-            deer2.components.location_component = Some(LocationComponent {
+            deer2.components.location_component = LocationComponent {
                 location: Location{x: 1, y: 1}
-            });
+            };
             let deer1_id = deer1.components.id_component.id;
             let deer2_id = deer2.components.id_component.id;
             region.grid[1][1].creatures.push(
