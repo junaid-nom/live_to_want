@@ -5,7 +5,7 @@ use std::{cell::{Ref, RefCell}, rc::Rc};
 use std::collections::HashMap;
 use std::ops::Deref;
 use std::{fmt::{Debug, Formatter}, borrow::Borrow};
-use std::sync::atomic::AtomicU64;
+use std::sync::{Arc, atomic::AtomicU64};
 use core::fmt;
 
 extern crate rayon;
@@ -325,7 +325,7 @@ pub enum InventoryHolder<'a> {
 }
 
 pub struct GoalConnection<'a> {
-    pub child: Rc<GoalNode<'a>>,
+    pub child: Arc<GoalNode<'a>>,
     pub is_additive: bool,
     pub amplifier: f32,
 }
@@ -704,8 +704,9 @@ impl GoalCacheNode<'_> {
     }
 }
 
-fn run_frame(m: MapState) -> MapState {
-    let mut root = GoalNode {
+fn generate_goal_nodes<'a>() -> GoalNode<'a> {
+    // TODO: Need to develop this
+    let root = GoalNode {
         get_want_local: Box::new(|_, _| 0),
         get_effort_local: Box::new(|_, _| 1),
         children: Vec::new(),
@@ -713,7 +714,25 @@ fn run_frame(m: MapState) -> MapState {
         get_command: None,
         get_requirements_met: Box::new(|_, _| false),
     };
+    root
+}
 
+fn game() {
+    // Make initial map state
+    
+    // generate initial goal root
+
+    // start server
+
+    // loop
+    // get input from connections
+    // run frame
+    // if in super-fast mode, just loop
+    // if in user controlled just check for input until receive something
+    // also can do "slow" mode with a wait
+}
+
+fn run_frame(mut m: MapState, root: &GoalNode) -> MapState {
     // TODO: Maybe do something similar for every location and get 
     // event chains for stuff to mutate in every location and other upkeep stuff?
 
@@ -733,18 +752,100 @@ fn run_frame(m: MapState) -> MapState {
             })
         })
     }).collect();
+    let mut event_chains = Vec::new();
+    for o in op_ecs {
+        if let Some(ec) = o {
+            event_chains.push(ec);
+        }
+    }
 
+    // get a mut ref to all creatures and locations?
+    // note have to do it in a SINGLE LOOP because otherwise compiler gets confused with
+    // multiple m.region mut refs. UGG
+    let mut all_creature_targets : Vec<EventTarget> = m.regions.par_iter_mut().flat_map(|x| {
+        x.par_iter_mut().flat_map(|y| {
+            y.grid.par_iter_mut().flat_map(|xl| {
+                xl.par_iter_mut().flat_map(|yl| {
+                    let mut cc: Vec<EventTarget> = yl.creatures.par_iter_mut().map(
+                        |c| {
+                           EventTarget::CreatureTarget(c)
+                        }
+                    ).collect();
+                    cc.push(EventTarget::LocationItemTarget(&mut yl.items, yl.id_component.id));
+                    cc
+                })
+            })
+        })
+    }).collect();
+
+    
+    let mut next = process_events(&mut all_creature_targets, event_chains);
+    while next.len() > 0 {
+        next = process_events(&mut all_creature_targets, next);
+    }
 
     MapState::default()
 }
 
+fn process_events<'a, 'b>(targets: &'a mut Vec<EventTarget<'b>>, event_chains: Vec<EventChain>) -> Vec<EventChain> {
+    let mut tasks_map: HashMap<UID, TaskList> = HashMap:: new();
+    let mut uid_map: HashMap<UID, & mut EventTarget<'b>> = HashMap::new();
+    {
+        for t in targets.iter_mut() {
+            let id = match t {
+                EventTarget::LocationItemTarget(_, id) => {*id}
+                EventTarget::CreatureTarget(c) => {c.components.id_component.id}
+            };
+            uid_map.insert(id, t);
+        }
+    }
+    for ec in event_chains.into_iter() {
+        let key = ec.events[ec.index].target;
+        match tasks_map.get_mut(&key) {
+            Some(tl) => {
+                tl.tasks.push(ec);
+            }
+            None => {
+                let m = uid_map.remove(&key).unwrap();
+                let tl = TaskList {
+                    target: m,
+                    tasks: vec![ec]
+                };
+                tasks_map.insert(key, tl);
+            }
+        }
+    }
+
+    let mut task_lists =  Vec::new();
+    // Run task list, get back Next EventChain
+    for (_, task_list) in tasks_map.drain() {
+        task_lists.push(task_list);
+    }
+
+    let next: Vec<Option<EventChain>> = task_lists.into_par_iter().flat_map(move |tl| tl.process()).collect();
+    let mut next_no_option = Vec::new();
+    for e in next {
+        match e {
+            Some(ee) => next_no_option.push(ee),
+            None => {},
+        }
+    }
+    next_no_option
+}
+
+// NOTE I tried to make it not use Rc by make an vec
+// that didn't work because you cant mutate elements to point
+// to other elements of the same vec because bullshit
+// Other solution could be to make the vec array, but then 
+// all connections are integer indexs. to that list
+// but then you need the children nodes to have immutable refs to the root node? which isn't possible?
 pub struct GoalNode<'a> {
     get_want_local: Box<fn(&MapState, &CreatureState) -> u32>,
     get_effort_local: Box<fn(&MapState, &CreatureState) -> u32>,
     children: Vec<GoalConnection<'a>>,
     name: &'a str,  // just for debugging really
     get_command: Option<Box<for<'f, 'c> fn(&MapState, &'f CreatureState) -> CreatureCommand<'f>>>, // Is None if this node does not lead to a category and is more of a organizing node
-    get_requirements_met: Box<dyn Fn (&MapState, &CreatureState) -> bool>,
+    get_requirements_met: Box<fn (&MapState, &CreatureState) -> bool>,
 }
 
 impl GoalNode<'_> {
@@ -846,12 +947,12 @@ mod tests {
             get_requirements_met: Box::new(|_, _| true),
         };
         gather.children.push(GoalConnection{
-            child: Rc::new(berry),
+            child: Arc::new(berry),
             is_additive: false,
             amplifier: 1.0,
         });
         gather.children.push(GoalConnection{
-            child: Rc::new(fruit),
+            child: Arc::new(fruit),
             is_additive: false,
             amplifier: 1.0,
         });
@@ -907,7 +1008,7 @@ mod tests {
             get_command: Some(Box::new(|_, c| CreatureCommand::MoveTo("eat", c, Location{x: 0, y:0}))),
             get_requirements_met: Box::new(|_, c| c.components.location_component.as_ref().unwrap().location.y==0 && c.components.location_component.as_ref().unwrap().location.x==7),
         };
-        let eat = Rc::new(eat);
+        let eat = Arc::new(eat);
         let sell = GoalNode {
             get_want_local: Box::new(|_, _| {
                 10
@@ -921,7 +1022,7 @@ mod tests {
             get_requirements_met: Box::new(|_, c| c.components.location_component.as_ref().unwrap().location.y==1 && 
                 (c.components.location_component.as_ref().unwrap().location.x==7 || c.components.location_component.as_ref().unwrap().location.x==11)),
         };
-        let sell = Rc::new(sell);
+        let sell = Arc::new(sell);
 
         loot_deer.children.push(GoalConnection{
             child: sell.clone(),
@@ -934,17 +1035,17 @@ mod tests {
             amplifier: 7.0,
         });
         attack_deer.children.push(GoalConnection{
-            child: Rc::new(loot_deer),
+            child: Arc::new(loot_deer),
             is_additive: false,
             amplifier: 1.0,
         });
         find_deer.children.push(GoalConnection{
-            child: Rc::new(attack_deer),
+            child: Arc::new(attack_deer),
             is_additive: false,
             amplifier: 1.0,
         });
         hunt.children.push(GoalConnection{
-            child: Rc::new(find_deer),
+            child: Arc::new(find_deer),
             is_additive: false,
             amplifier: 1.0,
         });
@@ -992,28 +1093,28 @@ mod tests {
             amplifier: 12.0,
         });
         attack_wolf.children.push(GoalConnection{
-            child: Rc::new(loot_wolf),
+            child: Arc::new(loot_wolf),
             is_additive: false,
             amplifier: 1.0,
         });
         find_wolf.children.push(GoalConnection{
-            child: Rc::new(attack_wolf),
+            child: Arc::new(attack_wolf),
             is_additive: false,
             amplifier: 1.0,
         });
         hunt.children.push(GoalConnection{
-            child: Rc::new(find_wolf),
+            child: Arc::new(find_wolf),
             is_additive: false,
             amplifier: 1.0,
         });
 
         root.children.push(GoalConnection{
-            child: Rc::new(gather),
+            child: Arc::new(gather),
             is_additive: false,
             amplifier: 1.0,
         });
         root.children.push(GoalConnection{
-            child: Rc::new(hunt),
+            child: Arc::new(hunt),
             is_additive: false,
             amplifier: 1.0,
         });
@@ -1556,51 +1657,6 @@ mod tests {
             let mut eloc = EventTarget::LocationItemTarget(loc_ref, berry_id);
             let mut targets = vec![ed1, ed2, eloc];
             //let targets = &mut targets;
-            fn process_events<'a, 'b>(targets: &'a mut Vec<EventTarget<'b>>, event_chains: Vec<EventChain>) -> Vec<EventChain> {
-                let mut tasks_map: HashMap<UID, TaskList> = HashMap:: new();
-                let mut uid_map: HashMap<UID, & mut EventTarget<'b>> = HashMap::new();
-                {
-                    for t in targets.iter_mut() {
-                        let id = match t {
-                            EventTarget::LocationItemTarget(_, id) => {*id}
-                            EventTarget::CreatureTarget(c) => {c.components.id_component.id}
-                        };
-                        uid_map.insert(id, t);
-                    }
-                }
-                for ec in event_chains.into_iter() {
-                    let key = ec.events[ec.index].target;
-                    match tasks_map.get_mut(&key) {
-                        Some(tl) => {
-                            tl.tasks.push(ec);
-                        }
-                        None => {
-                            let m = uid_map.remove(&key).unwrap();
-                            let tl = TaskList {
-                                target: m,
-                                tasks: vec![ec]
-                            };
-                            tasks_map.insert(key, tl);
-                        }
-                    }
-                }
-            
-                let mut task_lists =  Vec::new();
-                // Run task list, get back Next EventChain
-                for (_, task_list) in tasks_map.drain() {
-                    task_lists.push(task_list);
-                }
-            
-                let next: Vec<Option<EventChain>> = task_lists.into_par_iter().flat_map(move |tl| tl.process()).collect();
-                let mut next_no_option = Vec::new();
-                for e in next {
-                    match e {
-                        Some(ee) => next_no_option.push(ee),
-                        None => {},
-                    }
-                }
-                next_no_option
-            }
             
             let mut next = process_events(&mut targets, event_chains);
             while next.len() > 0 {
