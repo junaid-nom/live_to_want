@@ -7,6 +7,7 @@ use std::ops::Deref;
 use std::{fmt::{Debug, Formatter}, borrow::Borrow};
 use std::sync::{Arc, atomic::AtomicU64};
 use core::fmt;
+use rand::prelude::*;
 
 extern crate rayon;
 use rayon::prelude::*;
@@ -66,6 +67,7 @@ pub struct ComponentMap {
     name_component: Option<NameComponent>,
     creature_type_component: Option<CreatureTypeComponent>,
     starvation_component: Option<StarvationComponent>,
+    block_space_component: Option<BlockSpaceComponent>,
 }
 
 #[derive(Debug)]
@@ -99,7 +101,7 @@ impl Component for HealthComponent {
 }
 #[derive(Default, Debug, Hash, PartialEq, Eq)]
 struct LocationComponent {
-    location: Location,
+    location: Vector2,
 }
 impl Component for LocationComponent {
     fn get_visible() -> bool {
@@ -109,7 +111,7 @@ impl Component for LocationComponent {
 
 #[derive(Default, Debug, Hash, PartialEq, Eq)]
 struct RegionComponent {
-    region: Location,
+    region: Vector2,
 }
 impl Component for RegionComponent {
     fn get_visible() -> bool {
@@ -134,6 +136,47 @@ impl Component for CreatureTypeComponent {
         true
     }
 }
+
+// TODO: Either:
+// 1. If you have BlocKSpaceComponent you CANNOT have a move component
+// or 2. Blockers can move, but there needs to be a special EXTRA entire loop
+// check in run_frame where any collisions with blocks and other creatures, the 
+// other creatures have to be moved the nearest open space, and if the colliding
+// creature is a blocker as well then it has to move to an unoccupied space? and this must be done LINEARLY
+// because u cud have 2-4 blockers all moving to the same space
+
+// to allow AI to eventually get smart enough to figure out that they should
+// chop down trees to make navigation easier gonna add a "breakable" bool here.
+// ACTUALLY I wont cause that should be based on like health component existing
+// or something like that
+#[derive(Debug, Hash, PartialEq, Eq)]
+struct BlockSpaceComponent {
+}
+impl Component for BlockSpaceComponent {
+    fn get_visible() -> bool {
+        true
+    }
+}
+
+// Events set the Navigation Component.
+// Nagivation system then will set this MovementComponent system
+// Movement system will then run, where it will check frame_ready_to_move and if
+// its ready, create an event chain that FUCKKKKK
+// TODO: Okay so I need to CHANGE the event-chain system to also be able to RETURN
+// a new event chain dynamically created! That has a new Event type that OWNS a creaturestate
+// that is then meant to be moved into a new location FUCK (spawn will be similar)
+#[derive(Debug, PartialEq, Eq)]
+struct MovementComponent {
+    speed: usize,
+    destination: Location,
+    frame_ready_to_move: u128, // essentially if frame_ready to move is the current frame or earlier, move to destination
+}
+impl Component for MovementComponent {
+    fn get_visible() -> bool {
+        true
+    }
+}
+
 #[derive(Debug)]
 #[derive(Hash, PartialEq, Eq)]
 struct StarvationComponent {
@@ -175,7 +218,7 @@ pub struct CreatureState {
     pub inventory: Vec<Item>,
 }
 impl CreatureState {
-    fn new<'a>(loc: Location) -> CreatureState {
+    fn new<'a>(loc: Vector2) -> CreatureState {
         let mut ret = CreatureState::default();
         ret.components.location_component = LocationComponent{location:loc};
         ret
@@ -209,7 +252,7 @@ pub struct CreatureMemory {
 #[derive(Debug)]
 #[derive(Default)]
 #[derive(Copy, Clone, Hash, PartialEq, Eq)]
-pub struct Location {
+pub struct Vector2 {
     x: i32,
     y: i32,
 }
@@ -219,27 +262,89 @@ pub struct Location {
 pub struct MapState {
     regions: Vec<Vec<MapRegion>>,
     frame_count: u128,
+    navigation_map: NavigationMap,
+}
+
+#[derive(Debug)]
+#[derive(Default, Clone, Copy, PartialEq, Eq)]
+pub struct Location {
+    region: Vector2,
+    location: Vector2,
+}
+
+#[derive(Debug)]
+#[derive(Default)]
+pub struct NavigationMap {
+    
+}
+impl NavigationMap {
+    fn navigate_to(&mut self, start: &Location, goal: &Location) -> Vec<Location> {
+        // Currently just using a simple algo that assumes there are NO blockers anywhere and in same region
+        // TODO: make a VecVec VecVec of region(with last updated piece)->location->blocked. and then 
+        // make a giant cached navigation thing FOR EACH point...
+        // will get weird cause if u change the viable entrance/exits of regions it would mean needing to change the
+        // between region map as well.
+        // Need to also teach AI how to like "break" things to create shorter path?
+        let mut ret = Vec::new();
+        if start.region == goal.region {
+            let mut current_loc = start.location;
+            while current_loc != goal.location {
+                let xchange = 
+                    if current_loc.x > goal.location.x { -1 } 
+                    else if current_loc.x < goal.location.x { 1 }
+                    else { 0 };
+                let ychange = 
+                    if current_loc.y > goal.location.y { -1 } 
+                    else if current_loc.y < goal.location.y { 1 }
+                    else { 0 };
+                if xchange == 0 { current_loc.y += ychange; } else if ychange == 0 { current_loc.x += xchange; } 
+                    else {
+                        if rand::random() {
+                            current_loc.x += xchange;
+                        } else {
+                            current_loc.y += ychange;
+                        }
+                    };
+                ret.push(Location{region:start.region, location: current_loc});
+            }
+        } else {
+            panic!("Havent implemented cross-region navigation yet");
+        }
+        ret
+    }
 }
 
 #[derive(Debug)]
 #[derive(Default)]
 pub struct MapRegion {
     grid: Vec<Vec<MapLocation>>,
+    last_frame_changed: u128, // if nav system last updated before this frame, update it
 }
 
 #[derive(Debug)]
 #[derive(Default)]
 pub struct MapLocation {
-    id_component: IDComponent, 
-    location: Location,
+    id_component_items: IDComponent,
+    id_component_creatures: IDComponent,
+    location: Vector2,
     creatures: Vec<CreatureState>,
     items: Vec<Item>,
+}
+impl MapLocation {
+    fn get_if_blocked(&self) -> bool {
+        for c in self.creatures.iter() {
+            if let Some(_) = c.components.block_space_component {
+                return true
+            }
+        }
+        false
+    }
 }
 
 #[derive(Debug)]
 pub enum CreatureCommand<'b>{
     // str here is for debugging purposes and is usually just the name of the node
-    MoveTo(&'static str, &'b CreatureState, Location),
+    MoveTo(&'static str, &'b CreatureState, Vector2),
     Chase(&'static str, &'b CreatureState, &'b CreatureState),
     Attack(&'static str, &'b CreatureState, &'b CreatureState),
     TakeItem(&'static str, InventoryHolder<'b>, InventoryHolder<'b>, Item),
@@ -290,6 +395,9 @@ impl CreatureCommand<'_> {
                                     }
                                     return false
                                 }
+                                _ => {
+                                    panic!("Got eventtarget that isnt for items")
+                                }
                             }
                         }
                         false
@@ -314,7 +422,7 @@ impl CreatureCommand<'_> {
 fn get_id_from_inventory(inv: &InventoryHolder) -> UID {
     match inv {
         InventoryHolder::CreatureInventory(c) => {c.components.id_component.id}
-        InventoryHolder::LocationInventory(l) => {l.id_component.id}
+        InventoryHolder::LocationInventory(l) => {l.id_component_items.id}
     }
 }
 
@@ -397,13 +505,18 @@ impl EventChain {
 #[derive(Debug)]
 #[derive(PartialEq, Eq)]
 pub enum EventTarget<'a> {
+    // NOTE ALL EVENT TARGETS MUST BE SEPERATE! Because they will all have mut refs
+    // for each one in a seperate thread. so for example need to have seperate locationItemTarget
+    // and locationCreatures target even though they modify the same mapLocation, they also then unique uid
     LocationItemTarget(&'a mut Vec<Item>, UID),
+    LocationCreaturesTarget(&'a mut Vec<CreatureState>, UID),
     CreatureTarget(&'a mut CreatureState),
 }
 impl EventTarget<'_> {
     fn get_id(&self) -> UID {
         match &self {
             EventTarget::LocationItemTarget(_, id) => {*id}
+            EventTarget::LocationCreaturesTarget(_, id) => {*id}
             EventTarget::CreatureTarget(c) => {c.components.id_component.id}
         }
     }
@@ -464,6 +577,9 @@ impl Event {
                             return
                         }
                     }
+                    _ => {
+                        panic!("Got remove item for wrong target");
+                    }
                 }
                 panic!(format!("Failed to find item in event! event: {:#?}", &self));
             }
@@ -494,6 +610,9 @@ impl Event {
                             quantity: *q,
                         });
                     }
+                    _ => {
+                        panic!("Got add item for wrong target");
+                    }
                 }
                 // TODO: Panic if inv full?>
             }
@@ -511,7 +630,7 @@ impl Debug for Event {
 
 #[derive(Debug)]
 pub enum EventType {
-    Move(Location),
+    Move(Vector2),
     RemoveItem(u32, ItemType),
     AddItem(u32, ItemType),
 }
@@ -821,7 +940,7 @@ fn run_frame(mut m: MapState, root: &GoalNode) -> MapState {
                            EventTarget::CreatureTarget(c)
                         }
                     ).collect();
-                    cc.push(EventTarget::LocationItemTarget(&mut yl.items, yl.id_component.id));
+                    cc.push(EventTarget::LocationItemTarget(&mut yl.items, yl.id_component_items.id));
                     cc
                 })
             })
@@ -868,6 +987,7 @@ fn process_events<'a, 'b>(targets: &'a mut Vec<EventTarget<'b>>, event_chains: V
             let id = match t {
                 EventTarget::LocationItemTarget(_, id) => {*id}
                 EventTarget::CreatureTarget(c) => {c.components.id_component.id}
+                EventTarget::LocationCreaturesTarget(_, id) => {*id}
             };
             uid_map.insert(id, t);
         }
@@ -1057,7 +1177,7 @@ mod tests {
             }),
             children: Vec::new(),
             name: "berry",
-            get_command: Some(Box::new(|_, c| CreatureCommand::MoveTo("berry", c, Location{x: 0, y:0}))),
+            get_command: Some(Box::new(|_, c| CreatureCommand::MoveTo("berry", c, Vector2{x: 0, y:0}))),
             get_requirements_met: Box::new(|_, _| true),
         };
         let fruit = GoalNode {
@@ -1077,7 +1197,7 @@ mod tests {
             }),
             children: Vec::new(),
             name: "fruit",
-            get_command: Some(Box::new(|_, c| CreatureCommand::MoveTo("fruit", c, Location{x: 0, y:0}))),
+            get_command: Some(Box::new(|_, c| CreatureCommand::MoveTo("fruit", c, Vector2{x: 0, y:0}))),
             get_requirements_met: Box::new(|_, _| true),
         };
         gather.children.push(GoalConnection{
@@ -1102,7 +1222,7 @@ mod tests {
             }),
             children: Vec::new(),
             name: "find_deer",
-            get_command: Some(Box::new(|_, c| CreatureCommand::MoveTo("find_deer", c, Location{x: 0, y:0}))),
+            get_command: Some(Box::new(|_, c| CreatureCommand::MoveTo("find_deer", c, Vector2{x: 0, y:0}))),
             get_requirements_met: Box::new(|_, _| true),
         };
         let mut attack_deer = GoalNode {
@@ -1114,7 +1234,7 @@ mod tests {
             }),
             children: Vec::new(),
             name: "attack_deer",
-            get_command: Some(Box::new(|_, c| CreatureCommand::MoveTo("attack_deer", c, Location{x: 0, y:0}))),
+            get_command: Some(Box::new(|_, c| CreatureCommand::MoveTo("attack_deer", c, Vector2{x: 0, y:0}))),
             get_requirements_met: Box::new(|_, c| c.components.location_component.location.x==5),
         };
         let mut loot_deer = GoalNode {
@@ -1126,7 +1246,7 @@ mod tests {
             }),
             children: Vec::new(),
             name: "loot_deer",
-            get_command: Some(Box::new(|_, c| CreatureCommand::MoveTo("loot_deer", c, Location{x: 0, y:0}))),
+            get_command: Some(Box::new(|_, c| CreatureCommand::MoveTo("loot_deer", c, Vector2{x: 0, y:0}))),
             get_requirements_met: Box::new(|_, c| c.components.location_component.location.x==6),
         };
         
@@ -1139,7 +1259,7 @@ mod tests {
             }),
             children: Vec::new(),
             name: "eat",
-            get_command: Some(Box::new(|_, c| CreatureCommand::MoveTo("eat", c, Location{x: 0, y:0}))),
+            get_command: Some(Box::new(|_, c| CreatureCommand::MoveTo("eat", c, Vector2{x: 0, y:0}))),
             get_requirements_met: Box::new(|_, c| c.components.location_component.location.y==0 && c.components.location_component.location.x==7),
         };
         let eat = Arc::new(eat);
@@ -1152,7 +1272,7 @@ mod tests {
             }),
             children: Vec::new(),
             name: "sell",
-            get_command: Some(Box::new(|_, c| CreatureCommand::MoveTo("sell", c, Location{x: 0, y:0}))),
+            get_command: Some(Box::new(|_, c| CreatureCommand::MoveTo("sell", c, Vector2{x: 0, y:0}))),
             get_requirements_met: Box::new(|_, c| c.components.location_component.location.y==1 && 
                 (c.components.location_component.location.x==7 || c.components.location_component.location.x==11)),
         };
@@ -1194,7 +1314,7 @@ mod tests {
             }),
             children: Vec::new(),
             name: "find_wolf",
-            get_command: Some(Box::new(|_, c| CreatureCommand::MoveTo("find_wolf", c, Location{x: 0, y:0}))),
+            get_command: Some(Box::new(|_, c| CreatureCommand::MoveTo("find_wolf", c, Vector2{x: 0, y:0}))),
             get_requirements_met: Box::new(|_, _| true),
         };
         let mut attack_wolf = GoalNode {
@@ -1206,7 +1326,7 @@ mod tests {
             }),
             children: Vec::new(),
             name: "attack_wolf",
-            get_command: Some(Box::new(|_, c| CreatureCommand::MoveTo("attack_wolf", c, Location{x: 0, y:0}))),
+            get_command: Some(Box::new(|_, c| CreatureCommand::MoveTo("attack_wolf", c, Vector2{x: 0, y:0}))),
             get_requirements_met: Box::new(|_, c| c.components.location_component.location.x==9),
         };
         let mut loot_wolf = GoalNode {
@@ -1218,7 +1338,7 @@ mod tests {
             }),
             children: Vec::new(),
             name: "loot_wolf",
-            get_command: Some(Box::new(|_, c| CreatureCommand::MoveTo("loot_wolf", c, Location{x: 0, y:0}))),
+            get_command: Some(Box::new(|_, c| CreatureCommand::MoveTo("loot_wolf", c, Vector2{x: 0, y:0}))),
             get_requirements_met: Box::new(|_, c| c.components.location_component.location.x==10),
         };
         loot_wolf.children.push(GoalConnection{
@@ -1264,7 +1384,7 @@ mod tests {
     #[test]
     #[should_panic]
     fn how_to_rc_refcell() {
-        let r = Rc::new(RefCell::new(Location{x: 0, y:0}));
+        let r = Rc::new(RefCell::new(Vector2{x: 0, y:0}));
         let mut r2 = r.deref().borrow_mut();
         r2.x = 5;
         let mut d = r.deref().borrow_mut();
@@ -1275,14 +1395,14 @@ mod tests {
 
     #[test]
     fn how_mut_ref_works() {
-        fn my_mut(loc: &mut Location) {
+        fn my_mut(loc: &mut Vector2) {
             loc.x +=1;
             if loc.x < 10 {
                 my_mut(loc);
             }
             loc.x +=1;
         }
-        let mut loc = Location{x:0, y:0};
+        let mut loc = Vector2{x:0, y:0};
         my_mut(&mut loc);
         loc.x -= 5;
         my_mut(&mut loc);
@@ -1300,15 +1420,15 @@ mod tests {
 
     #[test]
     fn how_does_mut_ref_work() {
-        fn need_immutable(loc: &Location) -> i32 {
+        fn need_immutable(loc: &Vector2) -> i32 {
             loc.x
         }
-        fn need_mutable(loc: &mut Location) -> i32 {
+        fn need_mutable(loc: &mut Vector2) -> i32 {
             loc.x += 1;
             loc.x
         }
 
-        let mut loc = Location{x: 1, y:2};
+        let mut loc = Vector2{x: 1, y:2};
         let loc_m = &mut loc;
         need_immutable(loc_m);
         need_mutable(loc_m);
@@ -1326,15 +1446,16 @@ mod tests {
         fn use_ml(ml: &MapLocation) -> i32 {
             ml.location.x
         }
-        fn change_ml(ml: &mut Location) {
+        fn change_ml(ml: &mut Vector2) {
             ml.x += 1;
         }
 
         let mut ml = MapLocation{
-            location: Location{x: 0, y: 0},
+            location: Vector2{x: 0, y: 0},
             creatures: Vec::new(),
             items: Vec::new(),
-            id_component: IDComponent::new(),
+            id_component_items: IDComponent::new(),
+            id_component_creatures: IDComponent::new(),
         };
 
         let mml = MutMl{
@@ -1354,7 +1475,7 @@ mod tests {
     fn berry_wins() {
         let root = generate_basic_graph();
         let m_s = MapState::default();
-        let c_s = CreatureState::new(Location{x: 1, y:0});
+        let c_s = CreatureState::new(Vector2{x: 1, y:0});
         let res = GoalCacheNode::get_final_command(&root, &m_s, &c_s);
         let res = res.unwrap();
         println!("Got: {:#?}", &res);
@@ -1369,7 +1490,7 @@ mod tests {
     fn fruit_wins() {
         let root = generate_basic_graph();
         let m_s = MapState::default();
-        let c_s = CreatureState::new(Location{x: 1, y:1});
+        let c_s = CreatureState::new(Vector2{x: 1, y:1});
         let res = GoalCacheNode::get_final_command(&root, &m_s, &c_s);
         let res = res.unwrap();
         println!("Got: {:#?}", &res);
@@ -1384,7 +1505,7 @@ mod tests {
     fn find_deer_wins() {
         let root = generate_basic_graph();
         let m_s = MapState::default();
-        let c_s = CreatureState::new(Location{x: 0, y:0});
+        let c_s = CreatureState::new(Vector2{x: 0, y:0});
         let res = GoalCacheNode::get_final_command(&root, &m_s, &c_s);
         let res = res.unwrap();
         println!("Got: {:#?}", &res);
@@ -1399,7 +1520,7 @@ mod tests {
     fn attack_deer_wins() {
         let root = generate_basic_graph();
         let m_s = MapState::default();
-        let c_s = CreatureState::new(Location{x: 5, y:0});
+        let c_s = CreatureState::new(Vector2{x: 5, y:0});
         let res = GoalCacheNode::get_final_command(&root, &m_s, &c_s);
         let res = res.unwrap();
         println!("Got: {:#?}", &res);
@@ -1414,7 +1535,7 @@ mod tests {
     fn loot_deer_wins() {
         let root = generate_basic_graph();
         let m_s = MapState::default();
-        let c_s = CreatureState::new(Location{x: 6, y:0});
+        let c_s = CreatureState::new(Vector2{x: 6, y:0});
         let res = GoalCacheNode::get_final_command(&root, &m_s, &c_s);
         let res = res.unwrap();
         println!("Got: {:#?}", &res);
@@ -1429,7 +1550,7 @@ mod tests {
     fn eat_deer_wins() {
         let root = generate_basic_graph();
         let m_s = MapState::default();
-        let c_s = CreatureState::new(Location{x: 7, y:0});
+        let c_s = CreatureState::new(Vector2{x: 7, y:0});
         let res = GoalCacheNode::get_final_command(&root, &m_s, &c_s);
         let res = res.unwrap();
         println!("Got: {:#?}", &res);
@@ -1444,7 +1565,7 @@ mod tests {
     fn sell_deer_wins() {
         let root = generate_basic_graph();
         let m_s = MapState::default();
-        let c_s = CreatureState::new(Location{x: 7, y:1});
+        let c_s = CreatureState::new(Vector2{x: 7, y:1});
         let res = GoalCacheNode::get_final_command(&root, &m_s, &c_s);
         let res = res.unwrap();
         println!("Got: {:#?}", &res);
@@ -1459,7 +1580,7 @@ mod tests {
     fn attack_wolf_wins() {
         let root = generate_basic_graph();
         let m_s = MapState::default();
-        let c_s = CreatureState::new(Location{x: 9, y:0});
+        let c_s = CreatureState::new(Vector2{x: 9, y:0});
         let res = GoalCacheNode::get_final_command(&root, &m_s, &c_s);
         let res = res.unwrap();
         println!("Got: {:#?}", &res);
@@ -1475,7 +1596,7 @@ mod tests {
     fn loot_wolf_wins() {
         let root = generate_basic_graph();
         let m_s = MapState::default();
-        let c_s = CreatureState::new(Location{x: 10, y:0});
+        let c_s = CreatureState::new(Vector2{x: 10, y:0});
         let res = GoalCacheNode::get_final_command(&root, &m_s, &c_s);
         let res = res.unwrap();
         println!("Got: {:#?}", &res);
@@ -1491,7 +1612,7 @@ mod tests {
     fn sell_wolf_wins() {
         let root = generate_basic_graph();
         let m_s = MapState::default();
-        let c_s = CreatureState::new(Location{x: 11, y:1});
+        let c_s = CreatureState::new(Vector2{x: 11, y:1});
         let res = GoalCacheNode::get_final_command(&root, &m_s, &c_s);
         let res = res.unwrap();
         println!("Got: {:#?}", &res);
@@ -1593,7 +1714,7 @@ mod tests {
         ev.into_par_iter().map(|x| x);
 
         let evl = vec![Event {
-            event_type: EventType::Move(Location::default()),
+            event_type: EventType::Move(Vector2::default()),
             target: 1,
             get_requirements: Box::new(|_, _| false),
             on_fail: None,
@@ -1632,14 +1753,16 @@ mod tests {
         let y: i32 = x.into_par_iter().map(|_| {
             // make a mapstate with some deer
             let mut region = MapRegion{
-                grid:Vec::new()
+                grid:Vec::new(),
+                last_frame_changed: 0,
             };
             for x in 0..10 {
                 let mut xList  = Vec::new();
                 for y in 0..10 {
                     let loc = MapLocation{
-                        id_component: IDComponent::new(),
-                        location: Location{x, y},
+                        id_component_items: IDComponent::new(),
+                        id_component_creatures: IDComponent::new(),
+                        location: Vector2{x, y},
                         creatures: Vec::new(),
                         items: Vec::new(),
                     };
@@ -1654,7 +1777,7 @@ mod tests {
                 memory: CreatureMemory::default(),
             };
             deer1.components.location_component = LocationComponent {
-                location: Location{x: 1, y: 1}
+                location: Vector2{x: 1, y: 1}
             };
         
             let mut deer2 =CreatureState{
@@ -1663,7 +1786,7 @@ mod tests {
                 memory: CreatureMemory::default(),
             };
             deer2.components.location_component = LocationComponent {
-                location: Location{x: 1, y: 1}
+                location: Vector2{x: 1, y: 1}
             };
             let deer1_id = deer1.components.id_component.id;
             let deer2_id = deer2.components.id_component.id;
@@ -1677,7 +1800,7 @@ mod tests {
                 item_type: ItemType::Berry,
                 quantity: 1,
             });
-            let berry_id = region.grid[1][1].id_component.id;
+            let berry_id = region.grid[1][1].id_component_items.id;
 
             let loc = &mut region.grid[1][1];
             let mut iter_mut = loc.creatures.iter_mut();
@@ -1743,6 +1866,9 @@ mod tests {
                             }
                             false
                         }
+                        _ => {
+                            panic!("Got wrong target for remove item ev");
+                        }
                     }
                 }),
                 on_fail: Some(event_fail1),
@@ -1767,6 +1893,9 @@ mod tests {
                                 }
                             }
                             false
+                        }
+                        _ => {
+                            panic!("Got wrong target for remove item ev");
                         }
                     }
                 }),
