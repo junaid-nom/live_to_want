@@ -100,6 +100,19 @@ impl Component for HealthComponent {
         true
     }
 }
+
+#[derive(Debug)]
+#[derive(Hash, PartialEq, Eq)]
+struct BuddingComponent {
+    frame_ready_to_reproduce: u128,
+    seed_creature: CreatureState,
+}
+impl Component for BuddingComponent {
+    fn get_visible() -> bool {
+        true
+    }
+}
+
 #[derive(Default, Debug, Hash, PartialEq, Eq)]
 struct LocationComponent {
     location: Vector2,
@@ -227,6 +240,11 @@ impl CreatureState {
         ret.components.location_component = LocationComponent{location:loc};
         ret
     }
+
+    // fn copy(c: &CreatureState) -> CreatureState {
+        // TODO: make all components implement copy/clone traits so its easy to copy em
+        // then use default for inventory and memory
+    // }
 }
 impl Default for CreatureState {
     fn default() -> Self {
@@ -261,12 +279,16 @@ pub struct Vector2 {
     y: i32,
 }
 
+pub struct GameState {
+    navigation_map: NavigationMap,
+    map_state: MapState,
+}
+
 #[derive(Debug)]
 #[derive(Default)]
 pub struct MapState {
     regions: Vec<Vec<MapRegion>>,
     frame_count: u128,
-    navigation_map: NavigationMap,
 }
 
 #[derive(Debug)]
@@ -316,12 +338,12 @@ pub struct NavigationMap {
     map: Vec<Vec<NavRegion>>,
 }
 impl NavigationMap {
-    fn update(&mut self, region: Vector2) {
+    fn update(&mut self, region: Vector2, map_region: &MapRegion) {
         // update the navRegion
         
         // if the left/right/up/down access changes then update all the region_distances
 
-        // PANIC if 1. exit node has a 
+        // PANIC if exit nodes are blocked by a creature. also if exit nodes arent together, like there shouldnt be a permablocked location inbetween 2 exit nodes. like for top if it was OOOXOO thats bad because it can cause strange splits where one region is accessible from another but only from a particular entrance. wish I had a better way to make sure u cant do this
     }
 
     fn navigate_to(&mut self, start: &Location, goal: &Location) -> Vec<Location> {
@@ -378,7 +400,10 @@ pub struct MapLocation {
     items: Vec<Item>,
 }
 impl MapLocation {
-    fn get_if_blocked(&self) -> bool {
+    fn get_if_blocked(&self, target_is_blocker: bool) -> bool {
+        if self.is_exit && target_is_blocker {
+            return true;
+        }
         if let Some(creatures) = self.creatures.as_ref() {
             for c in creatures.iter() {
                 if let Some(_) = c.components.block_space_component {
@@ -995,15 +1020,17 @@ fn movement_system(m: &MapState, c: &CreatureState) -> Option<EventChain> {
     None
 }
 
-fn run_frame(mut m: MapState, root: &GoalNode) -> MapState {
+fn run_frame(mut game_state: GameState, root: &GoalNode) -> GameState {
+    let mut m = game_state.map_state;
+    let mut nav_map = game_state.navigation_map;
     {
         m.frame_count += 1;
     }
-    // TODO: Maybe do something similar for every location and get 
-    // event chains for stuff to mutate in every location and other upkeep stuff?
 
-    // Run navigation system
-    // get event chains from movement system and process them
+    // TODO: Run spawn systems first, and spawn new creatures
+
+    // TODO: update nav map based on spawns for regions that spawn ones that block
+
     // Can run MUTABLE multiple systems here so far:
     // Starvation system
     // nav system
@@ -1085,6 +1112,7 @@ fn run_frame(mut m: MapState, root: &GoalNode) -> MapState {
             y.grid.par_iter_mut().for_each(|xl| {
                 xl.par_iter_mut().for_each(|yl| {
                     if let Some(creatures) = yl.creatures.as_mut() {
+                        // IF CREATURES WERE BLOCKERS, need to set that nav region
                         creatures.retain(
                             |c| {
                                 if let Some(h) = c.components.health_component.as_ref() {
@@ -1104,7 +1132,10 @@ fn run_frame(mut m: MapState, root: &GoalNode) -> MapState {
         })
     });
 
-    m
+    GameState {
+        map_state: m,
+        navigation_map: nav_map,
+    }
 }
 
 fn process_events_from_mapstate (m: &mut MapState, event_chains: Vec<EventChain>) {
