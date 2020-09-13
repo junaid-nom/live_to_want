@@ -68,6 +68,7 @@ pub struct ComponentMap {
     creature_type_component: Option<CreatureTypeComponent>,
     starvation_component: Option<StarvationComponent>,
     block_space_component: Option<BlockSpaceComponent>,
+    movement_component: Option<MovementComponent>,
 }
 
 #[derive(Debug)]
@@ -161,14 +162,17 @@ impl Component for BlockSpaceComponent {
 // Events set the Navigation Component.
 // Nagivation system then will set this MovementComponent system
 // Movement system will then run, where it will check frame_ready_to_move and if
-// its ready, create an event chain that FUCKKKKK
-// TODO: Okay so I need to CHANGE the event-chain system to also be able to RETURN
+// its ready, create an event chain to move obj
+// DONE: Okay so I need to CHANGE the event-chain system to also be able to RETURN
 // a new event chain dynamically created! That has a new Event type that OWNS a creaturestate
-// that is then meant to be moved into a new location FUCK (spawn will be similar)
-#[derive(Debug, PartialEq, Eq)]
-struct MovementComponent {
+// that is then meant to be moved into a new location (spawn will be similar)
+#[derive(Hash, Debug, PartialEq, Eq)]
+pub struct MovementComponent {
     speed: usize,
     destination: Location,
+    cached_navigation: Vec<Location>,
+    cache_last_updated_frame: u128,
+    navigating: bool,
     frame_ready_to_move: u128, // essentially if frame_ready to move is the current frame or earlier, move to destination
 }
 impl Component for MovementComponent {
@@ -266,7 +270,7 @@ pub struct MapState {
 }
 
 #[derive(Debug)]
-#[derive(Default, Clone, Copy, PartialEq, Eq)]
+#[derive(Default, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Location {
     region: Vector2,
     location: Vector2,
@@ -274,10 +278,52 @@ pub struct Location {
 
 #[derive(Debug)]
 #[derive(Default)]
+pub struct NavRegion {
+    grid: Vec<Vec<NavPoint>>,
+    region_distances: Vec<Vec<u32>>,
+    last_frame_updated: u128,
+    left: bool,
+    right: bool,
+    up: bool, // TODO: This kinda doesnt make sense maybe need dist between regions idk?
+    down: bool,
+}
+
+#[derive(Debug)]
+#[derive(Default)]
+pub struct NavPoint {
+    blocked: bool,
+    point_distances: Vec<Vec<u32>>,
+    is_exit: ExitPoint
+}
+
+#[derive(Debug)]
+enum ExitPoint {
+    None,
+    Left,
+    Right,
+    Up,
+    Down,
+}
+impl Default for ExitPoint {
+    fn default() -> Self {
+        ExitPoint::None
+    }
+}
+
+#[derive(Debug)]
+#[derive(Default)]
 pub struct NavigationMap {
-    
+    map: Vec<Vec<NavRegion>>,
 }
 impl NavigationMap {
+    fn update(&mut self, region: Vector2) {
+        // update the navRegion
+        
+        // if the left/right/up/down access changes then update all the region_distances
+
+        // PANIC if 1. exit node has a 
+    }
+
     fn navigate_to(&mut self, start: &Location, goal: &Location) -> Vec<Location> {
         // Currently just using a simple algo that assumes there are NO blockers anywhere and in same region
         // TODO: make a VecVec VecVec of region(with last updated piece)->location->blocked. and then 
@@ -327,16 +373,22 @@ pub struct MapLocation {
     id_component_items: IDComponent,
     id_component_creatures: IDComponent,
     location: Vector2,
-    creatures: Vec<CreatureState>,
+    is_exit: bool, // exits should not be allowed to have creatures placed on them. also they must not have a block INBETWEEN them.
+    creatures: Option<Vec<CreatureState>>, // some locations will be perma blocked and no creatures allowed
     items: Vec<Item>,
 }
 impl MapLocation {
     fn get_if_blocked(&self) -> bool {
-        for c in self.creatures.iter() {
-            if let Some(_) = c.components.block_space_component {
-                return true
+        if let Some(creatures) = self.creatures.as_ref() {
+            for c in creatures.iter() {
+                if let Some(_) = c.components.block_space_component {
+                    return true
+                }
             }
+        } else {
+            return true;
         }
+        
         false
     }
 }
@@ -486,9 +538,12 @@ impl EventChain {
         let e = &self.events[*&self.index];
         let success = e.get_requirements.deref()(&*effected, &e.event_type);
         if success {
-            e.mutate(effected);
+            let added_event = e.mutate(effected);
             let mut se = self;
             se.index+=1;
+            if let Some(e) = added_event {
+                se.events.insert(se.index, e);
+            }
             if se.events.len() > se.index {
                 Some(se)
             }
@@ -529,9 +584,32 @@ pub struct Event {
     target: UID,
 }
 impl Event {
-    fn mutate(&self, effected: &mut EventTarget) {
+    fn mutate(&self, effected: &mut EventTarget) -> Option<Event> {
         match &self.event_type {
-            EventType::Move(_) => {}
+            EventType::RemoveCreature(id, next_op) => {
+                match effected {
+                    EventTarget::LocationCreaturesTarget(v, _) => {
+                        let to_rm = v.iter().position(|c: &CreatureState| {
+                            c.components.id_component.id != *id
+                        }).unwrap();
+                        let rmed = v.remove(to_rm);
+                        if let Some(next) = next_op {
+                            return Some(Event {
+                                event_type: EventType::AddCreature(rmed),
+                                get_requirements: Box::new(|_, _| true),
+                                on_fail: None,
+                                target: *next,
+                            });
+                        } else {
+                            return None;
+                        }
+                    }
+                    _ => { panic!("trying to remove creature wrong target"); }
+                }
+            },
+            EventType::AddCreature(c) => {
+                return None
+            },
             EventType::RemoveItem(q, t) => {
                 match effected {
                     EventTarget::LocationItemTarget(v, _) => {
@@ -552,8 +630,9 @@ impl Event {
                             if let Some(ii) = zero_index {
                                 v.remove(ii);
                             }
-                            return
+                            return None
                         }
+                        return None
                     }
                     EventTarget::CreatureTarget(c) => {
                         let mut found = false;
@@ -574,12 +653,14 @@ impl Event {
                             if let Some(ii) = zero_index {
                                 c.inventory.remove(ii);
                             }
-                            return
+                            return None
                         }
+                        return None
                     }
                     _ => {
                         panic!("Got remove item for wrong target");
                     }
+                    
                 }
                 panic!(format!("Failed to find item in event! event: {:#?}", &self));
             }
@@ -590,25 +671,27 @@ impl Event {
                         for v in inventory.iter_mut() {
                             if v.item_type == *t {
                                 v.quantity += q;
-                                return;
+                                return None;
                             }
                         }
                         inventory.push(Item{
                             item_type: *t,
                             quantity: *q,
                         });
+                        return None
                     }
                     EventTarget::CreatureTarget(c) => {
                         for v in c.inventory.iter_mut() {
                             if v.item_type == *t {
                                 v.quantity += q;
-                                return;
+                                return None;
                             }
                         }
                         c.inventory.push(Item{
                             item_type: *t,
                             quantity: *q,
                         });
+                        return None
                     }
                     _ => {
                         panic!("Got add item for wrong target");
@@ -630,7 +713,8 @@ impl Debug for Event {
 
 #[derive(Debug)]
 pub enum EventType {
-    Move(Vector2),
+    RemoveCreature(UID, Option<UID>), // first is what to remove, 2nd is where to add next if there is next
+    AddCreature(CreatureState),
     RemoveItem(u32, ItemType),
     AddItem(u32, ItemType),
 }
@@ -885,38 +969,103 @@ fn starvation_system(c: &mut CreatureState) {
     }
 }
 
+
+fn navigation_system(c: &mut CreatureState) {
+    // TODO if the target for the creature is currently blocked, fuck
+}
+
+fn location_to_map_location<'a>(m: &'a MapState, location: &Location) -> &'a MapLocation {
+    let region: &MapRegion = &m.regions[location.region.x as usize][location.region.y as usize];
+    &region.grid[location.location.x as usize][location.location.y as usize]
+}
+
+fn movement_system(m: &MapState, c: &CreatureState) -> Option<EventChain> {
+    if let Some(movement) = c.components.movement_component.as_ref() {
+        if movement.frame_ready_to_move <= m.frame_count {
+            let dest = location_to_map_location(m, &movement.destination).id_component_creatures.id;
+            let rm_event = Event {
+                event_type: EventType::RemoveCreature(c.components.id_component.id, 
+                    Some(dest)),
+                get_requirements: Box::new(|_,_| true),
+                on_fail: None,
+                target: dest,
+            };
+        }
+    }
+    None
+}
+
 fn run_frame(mut m: MapState, root: &GoalNode) -> MapState {
+    {
+        m.frame_count += 1;
+    }
     // TODO: Maybe do something similar for every location and get 
     // event chains for stuff to mutate in every location and other upkeep stuff?
 
-    // Can run multiple systems here so far:
+    // Run navigation system
+    // get event chains from movement system and process them
+    // Can run MUTABLE multiple systems here so far:
     // Starvation system
+    // nav system
     m.regions.par_iter_mut().for_each(|x| {
         x.par_iter_mut().for_each(|y| {
             y.grid.par_iter_mut().for_each(|xl| {
                 xl.par_iter_mut().for_each(|yl| {
-                    yl.creatures.par_iter_mut().for_each(
-                        |c| {
-                            starvation_system(c);
-                        }
-                    );
+                    if let Some(creatures) = yl.creatures.as_mut() {
+                        creatures.par_iter_mut().for_each(
+                            |c| {
+                                starvation_system(c);
+                                navigation_system(c);
+                            }
+                        );
+                    }
                 })
             })
         })
     });
 
+    // Can run immutable systems that rely on reading entire mapstate here
+    let f_c = m.frame_count;
+    let mov_op_ecs: Vec<Option<EventChain>> = m.regions.par_iter().flat_map(|x| {
+        x.par_iter().flat_map(|y| {
+            y.grid.par_iter().flat_map(|xl| {
+                xl.par_iter().flat_map(|yl| {
+                    if let Some(creatures) = yl.creatures.as_ref() {
+                        let ret: Vec<Option<EventChain>> = creatures.par_iter().map(
+                            |c| {
+                                movement_system(&m, c)
+                            }
+                        ).collect();
+                        return ret;
+                    } else {
+                        Vec::new()
+                    }
+                })
+            })
+        })
+    }).collect();
+
+    // TODO: Send out current map state to users via websocket
+    // TODO: Then wait for them to respond if doing by-frame, or a timer
+
+    // want to move THEN AFTER do ai stuff so ai can react to the movement
     let op_ecs: Vec<Option<EventChain>> = m.regions.par_iter().flat_map(|x| {
         x.par_iter().flat_map(|y| {
             y.grid.par_iter().flat_map(|xl| {
                 xl.par_iter().flat_map(|yl| {
-                    yl.creatures.par_iter().map(
-                        |c| {
-                           match GoalCacheNode::get_final_command(&root, &m, &c) {
-                               Some(cc) => {cc.to_event_chain()}
-                               None => {None}
-                           }
-                        }
-                    )
+                    if let Some(creatures) = yl.creatures.as_ref() {
+                        let ret: Vec<Option<EventChain>> = creatures.par_iter().map(
+                            |c| {
+                                match GoalCacheNode::get_final_command(&root, &m, &c) {
+                                    Some(cc) => {cc.to_event_chain()}
+                                    None => {None}
+                                }
+                            }
+                        ).collect();
+                        return ret;
+                    } else {
+                        Vec::new()
+                    }
                 })
             })
         })
@@ -928,6 +1077,37 @@ fn run_frame(mut m: MapState, root: &GoalNode) -> MapState {
         }
     }
 
+    process_events_from_mapstate(&mut m, event_chains);
+
+    // Death system
+    m.regions.par_iter_mut().for_each(|x| {
+        x.par_iter_mut().for_each(|y| {
+            y.grid.par_iter_mut().for_each(|xl| {
+                xl.par_iter_mut().for_each(|yl| {
+                    if let Some(creatures) = yl.creatures.as_mut() {
+                        creatures.retain(
+                            |c| {
+                                if let Some(h) = c.components.health_component.as_ref() {
+                                    if h.health <= 0 {
+                                        false
+                                    } else {
+                                        true
+                                    }
+                                } else {
+                                    true
+                                }
+                            }
+                        );
+                    }
+                })
+            })
+        })
+    });
+
+    m
+}
+
+fn process_events_from_mapstate (m: &mut MapState, event_chains: Vec<EventChain>) {
     // get a mut ref to all creatures and locations?
     // note have to do it in a SINGLE LOOP because otherwise compiler gets confused with
     // multiple m.region mut refs. UGG
@@ -935,13 +1115,17 @@ fn run_frame(mut m: MapState, root: &GoalNode) -> MapState {
         x.par_iter_mut().flat_map(|y| {
             y.grid.par_iter_mut().flat_map(|xl| {
                 xl.par_iter_mut().flat_map(|yl| {
-                    let mut cc: Vec<EventTarget> = yl.creatures.par_iter_mut().map(
-                        |c| {
-                           EventTarget::CreatureTarget(c)
-                        }
-                    ).collect();
-                    cc.push(EventTarget::LocationItemTarget(&mut yl.items, yl.id_component_items.id));
-                    cc
+                    if let Some(creatures) = yl.creatures.as_mut() {
+                        let mut cc: Vec<EventTarget> = creatures.par_iter_mut().map(
+                            |c| {
+                            EventTarget::CreatureTarget(c)
+                            }
+                        ).collect();
+                        cc.push(EventTarget::LocationItemTarget(&mut yl.items, yl.id_component_items.id));
+                        cc
+                    } else {
+                        Vec::new()
+                    }
                 })
             })
         })
@@ -951,32 +1135,6 @@ fn run_frame(mut m: MapState, root: &GoalNode) -> MapState {
     while next.len() > 0 {
         next = process_events(&mut all_creature_targets, next);
     }
-
-    // Death system
-    m.regions.par_iter_mut().for_each(|x| {
-        x.par_iter_mut().for_each(|y| {
-            y.grid.par_iter_mut().for_each(|xl| {
-                xl.par_iter_mut().for_each(|yl| {
-                    yl.creatures.retain(
-                        |c| {
-                            if let Some(h) = c.components.health_component.as_ref() {
-                                if h.health <= 0 {
-                                    false
-                                } else {
-                                    true
-                                }
-                            } else {
-                                true
-                            }
-                        }
-                    );
-                        
-                })
-            })
-        })
-    });
-
-    m
 }
 
 fn process_events<'a, 'b>(targets: &'a mut Vec<EventTarget<'b>>, event_chains: Vec<EventChain>) -> Vec<EventChain> {
@@ -1450,13 +1608,7 @@ mod tests {
             ml.x += 1;
         }
 
-        let mut ml = MapLocation{
-            location: Vector2{x: 0, y: 0},
-            creatures: Vec::new(),
-            items: Vec::new(),
-            id_component_items: IDComponent::new(),
-            id_component_creatures: IDComponent::new(),
-        };
+        let mut ml = MapLocation::default();
 
         let mml = MutMl{
             ml: &mut ml,
@@ -1714,7 +1866,7 @@ mod tests {
         ev.into_par_iter().map(|x| x);
 
         let evl = vec![Event {
-            event_type: EventType::Move(Vector2::default()),
+            event_type: EventType::RemoveItem(3, ItemType::Berry),
             target: 1,
             get_requirements: Box::new(|_, _| false),
             on_fail: None,
@@ -1763,8 +1915,9 @@ mod tests {
                         id_component_items: IDComponent::new(),
                         id_component_creatures: IDComponent::new(),
                         location: Vector2{x, y},
-                        creatures: Vec::new(),
+                        creatures: Some(Vec::new()),
                         items: Vec::new(),
+                        is_exit: false,
                     };
                     xList.push(loc);
                 }
@@ -1790,10 +1943,10 @@ mod tests {
             };
             let deer1_id = deer1.components.id_component.id;
             let deer2_id = deer2.components.id_component.id;
-            region.grid[1][1].creatures.push(
+            region.grid[1][1].creatures.as_mut().unwrap().push(
                 deer1
             );
-            region.grid[1][1].creatures.push(
+            region.grid[1][1].creatures.as_mut().unwrap().push(
                 deer2
             );
             region.grid[1][1].items.push(Item{
@@ -1803,7 +1956,7 @@ mod tests {
             let berry_id = region.grid[1][1].id_component_items.id;
 
             let loc = &mut region.grid[1][1];
-            let mut iter_mut = loc.creatures.iter_mut();
+            let mut iter_mut = loc.creatures.as_mut().unwrap().iter_mut();
             let d1_ref = iter_mut.next().unwrap();
             let d2_ref = iter_mut.next().unwrap();
             let loc_ref = &mut loc.items;
@@ -1927,7 +2080,7 @@ mod tests {
             }
             assert_eq!(next.len(), 0);
             assert_eq!(region.grid[1][1].items.len(), 0);
-            let total: u32 = region.grid[1][1].creatures.iter().map(|c| {
+            let total: u32 = region.grid[1][1].creatures.as_mut().unwrap().iter().map(|c| {
                 let ret: u32 = c.inventory.iter().map(|i| i.quantity).sum();
                 ret
             }).sum();
