@@ -1,7 +1,9 @@
 
 extern crate rayon;
-use rayon::prelude::*;
+use std::{rc::Rc, cell::RefCell};
 
+use rayon::prelude::*;
+use live_to_want_game::*;
 #[test]
 fn test_rayon() {
     pub struct TaskListTest<'a> {
@@ -157,8 +159,8 @@ fn test_chain_multithread() {
         deer2.components.location_component = LocationComponent {
             location: Vector2{x: 1, y: 1}
         };
-        let deer1_id = deer1.components.id_component.id;
-        let deer2_id = deer2.components.id_component.id;
+        let deer1_id = deer1.components.id_component.id();
+        let deer2_id = deer2.components.id_component.id();
         region.grid[1][1].creatures.as_mut().unwrap().push(
             deer1
         );
@@ -169,7 +171,7 @@ fn test_chain_multithread() {
             item_type: ItemType::Berry,
             quantity: 1,
         });
-        let berry_id = region.grid[1][1].id_component_items.id;
+        let berry_id = region.grid[1][1].id_component_items.id();
 
         let loc = &mut region.grid[1][1];
         let mut iter_mut = loc.creatures.as_mut().unwrap().iter_mut();

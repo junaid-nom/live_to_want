@@ -1,3 +1,7 @@
+use crate::utils::Vector2;
+
+use super::{MapRegion, Location};
+
 #[derive(Debug)]
 #[derive(Default)]
 pub struct NavRegion {

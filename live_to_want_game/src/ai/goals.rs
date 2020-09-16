@@ -1,4 +1,7 @@
-
+use crate::{map_state::MapState, creature::CreatureState, map_state::CreatureCommand};
+use std::{cell::RefCell, rc::Rc, sync::Arc, collections::HashMap};
+use std::ops::Deref;
+use std::borrow::Borrow;
 // NOTE I tried to make it not use Rc by make an vec
 // that didn't work because you cant mutate elements to point
 // to other elements of the same vec because bullshit
@@ -10,12 +13,12 @@
 // since the graph is basically static this is possible. See: tests::graph_without_vec_test
 // though requires a lil unsafe
 pub struct GoalNode<'a> {
-    get_want_local: Box<fn(&MapState, &CreatureState) -> u32>,
-    get_effort_local: Box<fn(&MapState, &CreatureState) -> u32>,
-    children: Vec<GoalConnection<'a>>,
-    name: &'a str,  // just for debugging really
-    get_command: Option<Box<for<'f, 'c> fn(&MapState, &'f CreatureState) -> CreatureCommand<'f>>>, // Is None if this node does not lead to a category and is more of a organizing node
-    get_requirements_met: Box<fn (&MapState, &CreatureState) -> bool>,
+    pub get_want_local: Box<fn(&MapState, &CreatureState) -> u32>,
+    pub get_effort_local: Box<fn(&MapState, &CreatureState) -> u32>,
+    pub children: Vec<GoalConnection<'a>>,
+    pub name: &'a str,  // just for debugging really
+    pub get_command: Option<Box<for<'f, 'c> fn(&MapState, &'f CreatureState) -> CreatureCommand<'f>>>, // Is None if this node does not lead to a category and is more of a organizing node
+    pub get_requirements_met: Box<fn (&MapState, &CreatureState) -> bool>,
 }
 
 impl GoalNode<'_> {
@@ -28,15 +31,15 @@ pub struct GoalConnection<'a> {
 }
 
 pub struct GoalCacheNode<'a> {
-    goal: &'a GoalNode<'a>,
-    children: Option<Vec<Rc<RefCell<GoalCacheNode<'a>>>>>,
-    want_local: u32,
-    effort_local: u32,
-    requirement_met: bool,
-    motivation_global: Option<f32>, // if None is not calculated yet. Should be (sum(want/effort for all children) + local want) / local effort
+    pub goal: &'a GoalNode<'a>,
+    pub children: Option<Vec<Rc<RefCell<GoalCacheNode<'a>>>>>,
+    pub want_local: u32,
+    pub effort_local: u32,
+    pub requirement_met: bool,
+    pub motivation_global: Option<f32>, // if None is not calculated yet. Should be (sum(want/effort for all children) + local want) / local effort
 }
 impl GoalCacheNode<'_> {
-    fn new<'a>(goal: &'a GoalNode, map_state :&MapState, c_state : &CreatureState) -> GoalCacheNode<'a> {
+    pub fn new<'a>(goal: &'a GoalNode, map_state :&MapState, c_state : &CreatureState) -> GoalCacheNode<'a> {
         let new = GoalCacheNode {
             goal,
             children: None,
@@ -49,14 +52,14 @@ impl GoalCacheNode<'_> {
         // NOTE: Could make an outer struct "GoalCacheNetwork", that holds a root_node and the existing_cache and auto create network?
     }
 
-    fn _my_func(num: i32, list_of_nums: &mut Vec<i32>) {
+    pub fn _my_func(num: i32, list_of_nums: &mut Vec<i32>) {
         list_of_nums.push(num);
         if num - 1 >= 0 {
             GoalCacheNode::_my_func(num - 1, list_of_nums);
         }
     }
 
-    fn _my_fc<'a>() -> Option<MapState> {
+    pub fn _my_fc<'a>() -> Option<MapState> {
         let poop : Option<MapState>;
         poop = Some(MapState::default());
         // MUST USE & IN FRONT OF OPTION SO IT DOESNT GET TAKEN!
@@ -70,7 +73,7 @@ impl GoalCacheNode<'_> {
         }
     }
 
-    fn setup_children<'a>(goal_cache:  Rc<RefCell<GoalCacheNode<'a>>>, map_state :&MapState, c_state : &CreatureState, existing_caches: Rc<RefCell<HashMap<&'a str, Rc<RefCell<GoalCacheNode<'a>>>>>>) {
+    pub fn setup_children<'a>(goal_cache:  Rc<RefCell<GoalCacheNode<'a>>>, map_state :&MapState, c_state : &CreatureState, existing_caches: Rc<RefCell<HashMap<&'a str, Rc<RefCell<GoalCacheNode<'a>>>>>>) {
         let goal_cache = goal_cache.clone();
         let mut goal_cache = goal_cache.borrow_mut();
         if let Some(_) = goal_cache.children {
@@ -99,7 +102,7 @@ impl GoalCacheNode<'_> {
         }
     }
 
-    fn get_connection_by_name<'a>(goal_parent: &'a GoalNode, child_name: &str) -> Option<&'a GoalConnection<'a>> {
+    pub fn get_connection_by_name<'a>(goal_parent: &'a GoalNode, child_name: &str) -> Option<&'a GoalConnection<'a>> {
         for c in &goal_parent.children {
             if c.child.deref().name == child_name {
                 return Some(c);
@@ -109,7 +112,7 @@ impl GoalCacheNode<'_> {
     }
 
     //note must call setup_children first
-    fn setup_global_stats(goal_cache:  Rc<RefCell<GoalCacheNode>>, map_state :&MapState, c_state : &CreatureState) {
+    pub fn setup_global_stats(goal_cache:  Rc<RefCell<GoalCacheNode>>, map_state :&MapState, c_state : &CreatureState) {
         let goal_cache_c = goal_cache.clone();
         let mut goal_cache = goal_cache_c.deref().borrow_mut();
         if let Some(_) = goal_cache.motivation_global {
@@ -233,7 +236,7 @@ impl GoalCacheNode<'_> {
     }
 }
 
-fn generate_goal_nodes<'a>() -> GoalNode<'a> {
+pub fn generate_goal_nodes<'a>() -> GoalNode<'a> {
     // TODO: Need to develop this
     let root = GoalNode {
         get_want_local: Box::new(|_, _| 0),

@@ -1,4 +1,6 @@
+use std::sync::Arc;
 
+use live_to_want_game::*;
 // PRETTY SURE GoalNode is fucked and needs Rc in connections to work
 // because if u return a GoalNode the connected other GoalNodes go out of scope
 fn generate_basic_graph() -> GoalNode<'static> {

@@ -13,19 +13,19 @@ extern crate rayon;
 use rayon::prelude::*;
 
 mod map_state;
-use map_state::*;
+pub use map_state::*;
 
 mod utils;
-use utils::*;
+pub use utils::*;
 
 mod creature;
-use creature::*;
+pub use creature::*;
 
 mod tasks;
-use tasks::*;
+pub use tasks::*;
 
 mod ai;
-use ai::*;
+pub use ai::*;
 
 // NOTE: All event chains with items need to end in a final failure case of putting item on ground.
 // this is because you can try to give an item away as someone else fills your inventory and 

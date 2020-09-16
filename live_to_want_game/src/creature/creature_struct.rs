@@ -1,3 +1,9 @@
+use std::fmt::Formatter;
+
+use crate::{map_state::Item, utils::Vector2};
+
+use super::{ComponentMap, IDComponent, LocationComponent, HealthComponent, NameComponent, StarvationComponent, REPRODUCE_STARTING_CALORIES};
+
 #[derive(Debug, Hash, PartialEq, Eq)]
 pub enum CreatureType {
     Deer,
@@ -18,14 +24,14 @@ pub struct CreatureState {
     pub inventory: Vec<Item>,
 }
 impl CreatureState {
-    fn new<'a>(loc: Vector2) -> CreatureState {
+    pub fn new<'a>(loc: Vector2) -> CreatureState {
         let mut ret = CreatureState::default();
         ret.components.location_component = LocationComponent{location:loc};
         ret
     }
 
     // for reproduction via budding mostly
-    fn copy(c: &CreatureState, new_loc: Vector2) -> CreatureState {
+    pub fn copy(c: &CreatureState, new_loc: Vector2) -> CreatureState {
         // TODO: make all components implement copy/clone traits so its easy to copy em
         // then use default for inventory and memory
         let cmap = ComponentMap{

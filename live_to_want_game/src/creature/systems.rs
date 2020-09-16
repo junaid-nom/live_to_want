@@ -1,3 +1,7 @@
+use crate::{map_state::MapState, tasks::EventChain, map_state::location_to_map_location, tasks::Event, tasks::EventType};
+
+use super::{CreatureState, STARVING_SLOW_METABOLISM_FACTOR};
+
 
 pub fn starvation_system(c: &mut CreatureState) {
     if let Some(s) = c.components.starvation_component.as_mut() {
@@ -22,9 +26,9 @@ pub fn navigation_system(c: &mut CreatureState) {
 pub fn movement_system(m: &MapState, c: &CreatureState) -> Option<EventChain> {
     if let Some(movement) = c.components.movement_component.as_ref() {
         if movement.frame_ready_to_move <= m.frame_count {
-            let dest = location_to_map_location(m, &movement.destination).id_component_creatures.id;
+            let dest = location_to_map_location(m, &movement.destination).id_component_creatures.id();
             let rm_event = Event {
-                event_type: EventType::RemoveCreature(c.components.id_component.id, 
+                event_type: EventType::RemoveCreature(c.components.id_component.id(), 
                     Some(dest)),
                 get_requirements: Box::new(|_,_| true),
                 on_fail: None,

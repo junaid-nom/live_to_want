@@ -1,8 +1,12 @@
-// game constants:
-static STARVING_SLOW_METABOLISM_FACTOR: f32 = 0.5;
-static REPRODUCE_STARTING_CALORIES: i32 = 150;
+use crate::{utils::{UID, get_id, Vector2}, map_state::Location};
 
-trait Component {
+use super::CreatureState;
+
+// game constants:
+pub static STARVING_SLOW_METABOLISM_FACTOR: f32 = 0.5;
+pub static REPRODUCE_STARTING_CALORIES: i32 = 150;
+
+pub trait Component {
     fn get_visible() -> bool {
         false
     }
@@ -12,27 +16,30 @@ trait Component {
 #[derive(Debug)]
 #[derive(Hash, PartialEq, Eq)]
 pub struct ComponentMap {
-    id_component: IDComponent,
-    health_component: Option<HealthComponent>,
-    location_component: LocationComponent,
-    region_component: RegionComponent,
-    name_component: Option<NameComponent>,
-    creature_type_component: Option<CreatureTypeComponent>,
-    starvation_component: Option<StarvationComponent>,
-    block_space_component: Option<BlockSpaceComponent>,
-    movement_component: Option<MovementComponent>,
+    pub id_component: IDComponent,
+    pub health_component: Option<HealthComponent>,
+    pub location_component: LocationComponent,
+    pub region_component: RegionComponent,
+    pub name_component: Option<NameComponent>,
+    pub creature_type_component: Option<CreatureTypeComponent>,
+    pub starvation_component: Option<StarvationComponent>,
+    pub block_space_component: Option<BlockSpaceComponent>,
+    pub movement_component: Option<MovementComponent>,
 }
 
 #[derive(Debug)]
 #[derive(Hash, PartialEq, Eq)]
-struct IDComponent {
+pub struct IDComponent {
     id: UID,
 }
 impl IDComponent {
-    fn new() -> IDComponent{
+    pub fn new() -> IDComponent{
         IDComponent{
             id: get_id()
         }
+    }
+    pub fn id(&self) -> UID {
+       self.id 
     }
 }
 impl Default for IDComponent {
@@ -43,9 +50,9 @@ impl Default for IDComponent {
 
 #[derive(Debug)]
 #[derive(Hash, PartialEq, Eq, Copy, Clone)]
-struct HealthComponent {
-    health: i32,
-    max_health: i32,
+pub struct HealthComponent {
+    pub health: i32,
+    pub max_health: i32,
 }
 impl Component for HealthComponent {
     fn get_visible() -> bool {
@@ -55,9 +62,9 @@ impl Component for HealthComponent {
 
 #[derive(Debug)]
 #[derive(Hash, PartialEq, Eq)]
-struct BuddingComponent {
-    frame_ready_to_reproduce: u128,
-    seed_creature: CreatureState,
+pub struct BuddingComponent {
+    pub frame_ready_to_reproduce: u128,
+    pub seed_creature: CreatureState,
 }
 impl Component for BuddingComponent {
     fn get_visible() -> bool {
@@ -66,8 +73,8 @@ impl Component for BuddingComponent {
 }
 
 #[derive(Default, Debug, Hash, PartialEq, Eq)]
-struct LocationComponent {
-    location: Vector2,
+pub struct LocationComponent {
+    pub location: Vector2,
 }
 impl Component for LocationComponent {
     fn get_visible() -> bool {
@@ -76,8 +83,8 @@ impl Component for LocationComponent {
 }
 
 #[derive(Default, Debug, Hash, PartialEq, Eq, Copy, Clone)]
-struct RegionComponent {
-    region: Vector2,
+pub struct RegionComponent {
+    pub region: Vector2,
 }
 impl Component for RegionComponent {
     fn get_visible() -> bool {
@@ -85,7 +92,7 @@ impl Component for RegionComponent {
     }
 }
 #[derive(Debug, Hash, PartialEq, Eq)]
-struct NameComponent {
+pub struct NameComponent {
 
 }
 impl Component for NameComponent {
@@ -94,7 +101,7 @@ impl Component for NameComponent {
     }
 }
 #[derive(Debug, Hash, PartialEq, Eq, Copy, Clone)]
-struct CreatureTypeComponent {
+pub struct CreatureTypeComponent {
 
 }
 impl Component for CreatureTypeComponent {
@@ -116,7 +123,7 @@ impl Component for CreatureTypeComponent {
 // ACTUALLY I wont cause that should be based on like health component existing
 // or something like that
 #[derive(Debug, Hash, PartialEq, Eq, Copy, Clone)]
-struct BlockSpaceComponent {
+pub struct BlockSpaceComponent {
 }
 impl Component for BlockSpaceComponent {
     fn get_visible() -> bool {
@@ -133,13 +140,13 @@ impl Component for BlockSpaceComponent {
 // that is then meant to be moved into a new location (spawn will be similar)
 #[derive(Hash, Debug, PartialEq, Eq)]
 pub struct MovementComponent {
-    speed: usize,
-    destination: Location,
-    cached_navigation: Vec<Location>,
-    cache_last_updated_frame: u128,
-    navigating: bool,
-    moving: bool,
-    frame_ready_to_move: u128, // essentially if frame_ready to move is the current frame or earlier, move to destination
+    pub speed: usize,
+    pub destination: Location,
+    pub cached_navigation: Vec<Location>,
+    pub cache_last_updated_frame: u128,
+    pub navigating: bool,
+    pub moving: bool,
+    pub frame_ready_to_move: u128, // essentially if frame_ready to move is the current frame or earlier, move to destination
 }
 impl Component for MovementComponent {
     fn get_visible() -> bool {
@@ -162,9 +169,9 @@ impl Clone for MovementComponent {
 
 #[derive(Debug)]
 #[derive(Hash, PartialEq, Eq)]
-struct StarvationComponent {
-    calories: i32,
-    metabolism: usize,
+pub struct StarvationComponent {
+    pub calories: i32,
+    pub metabolism: usize,
 }
 impl Component for StarvationComponent {
     fn get_visible() -> bool {

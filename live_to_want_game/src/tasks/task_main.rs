@@ -1,12 +1,20 @@
+use fmt::Debug;
+
+use crate::{map_state::Item, utils::UID, creature::CreatureState, map_state::ItemType, map_state::MapState};
+use std::collections::HashMap;
+use core::fmt;
+extern crate rayon;
+use rayon::prelude::*;
+
 /// Is a list of all events for that target for a given frame cycle
 /// Must place all tasks for that target in here at once or could cause race conditions
 //#[derive(std::marker::Sized)] doesnt work...
 pub struct TaskList<'a, 'b> {
-    target: &'a mut EventTarget<'b>,
-    tasks: Vec<EventChain>,
+    pub target: &'a mut EventTarget<'b>,
+    pub tasks: Vec<EventChain>,
 }
 impl TaskList<'_, '_> {
-    fn process(mut self) -> Vec<Option<EventChain>> {
+    pub fn process(mut self) -> Vec<Option<EventChain>> {
         let mut ret = Vec::new();
         for task in self.tasks.into_iter() {
             ret.push(task.process(&mut self.target));
@@ -17,13 +25,13 @@ impl TaskList<'_, '_> {
 
 #[derive(Debug)]
 pub struct EventChain {
-    index: usize,
-    events: Vec<Event>,
+    pub index: usize,
+    pub events: Vec<Event>,
 }
 impl EventChain {
     fn process(self, effected: &mut EventTarget) -> Option<EventChain> {
         let e = &self.events[*&self.index];
-        let success = e.get_requirements.deref()(&*effected, &e.event_type);
+        let success = (*e.get_requirements)(&*effected, &e.event_type);
         if success {
             let added_event = e.mutate(effected);
             let mut se = self;
@@ -59,25 +67,25 @@ impl EventTarget<'_> {
         match &self {
             EventTarget::LocationItemTarget(_, id) => {*id}
             EventTarget::LocationCreaturesTarget(_, id) => {*id}
-            EventTarget::CreatureTarget(c) => {c.components.id_component.id}
+            EventTarget::CreatureTarget(c) => {c.components.id_component.id()}
         }
     }
 }
 
 pub struct Event {
-    event_type: EventType,
-    get_requirements: Box<fn (&EventTarget, &EventType) -> bool>,
-    on_fail: Option<EventChain>,
-    target: UID,
+    pub event_type: EventType,
+    pub get_requirements: Box<fn (&EventTarget, &EventType) -> bool>,
+    pub on_fail: Option<EventChain>,
+    pub target: UID,
 }
 impl Event {
-    fn mutate(&self, effected: &mut EventTarget) -> Option<Event> {
+    pub fn mutate(&self, effected: &mut EventTarget) -> Option<Event> {
         match &self.event_type {
             EventType::RemoveCreature(id, next_op) => {
                 match effected {
                     EventTarget::LocationCreaturesTarget(v, _) => {
                         let to_rm = v.iter().position(|c: &CreatureState| {
-                            c.components.id_component.id != *id
+                            c.components.id_component.id() != *id
                         }).unwrap();
                         let rmed = v.remove(to_rm);
                         if let Some(next) = next_op {
@@ -220,7 +228,7 @@ pub fn process_events_from_mapstate (m: &mut MapState, event_chains: Vec<EventCh
                             EventTarget::CreatureTarget(c)
                             }
                         ).collect();
-                        cc.push(EventTarget::LocationItemTarget(&mut yl.items, yl.id_component_items.id));
+                        cc.push(EventTarget::LocationItemTarget(&mut yl.items, yl.id_component_items.id()));
                         cc
                     } else {
                         Vec::new()
@@ -243,7 +251,7 @@ pub fn process_events<'a, 'b>(targets: &'a mut Vec<EventTarget<'b>>, event_chain
         for t in targets.iter_mut() {
             let id = match t {
                 EventTarget::LocationItemTarget(_, id) => {*id}
-                EventTarget::CreatureTarget(c) => {c.components.id_component.id}
+                EventTarget::CreatureTarget(c) => {c.components.id_component.id()}
                 EventTarget::LocationCreaturesTarget(_, id) => {*id}
             };
             uid_map.insert(id, t);

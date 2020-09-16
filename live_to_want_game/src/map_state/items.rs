@@ -1,3 +1,7 @@
+use crate::{creature::CreatureState, utils::Vector2, tasks::EventChain, tasks::Event, tasks::EventType, tasks::EventTarget, utils::UID};
+
+use super::MapLocation;
+
 #[derive(Debug, Clone, Copy)]
 #[derive(PartialEq, Hash, Eq)]
 pub enum ItemType {
@@ -98,8 +102,8 @@ impl CreatureCommand<'_> {
 
 fn get_id_from_inventory(inv: &InventoryHolder) -> UID {
     match inv {
-        InventoryHolder::CreatureInventory(c) => {c.components.id_component.id}
-        InventoryHolder::LocationInventory(l) => {l.id_component_items.id}
+        InventoryHolder::CreatureInventory(c) => {c.components.id_component.id()}
+        InventoryHolder::LocationInventory(l) => {l.id_component_items.id()}
     }
 }
 

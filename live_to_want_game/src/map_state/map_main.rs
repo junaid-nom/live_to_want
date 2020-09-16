@@ -1,3 +1,7 @@
+use crate::{utils::Vector2, creature::IDComponent, creature::CreatureState};
+
+use super::Item;
+
 
 #[derive(Debug)]
 #[derive(Default)]
@@ -17,19 +21,19 @@ pub struct Location {
 #[derive(Debug)]
 #[derive(Default)]
 pub struct MapRegion {
-    grid: Vec<Vec<MapLocation>>,
-    last_frame_changed: u128, // if nav system last updated before this frame, update it
+    pub grid: Vec<Vec<MapLocation>>,
+    pub last_frame_changed: u128, // if nav system last updated before this frame, update it
 }
 
 #[derive(Debug)]
 #[derive(Default)]
 pub struct MapLocation {
-    id_component_items: IDComponent,
-    id_component_creatures: IDComponent,
-    location: Vector2,
-    is_exit: bool, // exits should not be allowed to have creatures placed on them. also they must not have a block INBETWEEN them.
-    creatures: Option<Vec<CreatureState>>, // some locations will be perma blocked and no creatures allowed
-    items: Vec<Item>,
+    pub id_component_items: IDComponent,
+    pub id_component_creatures: IDComponent,
+    pub location: Vector2,
+    pub is_exit: bool, // exits should not be allowed to have creatures placed on them. also they must not have a block INBETWEEN them.
+    pub creatures: Option<Vec<CreatureState>>, // some locations will be perma blocked and no creatures allowed
+    pub items: Vec<Item>,
 }
 impl MapLocation {
     fn get_if_blocked(&self, target_is_blocker: bool) -> bool {
