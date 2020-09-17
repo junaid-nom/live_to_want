@@ -17,7 +17,7 @@ pub fn budding_system(m: &MapState, c: &CreatureState) -> Option<EventChain> {
     // for each blocker it might also remove additional non-blocker creatures
     // blocking units have to be done first actually
     // should be fast since shouldnt happen often?...
-    
+    None
 }
 
 pub fn starvation_system(c: &mut CreatureState) {
