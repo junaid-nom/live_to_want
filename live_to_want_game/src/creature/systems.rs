@@ -2,6 +2,23 @@ use crate::{map_state::MapState, tasks::EventChain, map_state::location_to_map_l
 
 use super::{CreatureState, STARVING_SLOW_METABOLISM_FACTOR};
 
+pub fn budding_system(m: &MapState, c: &CreatureState) -> Option<EventChain> {
+    // first check if its the frame to reproduce.
+    // If so, find a random nearby open spot. that is not blocked
+    // make an event chain of first placing the creature on that space. (create unit)
+    // then next event resets the counters for the creatures budding component
+
+    // Then later in the main loop, run a function that looks at all spots and checks for
+    // more than 1 blocker. if that's the case, remove all the "excess" units and put them in a new list, (their location should mark where they previously were).
+    // one list for blockers one for not.
+    // then linearly go through and for each one find a nearby open space and add them there?
+    // actually can make it parallelized by doing it based on region?
+    // do the blockers first?
+    // for each blocker it might also remove additional non-blocker creatures
+    // blocking units have to be done first actually
+    // should be fast since shouldnt happen often?...
+    
+}
 
 pub fn starvation_system(c: &mut CreatureState) {
     if let Some(s) = c.components.starvation_component.as_mut() {

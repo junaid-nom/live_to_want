@@ -87,7 +87,6 @@ fn run_frame(mut game_state: GameState, root: &GoalNode) -> GameState {
     });
 
     // Can run immutable systems that rely on reading entire mapstate here
-    let f_c = m.frame_count;
     let mov_op_ecs: Vec<Option<EventChain>> = m.regions.par_iter().flat_map(|x| {
         x.par_iter().flat_map(|y| {
             y.grid.par_iter().flat_map(|xl| {

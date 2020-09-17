@@ -63,6 +63,7 @@ impl Component for HealthComponent {
 #[derive(Debug)]
 #[derive(Hash, PartialEq, Eq)]
 pub struct BuddingComponent {
+    pub reproduction_rate: u32,
     pub frame_ready_to_reproduce: u128,
     pub seed_creature: CreatureState,
 }
