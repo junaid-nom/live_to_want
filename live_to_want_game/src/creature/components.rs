@@ -25,6 +25,7 @@ pub struct ComponentMap {
     pub starvation_component: Option<StarvationComponent>,
     pub block_space_component: Option<BlockSpaceComponent>,
     pub movement_component: Option<MovementComponent>,
+    pub budding_component: Option<BuddingComponent>,
 }
 
 #[derive(Debug)]
@@ -65,11 +66,20 @@ impl Component for HealthComponent {
 pub struct BuddingComponent {
     pub reproduction_rate: u32,
     pub frame_ready_to_reproduce: u128,
-    pub seed_creature: CreatureState,
+    pub seed_creature: Box<CreatureState>,
 }
 impl Component for BuddingComponent {
     fn get_visible() -> bool {
         true
+    }
+}
+impl Clone for BuddingComponent {
+    fn clone(&self) -> Self {
+        BuddingComponent {
+            reproduction_rate: self.reproduction_rate,
+            frame_ready_to_reproduce: self.frame_ready_to_reproduce + self.reproduction_rate as u128,
+            seed_creature: Box::new(CreatureState::copy(self.seed_creature.as_ref(), self.seed_creature.components.location_component.location)),
+        }
     }
 }
 

@@ -194,6 +194,16 @@ impl Event {
                 }
                 // TODO: Panic if inv full?>
             }
+            EventType::IterateBudding() => {
+                match effected {
+                    EventTarget::CreatureTarget(c) => {
+                        let bud = c.components.budding_component.as_mut().unwrap();
+                        bud.frame_ready_to_reproduce += bud.reproduction_rate as u128;
+                        None
+                    },
+                    _ => panic!("Wrong event target for budding")
+                }
+            }
         }
     }
 }
@@ -212,6 +222,7 @@ pub enum EventType {
     AddCreature(CreatureState),
     RemoveItem(u32, ItemType),
     AddItem(u32, ItemType),
+    IterateBudding(),
 }
 
 pub fn process_events_from_mapstate (m: &mut MapState, event_chains: Vec<EventChain>) {

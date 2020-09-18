@@ -36,7 +36,7 @@ pub struct MapLocation {
     pub items: Vec<Item>,
 }
 impl MapLocation {
-    fn get_if_blocked(&self, target_is_blocker: bool) -> bool {
+    pub fn get_if_blocked(&self, target_is_blocker: bool) -> bool {
         if self.is_exit && target_is_blocker {
             return true;
         }

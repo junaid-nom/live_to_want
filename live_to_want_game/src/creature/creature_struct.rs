@@ -58,6 +58,7 @@ impl CreatureState {
             creature_type_component: c.components.creature_type_component.clone(),
             block_space_component: c.components.block_space_component.clone(),
             movement_component: c.components.movement_component.clone(),
+            budding_component: c.components.budding_component.clone(),
         };
 
         CreatureState {
