@@ -40,6 +40,18 @@ pub struct GameState {
     pub map_state: MapState,
 }
 
+pub fn unwrap_option_list(opList: Vec<Option<EventChain>>) -> Vec<EventChain> {
+    let ret :Vec<EventChain> = opList.into_par_iter().flat_map(
+        |opt| {
+            if let Some(ec) = opt {
+                vec![ec]
+            } else {
+                Vec::new()
+            }
+        }).collect();
+    return ret;
+}
+
 pub fn game() {
     // Make initial map state
     
@@ -81,14 +93,7 @@ fn run_frame(mut game_state: GameState, root: &GoalNode) -> GameState {
             })
         })
     }).collect();
-    let mut event_chains: Vec<EventChain> = spawn_events.into_par_iter().flat_map(
-        |opt| {
-            if let Some(ec) = opt {
-                vec![ec]
-            } else {
-                Vec::new()
-            }
-        }).collect();
+    let mut event_chains: Vec<EventChain> = unwrap_option_list(spawn_events);
 
     process_events_from_mapstate(&mut m, event_chains);
 
@@ -146,6 +151,15 @@ fn run_frame(mut game_state: GameState, root: &GoalNode) -> GameState {
     // tuples of &mut Region : Vec<creatures>. then run on each (&mut Region, Vec)
     // probably better off for now just going through linearly
     
+    //TODONEXT: foreach blocked USE map_state.find_closest_non_blocked to find closest non blocked loc
+    // if there are creatures in that unblocked location add them to blocked_nonblockers
+    // then add the blocked creature to that loc
+
+    // then go through blocked_nonblockers and find_closest_non_blocked
+    
+    // if none for either of the above just kill them(add to death list?)
+
+
 
     // TODO: update nav map based on spawns for regions that spawn ones that block
 
@@ -188,9 +202,12 @@ fn run_frame(mut game_state: GameState, root: &GoalNode) -> GameState {
             })
         })
     }).collect();
+    let mut event_chains: Vec<EventChain> = unwrap_option_list(mov_op_ecs);
+    process_events_from_mapstate(&mut m, event_chains);
 
     // TODO: Send out current map state to users via websocket
     // TODO: Then wait for them to respond if doing by-frame, or a timer
+    // TODO: Actually probably move the websocket stuff and the ai stuff to the beginning of this function?
 
     // want to move THEN AFTER do ai stuff so ai can react to the movement
     let op_ecs: Vec<Option<EventChain>> = m.regions.par_iter().flat_map(|x| {
@@ -214,24 +231,19 @@ fn run_frame(mut game_state: GameState, root: &GoalNode) -> GameState {
             })
         })
     }).collect();
-    let mut event_chains = op_ecs.into_par_iter().flat_map(
-        |opt| {
-            if let Some(ec) = opt {
-                vec![ec]
-            } else {
-                Vec::new()
-            }
-        }).collect();
-
+    let mut event_chains = unwrap_option_list(op_ecs);
     process_events_from_mapstate(&mut m, event_chains);
 
     // Death system
+    // TODO: Update nav system if blockers died
+    // TODO: also have a death list or something for creatures that dont have health but still died prob just go through the linearly?
+    // TODO: Add some kind of death_rattle event chain system, will need to do things like add items to ground etc
     m.regions.par_iter_mut().for_each(|x| {
         x.par_iter_mut().for_each(|y| {
             y.grid.par_iter_mut().for_each(|xl| {
                 xl.par_iter_mut().for_each(|yl| {
                     if let Some(creatures) = yl.creatures.as_mut() {
-                        // IF CREATURES WERE BLOCKERS, need to set that nav region
+                        // TODO: IF CREATURES WERE BLOCKERS, need to set that nav region dirty
                         creatures.retain(
                             |c| {
                                 if let Some(h) = c.components.health_component.as_ref() {

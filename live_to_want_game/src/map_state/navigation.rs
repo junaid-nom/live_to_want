@@ -59,15 +59,15 @@ impl NavigationMap {
         // Need to also teach AI how to like "break" things to create shorter path?
         let mut ret = Vec::new();
         if start.region == goal.region {
-            let mut current_loc = start.location;
-            while current_loc != goal.location {
+            let mut current_loc = start.position;
+            while current_loc != goal.position {
                 let xchange = 
-                    if current_loc.x > goal.location.x { -1 } 
-                    else if current_loc.x < goal.location.x { 1 }
+                    if current_loc.x > goal.position.x { -1 } 
+                    else if current_loc.x < goal.position.x { 1 }
                     else { 0 };
                 let ychange = 
-                    if current_loc.y > goal.location.y { -1 } 
-                    else if current_loc.y < goal.location.y { 1 }
+                    if current_loc.y > goal.position.y { -1 } 
+                    else if current_loc.y < goal.position.y { 1 }
                     else { 0 };
                 if xchange == 0 { current_loc.y += ychange; } else if ychange == 0 { current_loc.x += xchange; } 
                     else {
@@ -77,7 +77,7 @@ impl NavigationMap {
                             current_loc.y += ychange;
                         }
                     };
-                ret.push(Location{region:start.region, location: current_loc});
+                ret.push(Location{region:start.region, position: current_loc});
             }
         } else {
             panic!("Havent implemented cross-region navigation yet");

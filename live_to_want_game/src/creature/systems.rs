@@ -1,6 +1,6 @@
 use rand::Rng;
 
-use crate::{map_state::MapState, tasks::EventChain, map_state::location_to_map_location, tasks::Event, tasks::EventType, Vector2};
+use crate::{map_state::MapState, tasks::EventChain, tasks::Event, tasks::EventType, Vector2};
 
 use super::{CreatureState, STARVING_SLOW_METABOLISM_FACTOR};
 
@@ -105,7 +105,7 @@ pub fn navigation_system(c: &mut CreatureState) {
 pub fn movement_system(m: &MapState, c: &CreatureState) -> Option<EventChain> {
     if let Some(movement) = c.components.movement_component.as_ref() {
         if movement.frame_ready_to_move <= m.frame_count {
-            let dest = location_to_map_location(m, &movement.destination).id_component_creatures.id();
+            let dest = m.location_to_map_location(&movement.destination).id_component_creatures.id();
             let rm_event = Event {
                 event_type: EventType::RemoveCreature(c.components.id_component.id(), 
                     Some(dest)),
