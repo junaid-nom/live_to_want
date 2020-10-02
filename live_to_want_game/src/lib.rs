@@ -139,7 +139,7 @@ fn run_frame(mut game_state: GameState, root: &GoalNode) -> GameState {
             })
         })
     }).collect();
-    let (blocked_blockers, blocked_nonblockers): (Vec<CreatureState>, Vec<CreatureState>) = blocked_creatures.into_par_iter().
+    let (mut blocked_blockers, mut blocked_nonblockers): (Vec<CreatureState>, Vec<CreatureState>) = blocked_creatures.into_par_iter().
     reduce(|| (Vec::new(), Vec::new()),|(mut tl1, mut tl2), (l1, l2)| {
         tl1.extend(l1.into_iter());
         tl2.extend(l2.into_iter());
@@ -150,18 +150,48 @@ fn run_frame(mut game_state: GameState, root: &GoalNode) -> GameState {
     // gonna be weird doing it in parallel based on region. will have to make a hashmap of
     // tuples of &mut Region : Vec<creatures>. then run on each (&mut Region, Vec)
     // probably better off for now just going through linearly
-    
+    let mut dead_list = Vec::new();
+
     //TODONEXT: foreach blocked USE map_state.find_closest_non_blocked to find closest non blocked loc
     // if there are creatures in that unblocked location add them to blocked_nonblockers
     // then add the blocked creature to that loc
+    blocked_blockers.into_iter().for_each(|c| {
+        let loc = m.find_closest_non_blocked(Location::new(c.components.region_component.region, c.components.location_component.location));
+        if let Some(open_loc) = loc {
+            let map_loc: &mut MapLocation = &mut m.regions[open_loc.region.x as usize][open_loc.region.y as usize]
+                .grid[open_loc.position.x as usize][open_loc.position.y as usize];
+            let creatures = map_loc.creatures.as_mut().unwrap();
+            creatures.drain(..).for_each(|c_to_move| {
+                blocked_nonblockers.push(c_to_move);
+            });
+            assert_eq!(creatures.len(), 0);
+            creatures.push(c);
+        }
+        else {
+            dead_list.push(c);
+        }
+    });
 
     // then go through blocked_nonblockers and find_closest_non_blocked
-    
+    blocked_nonblockers.into_iter().for_each(|c| { 
+        let loc = m.find_closest_non_blocked(Location::new(c.components.region_component.region, c.components.location_component.location));
+        if let Some(open_loc) = loc {
+            let map_loc: &mut MapLocation = &mut m.regions[open_loc.region.x as usize][open_loc.region.y as usize]
+                .grid[open_loc.position.x as usize][open_loc.position.y as usize];
+            let creatures = map_loc.creatures.as_mut().unwrap();
+            creatures.push(c);
+        }
+        else {
+            dead_list.push(c);
+        }
+    });
     // if none for either of the above just kill them(add to death list?)
 
-
-
     // TODO: update nav map based on spawns for regions that spawn ones that block
+    // basically just need to update the last frame changed for each region
+    // then run some "update nav system" that checks every region and sees which ones have a last_frame_updated < last_frame(in MapRegion)
+    // DECISION: Make it so just cannot have creatures that block exits ever. so region map will never change.
+    // TODONEXT: How the fuck do I know which regions need to be updated? Maybe make creatures private, and add function like "add_creature"?
 
     // Can run MUTABLE multiple systems here so far:
     // Starvation system

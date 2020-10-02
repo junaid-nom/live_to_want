@@ -23,7 +23,7 @@ impl MapState {
                 // and if they aren't already in the list
                 let neighbors = to_check[idx].get_neighbors(false);
                 for n in neighbors {
-                    if self.location_exists(&loc.region, &to_check[idx]) && !to_check.contains(&n) {
+                    if self.location_exists_and_holds_creatures(&loc.region, &to_check[idx]) && !to_check.contains(&n) {
                         to_check.push(n);
                     }
                 }
@@ -38,11 +38,13 @@ impl MapState {
         None
     }
 
-    pub fn location_exists(&self, region: &Vector2, position: &Vector2) -> bool {
+    pub fn location_exists_and_holds_creatures(&self, region: &Vector2, position: &Vector2) -> bool {
         if self.regions.len() < region.x as usize && self.regions[region.x as usize].len() < region.y as usize { 
             let r = &self.regions[region.x as usize][region.y as usize].grid;
             if r.len() < position.x as usize && r[position.x as usize].len() < position.y as usize {
-                return true;
+                if let Some(_) = r[position.x as usize][position.y as usize].creatures {
+                    return true;
+                }
             }
         }
         false
@@ -52,6 +54,15 @@ impl MapState {
         let region: &MapRegion = &self.regions[location.region.x as usize][location.region.y as usize];
         &region.grid[location.position.x as usize][location.position.y as usize]
     }
+
+    pub fn location_to_map_region<'a>(&'a self, location: &Location) -> &'a MapRegion {
+        let region: &MapRegion = &self.regions[location.region.x as usize][location.region.y as usize];
+        region
+    }
+    pub fn vector2_to_map_region<'a>(&'a self, region: &Vector2) -> &'a MapRegion {
+        let region = &self.regions[region.x as usize][region.y as usize];
+        region
+    }
 }
 
 #[derive(Debug)]
@@ -59,6 +70,14 @@ impl MapState {
 pub struct Location {
     pub region: Vector2,
     pub position: Vector2,
+}
+impl Location{
+    pub fn new(region: Vector2, position: Vector2) -> Location {
+        Location{
+            region,
+            position
+        }
+    }
 }
 
 
