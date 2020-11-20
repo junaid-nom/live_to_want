@@ -234,7 +234,7 @@ pub fn process_events_from_mapstate (m: &mut MapState, event_chains: Vec<EventCh
             y.grid.par_iter_mut().flat_map(|xl| {
                 xl.par_iter_mut().flat_map(|yl| {
                     if let Some(creatures) = yl.creatures.as_mut() {
-                        let mut cc: Vec<EventTarget> = creatures.par_iter_mut().map(
+                        let mut cc: Vec<EventTarget> = creatures.get_par_iter_mut().map(
                             |c| {
                             EventTarget::CreatureTarget(c)
                             }

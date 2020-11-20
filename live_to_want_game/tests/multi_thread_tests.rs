@@ -133,7 +133,7 @@ fn test_chain_multithread() {
                     id_component_items: IDComponent::new(),
                     id_component_creatures: IDComponent::new(),
                     location: Vector2{x, y},
-                    creatures: Some(Vec::new()),
+                    creatures: Some(CreatureList::new()),
                     items: Vec::new(),
                     is_exit: false,
                 };
@@ -161,11 +161,11 @@ fn test_chain_multithread() {
         };
         let deer1_id = deer1.components.id_component.id();
         let deer2_id = deer2.components.id_component.id();
-        region.grid[1][1].creatures.as_mut().unwrap().push(
-            deer1
+        region.grid[1][1].creatures.as_mut().unwrap().add_creature(
+            deer1, 0
         );
-        region.grid[1][1].creatures.as_mut().unwrap().push(
-            deer2
+        region.grid[1][1].creatures.as_mut().unwrap().add_creature(
+            deer2, 0
         );
         region.grid[1][1].items.push(Item{
             item_type: ItemType::Berry,
@@ -174,7 +174,7 @@ fn test_chain_multithread() {
         let berry_id = region.grid[1][1].id_component_items.id();
 
         let loc = &mut region.grid[1][1];
-        let mut iter_mut = loc.creatures.as_mut().unwrap().iter_mut();
+        let mut iter_mut = loc.creatures.as_mut().unwrap().get_iter_mut();
         let d1_ref = iter_mut.next().unwrap();
         let d2_ref = iter_mut.next().unwrap();
         let loc_ref = &mut loc.items;
@@ -298,7 +298,7 @@ fn test_chain_multithread() {
         }
         assert_eq!(next.len(), 0);
         assert_eq!(region.grid[1][1].items.len(), 0);
-        let total: u32 = region.grid[1][1].creatures.as_mut().unwrap().iter().map(|c| {
+        let total: u32 = region.grid[1][1].creatures.as_mut().unwrap().get_iter().map(|c| {
             let ret: u32 = c.inventory.iter().map(|i| i.quantity).sum();
             ret
         }).sum();

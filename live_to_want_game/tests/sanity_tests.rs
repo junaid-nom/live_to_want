@@ -165,3 +165,13 @@ fn graph_without_vec_test() {
     // TODO: NOT SURE HOW TO BREAK THIS? But apparently it can be broken and is unsafe?
 }
 
+#[test]
+fn test_creature_list_swap() {
+    let mut cr = CreatureList::new();
+    cr.add_creature(CreatureState::new(Vector2::new(1,2)), 1);
+    assert_eq!(cr.get_length(), 1);
+    let vc = cr.take_all_creatures();
+    assert_eq!(vc.len(), 1);
+    assert_eq!(cr.get_length(), 0);
+    // TODO: Add more tests here for creature list functions?
+}

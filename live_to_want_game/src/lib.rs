@@ -73,14 +73,15 @@ fn run_frame(mut game_state: GameState, root: &GoalNode) -> GameState {
     {
         m.frame_count += 1;
     }
+    let current_frame = m.frame_count;
 
-    // TODO: Run spawn systems first, and spawn new creatures
+    // TODO: Run all spawn systems first, and spawn new creatures
     let spawn_events: Vec<Option<EventChain>> = m.regions.par_iter().flat_map(|x| {
         x.par_iter().flat_map(|y| {
             y.grid.par_iter().flat_map(|xl| {
                 xl.par_iter().flat_map(|yl| {
                     if let Some(creatures) = yl.creatures.as_ref() {
-                        let ret: Vec<Option<EventChain>> = creatures.par_iter().map(
+                        let ret: Vec<Option<EventChain>> = creatures.get_par_iter().map(
                             |c| {
                                 budding_system(&m, c)
                             }
@@ -97,17 +98,18 @@ fn run_frame(mut game_state: GameState, root: &GoalNode) -> GameState {
 
     process_events_from_mapstate(&mut m, event_chains);
 
-    // TODO: Deal with blockers that spawned
+    // TODO: Deal with blockers that spawned, add them to lists
     // first vec is BLOCKERS second vec is NON BLOCKERS
     let blocked_creatures: Vec<(Vec<CreatureState>, Vec<CreatureState>)> = m.regions.par_iter_mut().flat_map(|x| {
         x.par_iter_mut().flat_map(|y| {
             y.grid.par_iter_mut().flat_map(|xl| {
                 xl.par_iter_mut().map(|yl| {
-                    if let Some(creatures) = yl.creatures.as_mut() {
+                    if let Some(creatures_list) = yl.creatures.as_mut() {
                         let mut ret: (Vec<CreatureState>, Vec<CreatureState>) = (Vec::new(), Vec::new());
                         // if there is a blocking creature and any other creature here
                         // then we have to remove them
                         let mut first_blocker: Option<UID> = None;
+                        let mut creatures = creatures_list.take_all_creatures();
                         for i in 0..creatures.len() {
                             let c = &creatures[i];
                             if let Some(_) = c.components.block_space_component {
@@ -115,6 +117,7 @@ fn run_frame(mut game_state: GameState, root: &GoalNode) -> GameState {
                                 break;
                             }
                         };
+                        // remove all units that aren't the first one
                         if let Some(first) = first_blocker {
                             for i in 0..creatures.len() {
                                 if i < creatures.len() {
@@ -131,6 +134,7 @@ fn run_frame(mut game_state: GameState, root: &GoalNode) -> GameState {
                                 }
                             }
                         }
+                        creatures_list.overwrite_creatures(creatures, current_frame);
                         return ret;
                     } else {
                         (Vec::new(), Vec::new())
@@ -152,7 +156,7 @@ fn run_frame(mut game_state: GameState, root: &GoalNode) -> GameState {
     // probably better off for now just going through linearly
     let mut dead_list = Vec::new();
 
-    //TODONEXT: foreach blocked USE map_state.find_closest_non_blocked to find closest non blocked loc
+    //TODONEXT: foreach blocked use map_state.find_closest_non_blocked to find closest non blocked loc
     // if there are creatures in that unblocked location add them to blocked_nonblockers
     // then add the blocked creature to that loc
     blocked_blockers.into_iter().for_each(|c| {
@@ -161,11 +165,11 @@ fn run_frame(mut game_state: GameState, root: &GoalNode) -> GameState {
             let map_loc: &mut MapLocation = &mut m.regions[open_loc.region.x as usize][open_loc.region.y as usize]
                 .grid[open_loc.position.x as usize][open_loc.position.y as usize];
             let creatures = map_loc.creatures.as_mut().unwrap();
-            creatures.drain(..).for_each(|c_to_move| {
+            creatures.get_drain().for_each(|c_to_move| {
                 blocked_nonblockers.push(c_to_move);
             });
-            assert_eq!(creatures.len(), 0);
-            creatures.push(c);
+            assert_eq!(creatures.get_length(), 0);
+            creatures.add_creature(c, current_frame);
         }
         else {
             dead_list.push(c);
@@ -173,13 +177,13 @@ fn run_frame(mut game_state: GameState, root: &GoalNode) -> GameState {
     });
 
     // then go through blocked_nonblockers and find_closest_non_blocked
-    blocked_nonblockers.into_iter().for_each(|c| { 
+    blocked_nonblockers.into_iter().for_each(|c| {
         let loc = m.find_closest_non_blocked(Location::new(c.components.region_component.region, c.components.location_component.location));
         if let Some(open_loc) = loc {
             let map_loc: &mut MapLocation = &mut m.regions[open_loc.region.x as usize][open_loc.region.y as usize]
                 .grid[open_loc.position.x as usize][open_loc.position.y as usize];
             let creatures = map_loc.creatures.as_mut().unwrap();
-            creatures.push(c);
+            creatures.add_creature(c, current_frame);
         }
         else {
             dead_list.push(c);
@@ -191,7 +195,10 @@ fn run_frame(mut game_state: GameState, root: &GoalNode) -> GameState {
     // basically just need to update the last frame changed for each region
     // then run some "update nav system" that checks every region and sees which ones have a last_frame_updated < last_frame(in MapRegion)
     // DECISION: Make it so just cannot have creatures that block exits ever. so region map will never change.
-    // TODONEXT: How the fuck do I know which regions need to be updated? Maybe make creatures private, and add function like "add_creature"?
+    // TODONEXT: How the fuck do I know which regions need to be updated? Use creaturelist!
+    // TODONEXT: go through all creature lists on the map in parallel and determine if any have changed this frame if so, mark that region as changed?
+    // so maybe par iter on every region. par iter to return a bool, if bool-> change that region? maybe return a list of region locations?
+    
 
     // Can run MUTABLE multiple systems here so far:
     // Starvation system
@@ -201,7 +208,7 @@ fn run_frame(mut game_state: GameState, root: &GoalNode) -> GameState {
             y.grid.par_iter_mut().for_each(|xl| {
                 xl.par_iter_mut().for_each(|yl| {
                     if let Some(creatures) = yl.creatures.as_mut() {
-                        creatures.par_iter_mut().for_each(
+                        creatures.get_par_iter_mut().for_each(
                             |c| {
                                 starvation_system(c);
                                 navigation_system(c);
@@ -219,7 +226,7 @@ fn run_frame(mut game_state: GameState, root: &GoalNode) -> GameState {
             y.grid.par_iter().flat_map(|xl| {
                 xl.par_iter().flat_map(|yl| {
                     if let Some(creatures) = yl.creatures.as_ref() {
-                        let ret: Vec<Option<EventChain>> = creatures.par_iter().map(
+                        let ret: Vec<Option<EventChain>> = creatures.get_par_iter().map(
                             |c| {
                                 movement_system(&m, c)
                             }
@@ -245,7 +252,7 @@ fn run_frame(mut game_state: GameState, root: &GoalNode) -> GameState {
             y.grid.par_iter().flat_map(|xl| {
                 xl.par_iter().flat_map(|yl| {
                     if let Some(creatures) = yl.creatures.as_ref() {
-                        let ret: Vec<Option<EventChain>> = creatures.par_iter().map(
+                        let ret: Vec<Option<EventChain>> = creatures.get_par_iter().map(
                             |c| {
                                 match GoalCacheNode::get_final_command(&root, &m, &c) {
                                     Some(cc) => {cc.to_event_chain()}

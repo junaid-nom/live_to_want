@@ -1,6 +1,8 @@
 use crate::{utils::Vector2, creature::IDComponent, creature::CreatureState};
 
 use super::Item;
+extern crate rayon;
+use rayon::prelude::*;
 
 
 #[derive(Debug)]
@@ -95,7 +97,7 @@ pub struct MapLocation {
     pub id_component_creatures: IDComponent,
     pub location: Vector2,
     pub is_exit: bool, // exits should not be allowed to have creatures placed on them. also they must not have a block INBETWEEN them.
-    pub creatures: Option<Vec<CreatureState>>, // some locations will be perma blocked and no creatures allowed
+    pub creatures: Option<CreatureList>, // some locations will be perma blocked and no creatures allowed
     pub items: Vec<Item>,
 }
 impl MapLocation {
@@ -104,7 +106,7 @@ impl MapLocation {
             return true;
         }
         if let Some(creatures) = self.creatures.as_ref() {
-            for c in creatures.iter() {
+            for c in creatures.get_creatures().iter() {
                 if let Some(_) = c.components.block_space_component {
                     return true
                 }
@@ -117,4 +119,75 @@ impl MapLocation {
     }
 }
 
+
+#[derive(Debug)]
+#[derive(Default)]
+pub struct CreatureList {
+    creatures: Vec<CreatureState>,
+    is_blocked_previously: bool,
+    last_frame_blockers_changed: u128,
+}
+impl CreatureList {
+    pub fn new() -> CreatureList {
+        CreatureList {
+            creatures: Vec::new(),
+            is_blocked_previously: false,
+            last_frame_blockers_changed:0,
+        }
+    }
+
+    pub fn get_creatures(&self) -> &Vec<CreatureState> {
+        &self.creatures
+    }
+    pub fn take_all_creatures(&mut self) -> Vec<CreatureState> {
+        let mut creatures_ret = Vec::new();
+        std::mem::swap(&mut self.creatures, &mut creatures_ret);
+        creatures_ret
+    }
+    pub fn overwrite_creatures(&mut self, new_vec :Vec<CreatureState>, current_frame: u128) {
+        self.creatures = new_vec;
+        let mut blocked_now = false;
+        for c in &mut self.creatures {
+            if c.components.block_space_component.is_some() {
+                blocked_now = true;
+                break;
+            }
+        }
+        if self.is_blocked_previously != blocked_now {
+            self.last_frame_blockers_changed = current_frame;
+        }
+        self.is_blocked_previously = blocked_now;
+    }
+    pub fn add_creature(&mut self, new_creature: CreatureState, current_frame: u128) {
+        let is_blocking = new_creature.components.block_space_component.is_some();
+        if is_blocking && !self.is_blocked_previously {
+            self.last_frame_blockers_changed = current_frame;
+            self.is_blocked_previously = true;
+        }
+        
+        self.creatures.push(new_creature);
+    }
+    pub fn get_par_iter_mut(&mut self) -> rayon::slice::IterMut<'_, CreatureState> {
+        self.creatures.par_iter_mut()
+    }
+    pub fn get_par_iter(&self) -> rayon::slice::Iter<'_, CreatureState> {
+        self.creatures.par_iter()
+    }
+    pub fn get_drain(&mut self) -> std::vec::Drain<'_, CreatureState> {
+        self.creatures.drain(..)
+    }
+    pub fn retain(&mut self, func: fn(&CreatureState) -> bool) {
+        self.creatures.retain(func);
+    }
+    pub fn get_iter_mut(&mut self) -> std::slice::IterMut<'_, CreatureState>{
+        self.creatures.iter_mut()
+    }
+    pub fn get_iter(&self) -> std::slice::Iter<'_, CreatureState> {
+        self.creatures.iter()
+    }
+    pub fn get_length(&self) -> usize {
+        self.creatures.len()
+    }
+    //TODO remove creature?
+}
 
