@@ -1,6 +1,6 @@
 use fmt::Debug;
 
-use crate::{map_state::Item, utils::UID, creature::CreatureState, map_state::ItemType, map_state::MapState};
+use crate::{CreatureList, creature::CreatureState, map_state::Item, map_state::ItemType, map_state::MapState, utils::UID};
 use std::collections::HashMap;
 use core::fmt;
 extern crate rayon;
@@ -59,7 +59,7 @@ pub enum EventTarget<'a> {
     // for each one in a seperate thread. so for example need to have seperate locationItemTarget
     // and locationCreatures target even though they modify the same mapLocation, they also then unique uid
     LocationItemTarget(&'a mut Vec<Item>, UID),
-    LocationCreaturesTarget(&'a mut Vec<CreatureState>, UID),
+    LocationCreaturesTarget(&'a mut CreatureList, UID),
     CreatureTarget(&'a mut CreatureState),
 }
 impl EventTarget<'_> {
@@ -81,16 +81,13 @@ pub struct Event {
 impl Event {
     pub fn mutate(&self, effected: &mut EventTarget) -> Option<Event> {
         match &self.event_type {
-            EventType::RemoveCreature(id, next_op) => {
+            EventType::RemoveCreature(id, next_op, current_frame) => {
                 match effected {
                     EventTarget::LocationCreaturesTarget(v, _) => {
-                        let to_rm = v.iter().position(|c: &CreatureState| {
-                            c.components.id_component.id() != *id
-                        }).unwrap();
-                        let rmed = v.remove(to_rm);
+                        let rmed = v.drain_specific_creature(*id, *current_frame);
                         if let Some(next) = next_op {
                             return Some(Event {
-                                event_type: EventType::AddCreature(rmed),
+                                event_type: EventType::AddCreature(rmed, *current_frame),
                                 get_requirements: Box::new(|_, _| true),
                                 on_fail: None,
                                 target: *next,
@@ -102,7 +99,7 @@ impl Event {
                     _ => { panic!("trying to remove creature wrong target"); }
                 }
             },
-            EventType::AddCreature(c) => {
+            EventType::AddCreature(c, current_frame) => {
                 return None
             },
             EventType::RemoveItem(q, t) => {
@@ -218,8 +215,8 @@ impl Debug for Event {
 
 #[derive(Debug)]
 pub enum EventType {
-    RemoveCreature(UID, Option<UID>), // first is what to remove, 2nd is where to add next if there is next
-    AddCreature(CreatureState),
+    RemoveCreature(UID, Option<UID>, u128), // first is what to remove, 2nd is where to add next if there is next
+    AddCreature(CreatureState, u128),
     RemoveItem(u32, ItemType),
     AddItem(u32, ItemType),
     IterateBudding(),
@@ -233,8 +230,8 @@ pub fn process_events_from_mapstate (m: &mut MapState, event_chains: Vec<EventCh
         x.par_iter_mut().flat_map(|y| {
             y.grid.par_iter_mut().flat_map(|xl| {
                 xl.par_iter_mut().flat_map(|yl| {
-                    if let Some(creatures) = yl.creatures.as_mut() {
-                        let mut cc: Vec<EventTarget> = creatures.par_iter_mut().map(
+                    if let Some(cit) = yl.creatures.get_par_iter_mut() {
+                        let mut cc: Vec<EventTarget> = cit.map(
                             |c| {
                             EventTarget::CreatureTarget(c)
                             }

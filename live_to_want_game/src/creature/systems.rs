@@ -38,7 +38,7 @@ pub fn budding_system(m: &MapState, c: &CreatureState) -> Option<EventChain> {
             let loc = open_spots[chosen];
             let new_creature = CreatureState::copy(bud.seed_creature.as_ref(), loc);
             let create_event = Event {
-                event_type: EventType::AddCreature(new_creature),
+                event_type: EventType::AddCreature(new_creature, m.frame_count),
                 target: map_region.grid[loc.x as usize][loc.y as usize].id_component_creatures.id(),
                 on_fail: None,
                 get_requirements: Box::new(|_,_| true),
@@ -108,7 +108,7 @@ pub fn movement_system(m: &MapState, c: &CreatureState) -> Option<EventChain> {
             let dest = m.location_to_map_location(&movement.destination).id_component_creatures.id();
             let rm_event = Event {
                 event_type: EventType::RemoveCreature(c.components.id_component.id(), 
-                    Some(dest)),
+                    Some(dest), m.frame_count),
                 get_requirements: Box::new(|_,_| true),
                 on_fail: None,
                 target: dest,

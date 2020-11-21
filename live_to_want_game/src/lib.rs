@@ -73,14 +73,15 @@ fn run_frame(mut game_state: GameState, root: &GoalNode) -> GameState {
     {
         m.frame_count += 1;
     }
+    let current_frame = m.frame_count;
 
     // TODO: Run spawn systems first, and spawn new creatures
     let spawn_events: Vec<Option<EventChain>> = m.regions.par_iter().flat_map(|x| {
         x.par_iter().flat_map(|y| {
             y.grid.par_iter().flat_map(|xl| {
                 xl.par_iter().flat_map(|yl| {
-                    if let Some(creatures) = yl.creatures.as_ref() {
-                        let ret: Vec<Option<EventChain>> = creatures.par_iter().map(
+                    if let Some(par_iter) = yl.creatures.get_par_iter() {
+                        let ret: Vec<Option<EventChain>> = par_iter.map(
                             |c| {
                                 budding_system(&m, c)
                             }
@@ -103,38 +104,7 @@ fn run_frame(mut game_state: GameState, root: &GoalNode) -> GameState {
         x.par_iter_mut().flat_map(|y| {
             y.grid.par_iter_mut().flat_map(|xl| {
                 xl.par_iter_mut().map(|yl| {
-                    if let Some(creatures) = yl.creatures.as_mut() {
-                        let mut ret: (Vec<CreatureState>, Vec<CreatureState>) = (Vec::new(), Vec::new());
-                        // if there is a blocking creature and any other creature here
-                        // then we have to remove them
-                        let mut first_blocker: Option<UID> = None;
-                        for i in 0..creatures.len() {
-                            let c = &creatures[i];
-                            if let Some(_) = c.components.block_space_component {
-                                first_blocker = Some(c.components.id_component.id());
-                                break;
-                            }
-                        };
-                        if let Some(first) = first_blocker {
-                            for i in 0..creatures.len() {
-                                if i < creatures.len() {
-                                    let c = &creatures[i];
-                                    if c.components.id_component.id() != first {
-                                        if let Some(_) = c.components.block_space_component {
-                                            ret.0.push(creatures.remove(i));
-                                        } else {
-                                            ret.1.push(creatures.remove(i));
-                                        }
-                                    }
-                                } else {
-                                    break;
-                                }
-                            }
-                        }
-                        return ret;
-                    } else {
-                        (Vec::new(), Vec::new())
-                    }
+                    yl.creatures.drain_all_but_first_blocker(current_frame)
                 })
             })
         })
@@ -160,12 +130,11 @@ fn run_frame(mut game_state: GameState, root: &GoalNode) -> GameState {
         if let Some(open_loc) = loc {
             let map_loc: &mut MapLocation = &mut m.regions[open_loc.region.x as usize][open_loc.region.y as usize]
                 .grid[open_loc.position.x as usize][open_loc.position.y as usize];
-            let creatures = map_loc.creatures.as_mut().unwrap();
-            creatures.drain(..).for_each(|c_to_move| {
+            map_loc.creatures.drain_creatures(m.frame_count).into_iter().for_each(|c_to_move| {
                 blocked_nonblockers.push(c_to_move);
             });
-            assert_eq!(creatures.len(), 0);
-            creatures.push(c);
+            
+            map_loc.creatures.add_creature(c, m.frame_count);
         }
         else {
             dead_list.push(c);
@@ -178,8 +147,7 @@ fn run_frame(mut game_state: GameState, root: &GoalNode) -> GameState {
         if let Some(open_loc) = loc {
             let map_loc: &mut MapLocation = &mut m.regions[open_loc.region.x as usize][open_loc.region.y as usize]
                 .grid[open_loc.position.x as usize][open_loc.position.y as usize];
-            let creatures = map_loc.creatures.as_mut().unwrap();
-            creatures.push(c);
+            map_loc.creatures.add_creature(c, m.frame_count);
         }
         else {
             dead_list.push(c);
@@ -191,7 +159,25 @@ fn run_frame(mut game_state: GameState, root: &GoalNode) -> GameState {
     // basically just need to update the last frame changed for each region
     // then run some "update nav system" that checks every region and sees which ones have a last_frame_updated < last_frame(in MapRegion)
     // DECISION: Make it so just cannot have creatures that block exits ever. so region map will never change.
-    // TODONEXT: How the fuck do I know which regions need to be updated? Maybe make creatures private, and add function like "add_creature"?
+    // How the fuck do I know which regions need to be updated? Maybe make creatures private, and add function like "add_creature"?
+    m.regions.par_iter_mut().for_each(|x| {
+        x.par_iter_mut().for_each(|y| {
+            let mut changed = false;
+            y.grid.iter().for_each(|xl| {
+                xl.iter().for_each(|yl| {
+                    if yl.creatures.get_last_updated() > y.last_frame_changed {
+                        changed = true
+                    }
+                })
+            });
+            if changed {
+                // TODONEXT: Integrate NavRegion with NavMap somehow.
+                // Maybe just add NavPoint to MapLocation?
+                // Then move the "navigate_to" and "update"(update_nav) to Map
+                
+            }
+        })
+    });
 
     // Can run MUTABLE multiple systems here so far:
     // Starvation system
@@ -200,8 +186,8 @@ fn run_frame(mut game_state: GameState, root: &GoalNode) -> GameState {
         x.par_iter_mut().for_each(|y| {
             y.grid.par_iter_mut().for_each(|xl| {
                 xl.par_iter_mut().for_each(|yl| {
-                    if let Some(creatures) = yl.creatures.as_mut() {
-                        creatures.par_iter_mut().for_each(
+                    if let Some(cit) = yl.creatures.get_par_iter_mut() {
+                        cit.for_each(
                             |c| {
                                 starvation_system(c);
                                 navigation_system(c);
@@ -218,8 +204,8 @@ fn run_frame(mut game_state: GameState, root: &GoalNode) -> GameState {
         x.par_iter().flat_map(|y| {
             y.grid.par_iter().flat_map(|xl| {
                 xl.par_iter().flat_map(|yl| {
-                    if let Some(creatures) = yl.creatures.as_ref() {
-                        let ret: Vec<Option<EventChain>> = creatures.par_iter().map(
+                    if let Some(cit) = yl.creatures.get_par_iter() {
+                        let ret: Vec<Option<EventChain>> = cit.map(
                             |c| {
                                 movement_system(&m, c)
                             }
@@ -244,8 +230,8 @@ fn run_frame(mut game_state: GameState, root: &GoalNode) -> GameState {
         x.par_iter().flat_map(|y| {
             y.grid.par_iter().flat_map(|xl| {
                 xl.par_iter().flat_map(|yl| {
-                    if let Some(creatures) = yl.creatures.as_ref() {
-                        let ret: Vec<Option<EventChain>> = creatures.par_iter().map(
+                    if let Some(cit) = yl.creatures.get_par_iter() {
+                        let ret: Vec<Option<EventChain>> = cit.map(
                             |c| {
                                 match GoalCacheNode::get_final_command(&root, &m, &c) {
                                     Some(cc) => {cc.to_event_chain()}
@@ -272,22 +258,8 @@ fn run_frame(mut game_state: GameState, root: &GoalNode) -> GameState {
         x.par_iter_mut().for_each(|y| {
             y.grid.par_iter_mut().for_each(|xl| {
                 xl.par_iter_mut().for_each(|yl| {
-                    if let Some(creatures) = yl.creatures.as_mut() {
-                        // TODO: IF CREATURES WERE BLOCKERS, need to set that nav region dirty
-                        creatures.retain(
-                            |c| {
-                                if let Some(h) = c.components.health_component.as_ref() {
-                                    if h.health <= 0 {
-                                        false
-                                    } else {
-                                        true
-                                    }
-                                } else {
-                                    true
-                                }
-                            }
-                        );
-                    }
+                    let drained = yl.creatures.drain_no_health(current_frame);
+                    // TODO: Do stuff with drained creatures. Probably make some events related to death rattle (drop inventory etc)
                 })
             })
         })
