@@ -188,7 +188,7 @@ fn run_frame(mut game_state: GameState, root: &GoalNode) -> GameState {
         else {
             dead_list.push(c);
         }
-    });
+    }); 
     // if none for either of the above just kill them(add to death list?)
 
     // TODO: update nav map based on spawns for regions that spawn ones that block
