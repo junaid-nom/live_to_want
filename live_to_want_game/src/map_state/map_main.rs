@@ -68,7 +68,7 @@ impl MapState {
     }
 
     // nav stuff
-    fn navigate_to(&mut self, start: &Location, goal: &Location) -> Vec<Location> {
+    pub fn navigate_to(&mut self, start: &Location, goal: &Location) -> Vec<Location> {
         // Currently just using a simple algo that assumes there are NO blockers anywhere and in same region
         // TODO: make a VecVec VecVec of region(with last updated piece)->location->blocked. and then 
         // make a giant cached navigation thing FOR EACH point...
@@ -103,8 +103,8 @@ impl MapState {
         ret
     }
 
-    fn update_nav(&mut self) {
-        // update the navRegion
+    pub fn update_nav(&mut self) {
+        // update the region distances for all regions
         
         // if the left/right/up/down access changes then update all the region_distances
 
@@ -166,6 +166,10 @@ impl MapRegion {
     pub fn get_if_will_not_cause_blocked_paths(&self, loc: Vector2) -> bool {
         // TODO: Calculate if this region will have blocked paths if you place in a location
         true
+    }
+    pub fn update_region_nav(&mut self, current_frame: u128) {
+        // TODO: Update all the MapLocation's distances to each other.
+        self.last_frame_changed = current_frame;
     }
 }
 

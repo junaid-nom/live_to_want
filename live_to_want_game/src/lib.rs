@@ -166,11 +166,12 @@ fn run_frame(mut game_state: GameState, root: &GoalNode) -> GameState {
     
 
     // How the fuck do I know which regions need to be updated? Maybe make creatures private, and add function like "add_creature"?
-    let changed_regions: Vec<Option<Vector2>> = m.regions.par_iter().enumerate().flat_map(|(xidx, x)| {
-        let row: Vec<Option<Vector2>> = x.par_iter().enumerate().map(|(yidx, y)| {
-            let changes: Vec<bool> = y.grid.par_iter().flat_map(|xl| {
-                xl.par_iter().map(|yl| {
-                    if yl.creatures.get_last_updated() > y.last_frame_changed {
+    let changed_regions: Vec<Option<Vector2>> = m.regions.par_iter_mut().enumerate().flat_map(|(xidx, x)| {
+        let row: Vec<Option<Vector2>> = x.par_iter_mut().enumerate().map(|(yidx, y)| {
+            let last_changed_region = y.last_frame_changed;
+            let changes: Vec<bool> = y.grid.par_iter_mut().flat_map(|xl| {
+                xl.par_iter_mut().map(|yl| {
+                    if yl.creatures.get_last_updated() > last_changed_region {
                         true
                     } else {
                         false
@@ -179,6 +180,7 @@ fn run_frame(mut game_state: GameState, root: &GoalNode) -> GameState {
             }).collect();
 
             if changes.contains(&true) {
+                y.update_region_nav(current_frame);
                 Some(Vector2::new(xidx as i32, yidx as i32))
             } else {
                 None
@@ -188,8 +190,11 @@ fn run_frame(mut game_state: GameState, root: &GoalNode) -> GameState {
     }).collect();
     let changed_regions: Vec<Vector2> = changed_regions.into_par_iter().filter_map(|opt| opt).collect();
     // TODONEXT:
-    // for each changed region, update it's region's inner nav
+    // for each changed region, update it's region's inner nav (implement update_region_nav)
     // then update the entire map's between region nav (TODO: Optimize this? Maybe don't need to update every single region but ones that update paths significantly?).
+    if changed_regions.len() > 0 {
+        m.update_nav();
+    }
 
     // Can run MUTABLE multiple systems here so far:
     // Starvation system
