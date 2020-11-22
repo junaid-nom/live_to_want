@@ -1,6 +1,6 @@
 use std::vec::Drain;
 
-use crate::{UID, creature::CreatureState, creature::IDComponent, utils::Vector2, navigation::NavRegion, navigation::NavPoint};
+use crate::{UID, creature::CreatureState, creature::IDComponent, utils::Vector2};
 use rand::prelude::*;
 extern crate rayon;
 use rayon::prelude::*;
@@ -23,7 +23,7 @@ impl MapState {
         let mut idx = 0;
         while idx < to_check.len() {
             let checking  = &region.grid[to_check[idx].x as usize][to_check[idx].y as usize];
-            if checking.get_if_blocked(true) {
+            if checking.get_if_blocked(true) && region.get_if_will_not_cause_blocked_paths(to_check[idx]) {
                 // add vector2s to to_check of locations next to this one if they exist
                 // and if they aren't already in the list
                 let neighbors = to_check[idx].get_neighbors(false);
@@ -66,6 +66,50 @@ impl MapState {
         let region = &self.regions[region.x as usize][region.y as usize];
         region
     }
+
+    // nav stuff
+    fn navigate_to(&mut self, start: &Location, goal: &Location) -> Vec<Location> {
+        // Currently just using a simple algo that assumes there are NO blockers anywhere and in same region
+        // TODO: make a VecVec VecVec of region(with last updated piece)->location->blocked. and then 
+        // make a giant cached navigation thing FOR EACH point...
+        // will get weird cause if u change the viable entrance/exits of regions it would mean needing to change the
+        // between region map as well.
+        // Need to also teach AI how to like "break" things to create shorter path?
+        let mut ret = Vec::new();
+        if start.region == goal.region {
+            let mut current_loc = start.position;
+            while current_loc != goal.position {
+                let xchange = 
+                    if current_loc.x > goal.position.x { -1 } 
+                    else if current_loc.x < goal.position.x { 1 }
+                    else { 0 };
+                let ychange = 
+                    if current_loc.y > goal.position.y { -1 } 
+                    else if current_loc.y < goal.position.y { 1 }
+                    else { 0 };
+                if xchange == 0 { current_loc.y += ychange; } else if ychange == 0 { current_loc.x += xchange; } 
+                    else {
+                        if rand::random() {
+                            current_loc.x += xchange;
+                        } else {
+                            current_loc.y += ychange;
+                        }
+                    };
+                ret.push(Location{region:start.region, position: current_loc});
+            }
+        } else {
+            panic!("Havent implemented cross-region navigation yet");
+        }
+        ret
+    }
+
+    fn update_nav(&mut self) {
+        // update the navRegion
+        
+        // if the left/right/up/down access changes then update all the region_distances
+
+        // PANIC if exit nodes are blocked by a creature. also if exit nodes arent together, like there shouldnt be a permablocked location inbetween 2 exit nodes. like for top if it was OOOXOO thats bad because it can cause strange splits where one region is accessible from another but only from a particular entrance. wish I had a better way to make sure u cant do this
+    }
 }
 
 #[derive(Debug)]
@@ -83,13 +127,46 @@ impl Location{
     }
 }
 
+#[derive(Debug)]
+#[derive(Default)]
+pub struct RegionDistances {
+    left: Option<u32>,
+    right: Option<u32>,
+    up: Option<u32>,
+    down: Option<u32>,
+}
+
+#[derive(Debug, PartialEq)]
+pub enum ExitPoint {
+    None,
+    Left,
+    Right,
+    Up,
+    Down,
+}
+impl Default for ExitPoint {
+    fn default() -> Self {
+        ExitPoint::None
+    }
+}
 
 #[derive(Debug)]
 #[derive(Default)]
 pub struct MapRegion {
     pub grid: Vec<Vec<MapLocation>>,
     pub last_frame_changed: u128, // if nav system last updated before this frame, update it
-    pub nav_region: NavRegion,
+    // nav stuff:
+    pub region_distances: Vec<Vec<u32>>, // cached distance to eveey other region in from this region
+    distances_from_left: Option<RegionDistances>,
+    distances_from_right: Option<RegionDistances>,
+    distances_from_up: Option<RegionDistances>,
+    distances_from_down: Option<RegionDistances>,
+}
+impl MapRegion {
+    pub fn get_if_will_not_cause_blocked_paths(&self, loc: Vector2) -> bool {
+        // TODO: Calculate if this region will have blocked paths if you place in a location
+        true
+    }
 }
 
 #[derive(Debug)]
@@ -98,13 +175,14 @@ pub struct MapLocation {
     pub id_component_items: IDComponent,
     pub id_component_creatures: IDComponent,
     pub location: Vector2,
-    pub is_exit: bool, // exits should not be allowed to have creatures placed on them. also they must not have a block INBETWEEN them.
+    pub is_exit: ExitPoint, // exits should not be allowed to have creatures placed on them. also they must not have a block INBETWEEN them.
     pub creatures: CreatureList, // some locations will be perma blocked and no creatures allowed
     pub items: Vec<Item>,
+    pub point_distances: Vec<Vec<u32>>,
 }
 impl MapLocation {
     pub fn get_if_blocked(&self, exits_count_as_blocked: bool) -> bool {
-        if self.is_exit && exits_count_as_blocked {
+        if self.is_exit != ExitPoint::None && exits_count_as_blocked {
             true
         } else {
             self.creatures.get_if_blocked()

@@ -165,3 +165,12 @@ fn graph_without_vec_test() {
     // TODO: NOT SURE HOW TO BREAK THIS? But apparently it can be broken and is unsafe?
 }
 
+#[test]
+fn bool_list_contains() {
+    let v1 = vec![false, false, true, false];
+    let v2 = vec![false, false, false, false];
+
+    assert_eq!(v1.contains(&true), true);
+    assert_eq!(v2.contains(&true), false);
+}
+

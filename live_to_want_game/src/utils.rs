@@ -9,6 +9,9 @@ pub struct Vector2 {
     pub y: i32,
 }
 impl Vector2 {
+    pub fn new(x: i32, y: i32) -> Self {
+        Vector2{ x, y }
+    }
     pub fn get_neighbors(&self, diagonals: bool) -> Vec<Vector2> {
         let up = Vector2 {x: self.x, y: self.y+1};
         let down = Vector2 {x: self.x, y: self.y-1};

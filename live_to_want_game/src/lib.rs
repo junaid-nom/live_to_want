@@ -36,7 +36,6 @@ pub use ai::*;
 
 
 pub struct GameState {
-    pub navigation_map: NavigationMap,
     pub map_state: MapState,
 }
 
@@ -69,7 +68,6 @@ pub fn game() {
 
 fn run_frame(mut game_state: GameState, root: &GoalNode) -> GameState {
     let mut m = game_state.map_state;
-    let mut nav_map = game_state.navigation_map;
     {
         m.frame_count += 1;
     }
@@ -154,30 +152,44 @@ fn run_frame(mut game_state: GameState, root: &GoalNode) -> GameState {
         }
     });
     // if none for either of the above just kill them(add to death list?)
+    // DECISION: Make it so just cannot have creatures that block exits ever. so region map will never change. FUCK BUT THIS DONT WORK!
+    // Can have Below:
+    // XOX
+    // OXO  Here the sides are all open but you can't traverse. Many examples of this.
+    // XOX
+    // TODOREAL: Need to make it so any location that would lead to blocking exits is blocked not just exits.
 
     // TODO: update nav map based on spawns for regions that spawn ones that block
     // basically just need to update the last frame changed for each region
     // then run some "update nav system" that checks every region and sees which ones have a last_frame_updated < last_frame(in MapRegion)
-    // DECISION: Make it so just cannot have creatures that block exits ever. so region map will never change.
+
+    
+
     // How the fuck do I know which regions need to be updated? Maybe make creatures private, and add function like "add_creature"?
-    m.regions.par_iter_mut().for_each(|x| {
-        x.par_iter_mut().for_each(|y| {
-            let mut changed = false;
-            y.grid.iter().for_each(|xl| {
-                xl.iter().for_each(|yl| {
+    let changed_regions: Vec<Option<Vector2>> = m.regions.par_iter().enumerate().flat_map(|(xidx, x)| {
+        let row: Vec<Option<Vector2>> = x.par_iter().enumerate().map(|(yidx, y)| {
+            let changes: Vec<bool> = y.grid.par_iter().flat_map(|xl| {
+                xl.par_iter().map(|yl| {
                     if yl.creatures.get_last_updated() > y.last_frame_changed {
-                        changed = true
+                        true
+                    } else {
+                        false
                     }
                 })
-            });
-            if changed {
-                // TODONEXT: Integrate NavRegion with NavMap somehow.
-                // Maybe just add NavPoint to MapLocation?
-                // Then move the "navigate_to" and "update"(update_nav) to Map
-                
+            }).collect();
+
+            if changes.contains(&true) {
+                Some(Vector2::new(xidx as i32, yidx as i32))
+            } else {
+                None
             }
-        })
-    });
+        }).collect();
+        row
+    }).collect();
+    let changed_regions: Vec<Vector2> = changed_regions.into_par_iter().filter_map(|opt| opt).collect();
+    // TODONEXT:
+    // for each changed region, update it's region's inner nav
+    // then update the entire map's between region nav (TODO: Optimize this? Maybe don't need to update every single region but ones that update paths significantly?).
 
     // Can run MUTABLE multiple systems here so far:
     // Starvation system
@@ -267,7 +279,6 @@ fn run_frame(mut game_state: GameState, root: &GoalNode) -> GameState {
 
     GameState {
         map_state: m,
-        navigation_map: nav_map,
     }
 }
 
