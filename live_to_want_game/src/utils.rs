@@ -27,6 +27,22 @@ impl Vector2 {
         // TODO: return shuffled?
         return vec![right, up, down, left, upright, downright, downleft, upleft];
     }
+    pub fn add(v1: &Vector2, v2: &Vector2) -> Vector2 {
+        Vector2::new(v1.x + v2.x, v1.y + v2.y)
+    }
+}
+
+pub fn get_2d_vec<T: Default>(xlen: usize, ylen: usize) -> Vec<Vec<T>> {
+    let mut ret = Vec::new();
+
+    for _ in 0..xlen {
+        let mut row = Vec::new();
+        for _ in 0..ylen {
+            row.push(T::default());
+        }
+        ret.push(row);
+    }
+    ret
 }
 
 pub static COUNTER: AtomicU64 = AtomicU64::new(1); // TODO: Upgrade to a 128 bit one when it comes out of nightly build

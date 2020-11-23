@@ -31,9 +31,13 @@ pub use ai::*;
 // this is because you can try to give an item away as someone else fills your inventory and 
 // if both giving fails and putting back into your inventory fails, need to put item somewhere, so put on ground.
 
-// TODO: 
-// Pretty sure items in a MapLocation and inventory in a creature state don't have to be rc<refcell<>>
+// DECISION:
+// All VecVecs have 0,0 as bottom left corner.
+// Exit points will be blocked off if there is no neighboring region.
 
+// TODO Big: 
+// Pretty sure items in a MapLocation and inventory in a creature state don't have to be rc<refcell<>>
+// Can convert all the Vec<Vec<>>s to a single vector with a wrapper struct that deals with like indexing with x,y using mod %. Will be faster.
 
 pub struct GameState {
     pub map_state: MapState,

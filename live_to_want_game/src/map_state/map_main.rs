@@ -1,6 +1,6 @@
 use std::vec::Drain;
 
-use crate::{UID, creature::CreatureState, creature::IDComponent, utils::Vector2};
+use crate::{UID, creature::CreatureState, creature::IDComponent, utils::Vector2, get_2d_vec};
 use rand::prelude::*;
 extern crate rayon;
 use rayon::prelude::*;
@@ -128,7 +128,7 @@ impl Location{
 }
 
 #[derive(Debug)]
-#[derive(Default)]
+#[derive(Default, PartialEq)]
 pub struct RegionDistances {
     left: Option<u32>,
     right: Option<u32>,
@@ -143,6 +143,10 @@ pub enum ExitPoint {
     Right,
     Up,
     Down,
+    LeftDown,
+    RightDown,
+    LeftUp,
+    RightUp,
 }
 impl Default for ExitPoint {
     fn default() -> Self {
@@ -150,26 +154,228 @@ impl Default for ExitPoint {
     }
 }
 
+#[derive(Debug, PartialEq)]
+pub enum LocRegionDistance {
+    Unset,
+    Blocked,
+    Set(RegionDistances),
+}
+impl Default for LocRegionDistance {
+    fn default() -> Self {
+        LocRegionDistance::Unset
+    }
+}
+
 #[derive(Debug)]
 #[derive(Default)]
 pub struct MapRegion {
+    pub exists: bool,
     pub grid: Vec<Vec<MapLocation>>,
     pub last_frame_changed: u128, // if nav system last updated before this frame, update it
     // nav stuff:
-    pub region_distances: Vec<Vec<u32>>, // cached distance to eveey other region in from this region
-    distances_from_left: Option<RegionDistances>,
-    distances_from_right: Option<RegionDistances>,
-    distances_from_up: Option<RegionDistances>,
-    distances_from_down: Option<RegionDistances>,
+    pub region_distances: Vec<Vec<LocDistance>>, // cached distance to eveey other region in from this region
+    distances_from_left: LocRegionDistance,
+    distances_from_right: LocRegionDistance,
+    distances_from_up: LocRegionDistance,
+    distances_from_down: LocRegionDistance,
 }
 impl MapRegion {
+    pub fn new(xlen: usize, ylen: usize, current_frame: u128, no_creatures: &Vec<Vector2>, has_left_neighbor: bool, has_right_neighbor: bool, has_up_neighbor: bool, has_down_neighbor: bool) -> Self {
+        let mut grid: Vec<Vec<MapLocation>> = Vec::new();
+        if xlen + ylen >= 2 {
+            for x in 0..xlen {
+                let row = Vec::new();
+                for y in 0..ylen {
+                    let mut is_exit = ExitPoint::None;
+                    let mut is_unblocked_exit = true;
+                    if x == 0 {
+                        if !has_left_neighbor {
+                            is_unblocked_exit = false;
+                        }
+                        if y == 0 {
+                            if !has_down_neighbor {
+                                is_unblocked_exit = false;
+                            }
+                            is_exit = ExitPoint::LeftDown;
+                        }
+                        else if y == ylen - 1 {
+                            if !has_up_neighbor {
+                                is_unblocked_exit = false;
+                            }
+                            is_exit = ExitPoint::LeftUp;
+                        }
+                        else {
+                            is_exit = ExitPoint::Left;
+                        }
+                    }
+                    else if x == xlen - 1 {
+                        if !has_right_neighbor {
+                            is_unblocked_exit = false;
+                        }
+                        if y == 0 {
+                            if !has_down_neighbor {
+                                is_unblocked_exit = false;
+                            }
+                            is_exit = ExitPoint::RightDown;
+                        }
+                        else if y == ylen - 1 {
+                            if !has_up_neighbor {
+                                is_unblocked_exit = false;
+                            }
+                            is_exit = ExitPoint::RightUp;
+                        }
+                        else {
+                            is_exit = ExitPoint::Right;
+                        }
+                    }
+                    else if y == 0 {
+                        if !has_down_neighbor {
+                            is_unblocked_exit = false;
+                        }
+                        is_exit = ExitPoint::Down;
+                    }
+                    else if y == ylen - 1 {
+                        if !has_up_neighbor {
+                            is_unblocked_exit = false;
+                        }
+                        is_exit = ExitPoint::Up;
+                    }
+                    row.push(MapLocation::new(Vector2::new(x as i32, y as i32), is_exit, is_unblocked_exit, current_frame, xlen, ylen));
+                }
+                grid.push(row);
+            }
+        }
+        
+        for no in no_creatures {
+            let xx = no.x as usize;
+            let yy = no.y as usize;
+            grid[xx][yy].creatures = CreatureList::new(false, current_frame);
+        }
+
+        let mut ret = MapRegion {
+            exists: xlen + ylen >= 2,
+            grid,
+            last_frame_changed: current_frame,
+            region_distances: get_2d_vec(xlen, ylen),
+            distances_from_left: LocRegionDistance::Unset,
+            distances_from_right: LocRegionDistance::Unset,
+            distances_from_up: LocRegionDistance::Unset,
+            distances_from_down: LocRegionDistance::Unset,
+        };
+        ret.update_region_nav(current_frame);
+        ret
+    }
+
+
     pub fn get_if_will_not_cause_blocked_paths(&self, loc: Vector2) -> bool {
         // TODO: Calculate if this region will have blocked paths if you place in a location
         true
     }
     pub fn update_region_nav(&mut self, current_frame: u128) {
         // TODO: Update all the MapLocation's distances to each other.
+        let x_len = self.grid.len();
+        let y_len = self.grid[0].len();
+
+        self.grid.par_iter_mut().for_each(|xp| {
+            xp.par_iter_mut().for_each(|yp| {
+                yp.reset_point_distances();
+            })
+        });
+
+        let up_exit: Option<Vector2> = None;
+        let down_exit: Option<Vector2> = None;
+        let right_exit: Option<Vector2> = None;
+        let left_exit: Option<Vector2> = None;
+
+        let neighbors = vec![Vector2::new(-1, 0), Vector2::new(1, 0), Vector2::new(0, -1), Vector2::new(0, 1)];
+        for x in 0..x_len {
+            for y in 0..y_len {
+                self.grid[x][y].point_distances[x][y] = LocDistance::Set(0);
+                // TODO NOTE: this is a really lazy way of getting the exit nodes.
+                // so its slightly inaccurate way to get distances between exit points because we just
+                // take the last exit point seen for each exit.
+                match self.grid[x][y].is_exit {
+                    ExitPoint::None => {}
+                    ExitPoint::Left => {}
+                    ExitPoint::Right => {}
+                    ExitPoint::Up => {}
+                    ExitPoint::Down => {}
+                    ExitPoint::LeftDown => {}
+                    ExitPoint::RightDown => {}
+                    ExitPoint::LeftUp => {}
+                    ExitPoint::RightUp => {}
+                }
+                let mut to_visit: Vec<Vector2> = Vec::new();
+                let mut node_idx = 0;
+                // add neighbors to, to_visit.
+                // then add their neighbors etc.
+                for neighbor in &neighbors {
+                    to_visit.push(Vector2::add(&Vector2::new(x as i32, y as i32), neighbor));
+                }
+                while node_idx < to_visit.len() {
+                    // for each node, get its neighbor with the lowest distance to target
+                    // then set this points distance to 1 + min_neighbor_distance
+                    // also add this nodes neighbors to to_visit, if they have an unset point_distance
+                    let v = to_visit[node_idx];
+                    let xx = x as i32 + v.x;
+                    let yy = y as i32 + v.y;
+                    if xx < x_len as i32 && xx >= 0 && yy < y_len as i32 && yy >= 0 {
+                        let xx = xx as usize;
+                        let yy = yy as usize;
+                        if self.grid[xx][yy].point_distances[x][y] == LocDistance::Unset {
+                            // get neighbor that has point_distance set:
+                            let mut min_distance: u32 = 0;
+                            for neighbor in &neighbors {
+                                let xxn = xx as i32 + neighbor.x;
+                                let yyn = yy as i32 + neighbor.y;
+                                if xxn < x_len as i32 && xxn >= 0 && yyn < y_len as i32 && yyn >= 0 { 
+                                    let xxn = xxn as usize;
+                                    let yyn = yyn as usize;
+                                    match self.grid[xxn][yyn].point_distances[x][y] {
+                                        LocDistance::Unset => {
+                                            // TODO NOTE: This will add duplicates to the list of already visited places.
+                                            // So can either check if to_visit has this var, or just skip in the loop as done above.
+                                            // maybe worth changing but probably not.
+                                            to_visit.push(Vector2::new(xxn as i32, yyn as i32));
+                                        }
+                                        LocDistance::Blocked => {}
+                                        LocDistance::Set(dist) => {
+                                            // pretty sure its impossible for a node to get seen by a slower path so this if is pointless
+                                            // if min_distance == 0 || dist <= min_distance {
+                                                
+                                            // }
+                                            min_distance = dist;
+                                        }
+                                    }
+                                }
+                            }
+                            if ! self.grid[xx][yy].get_if_blocked(false) {
+                                self.grid[xx][yy].point_distances[x][y] = LocDistance::Set(min_distance + 1);
+                            } else {
+                                self.grid[xx][yy].point_distances[x][y] = LocDistance::Blocked;
+                            }
+                        }
+                    }
+                    node_idx+=1;
+                }
+            }
+        }
+        // TODONEXT: also update distances_from_exits
+
+
         self.last_frame_changed = current_frame;
+    }
+}
+
+#[derive(Debug, PartialEq)]
+pub enum LocDistance {
+    Unset,
+    Blocked,
+    Set(u32),
+}
+impl Default for LocDistance {
+    fn default() -> Self {
+        LocDistance::Unset
     }
 }
 
@@ -182,14 +388,38 @@ pub struct MapLocation {
     pub is_exit: ExitPoint, // exits should not be allowed to have creatures placed on them. also they must not have a block INBETWEEN them.
     pub creatures: CreatureList, // some locations will be perma blocked and no creatures allowed
     pub items: Vec<Item>,
-    pub point_distances: Vec<Vec<u32>>,
+    pub point_distances: Vec<Vec<LocDistance>>,
 }
 impl MapLocation {
+    pub fn new(loc: Vector2, is_exit: ExitPoint, has_creatures: bool, current_frame: u128, xlen: usize, ylen: usize) -> Self {
+        MapLocation {
+            id_component_items: IDComponent::new(),
+            id_component_creatures: IDComponent::new(),
+            location: loc,
+            is_exit,
+            creatures: CreatureList::new(has_creatures, current_frame),
+            items: Vec::new(),
+            point_distances: get_2d_vec(xlen, ylen),
+        }
+    }
+
     pub fn get_if_blocked(&self, exits_count_as_blocked: bool) -> bool {
         if self.is_exit != ExitPoint::None && exits_count_as_blocked {
             true
         } else {
             self.creatures.get_if_blocked()
+        }
+    }
+    pub fn reset_point_distances(&mut self) {
+        let x_len = self.point_distances.len();
+        let y_len = self.point_distances[0].len();
+        self.point_distances = Vec::new();
+        for x in 0..x_len {
+            let mut row = Vec::new();
+            for y in 0..y_len {
+                row.push(LocDistance::Unset);
+            }
+            self.point_distances.push(row);
         }
     }
 }
