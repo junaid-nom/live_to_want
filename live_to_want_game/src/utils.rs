@@ -45,6 +45,17 @@ pub fn get_2d_vec<T: Default>(xlen: usize, ylen: usize) -> Vec<Vec<T>> {
     ret
 }
 
+pub fn make_string_certain_length(mut s: String, target_len: usize, fillchar: char) -> String {
+    if s.len() < target_len {
+        for _ in s.len()..target_len {
+            s.push(fillchar);
+        }
+        s
+    } else {
+        s
+    }
+}
+
 pub static COUNTER: AtomicU64 = AtomicU64::new(1); // TODO: Upgrade to a 128 bit one when it comes out of nightly build
 pub fn get_id() -> u64 { COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed) }
 pub type UID = u64;

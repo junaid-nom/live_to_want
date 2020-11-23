@@ -1,6 +1,6 @@
-use std::vec::Drain;
+use std::{vec::Drain, fmt};
 
-use crate::{UID, creature::CreatureState, creature::IDComponent, utils::Vector2, get_2d_vec};
+use crate::{UID, creature::CreatureState, creature::IDComponent, get_2d_vec, utils::Vector2, make_string_certain_length};
 use rand::prelude::*;
 extern crate rayon;
 use rayon::prelude::*;
@@ -178,6 +178,23 @@ impl Default for ExitPoint {
     fn default() -> Self {
         ExitPoint::None
     }
+    
+}
+impl fmt::Display for ExitPoint {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let f_string = match &self {
+            ExitPoint::None => {""}
+            ExitPoint::Left => {"L_"}
+            ExitPoint::Right => {"R_"}
+            ExitPoint::Up => {"U_"}
+            ExitPoint::Down => {"D_"}
+            ExitPoint::LeftDown => {"LD"}
+            ExitPoint::RightDown => {"RD"}
+            ExitPoint::LeftUp => {"LU"}
+            ExitPoint::RightUp => {"RU"}
+        };
+        write!(f, "{}", f_string)
+    }
 }
 
 #[derive(Debug, PartialEq)]
@@ -204,6 +221,34 @@ pub struct MapRegion {
     distances_from_up: LocRegionDistance,
     distances_from_down: LocRegionDistance,
 }
+impl fmt::Display for MapRegion {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let mut lines = Vec::new();
+        for column in &self.grid {
+            let mut f_string = String::new();
+            for y in column {
+                let dy = if y.creatures.get_if_blocked() {
+                    if y.is_exit != ExitPoint::None {
+                        "_X_".to_string()
+                    } else {
+                        format!("X{}", y.is_exit.to_string())
+                    }
+                } else {
+                    if y.is_exit != ExitPoint::None {
+                        "_O_".to_string()
+                    } else {
+                        format!("O{}", y.is_exit.to_string())
+                    }
+                };
+                f_string = format!("{}{}", f_string, dy);
+            }
+            lines.insert(0, f_string);
+        }
+        
+        write!(f, "{}", lines.join("\n"))
+    }
+}
+
 impl MapRegion {
     pub fn new(xlen: usize, ylen: usize, current_frame: u128, no_creatures: &Vec<Vector2>, has_left_neighbor: bool, has_right_neighbor: bool, has_up_neighbor: bool, has_down_neighbor: bool) -> Self {
         let mut grid: Vec<Vec<MapLocation>> = Vec::new();
@@ -291,6 +336,26 @@ impl MapRegion {
     }
 
 
+    pub fn get_distances(&self, end_point: &Vector2) -> Vec<String> {
+        let mut lines = Vec::new();
+        let xx = end_point.x as usize;
+        let yy = end_point.y as usize;
+        let xlen = self.grid.len();
+        let ylen = self.grid[0].len();
+        for y in 0..ylen {
+            let mut f_string = String::new();
+            for x in 0..xlen {
+                let ml = &self.grid[x][y];
+                let dy = make_string_certain_length(format!("{}", ml.point_distances[xx][yy]), 3, '_');
+
+                f_string = format!("{}{}", f_string, dy);
+                //f_string = format!("{}{}{}_", f_string, ml.location.x, ml.location.y);
+            }
+            lines.insert(0, f_string);
+        }
+        lines
+    }
+
     pub fn get_if_will_not_cause_blocked_paths(&self, loc: Vector2) -> bool {
         // TODONEXT: Calculate if this region will have blocked paths if you place in a location
         true
@@ -320,6 +385,7 @@ impl MapRegion {
         for x in 0..x_len {
             for y in 0..y_len {
                 self.grid[x][y].point_distances[x][y] = LocDistance::Set(0);
+                println!("Setting {} {}", x, y);
                 // TODO NOTE: this is a really lazy way of getting the exit nodes.
                 // so its slightly inaccurate way to get distances between exit points because we just
                 // take the last exit point seen for each exit. though at least prioritize the corner exits
@@ -400,11 +466,13 @@ impl MapRegion {
                 }
             }
         }
-        // TODONEXT: also update distances_from_exits
+        // also update distances_from_exits
         let leftv = left_exit.as_ref().unwrap();
         let rightv = right_exit.as_ref().unwrap();
         let upv = up_exit.as_ref().unwrap();
         let downv = down_exit.as_ref().unwrap();
+        println!("leftv: {:?}", leftv);
+        println!("{}", self.get_distances(leftv).join("\n"));
         self.distances_from_left = LocRegionDistance::Set(RegionDistances::new(leftv, leftv, rightv, upv, downv, self));
         self.distances_from_right = LocRegionDistance::Set(RegionDistances::new(rightv, leftv, rightv, upv, downv, self));
         self.distances_from_up = LocRegionDistance::Set(RegionDistances::new(upv, leftv, rightv, upv, downv, self));
@@ -423,6 +491,15 @@ pub enum LocDistance {
 impl Default for LocDistance {
     fn default() -> Self {
         LocDistance::Unset
+    }
+}
+impl fmt::Display for LocDistance {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            LocDistance::Unset => {write!(f, "{}", "U")}
+            LocDistance::Blocked => {write!(f, "{}", "X")}
+            LocDistance::Set(d) => {write!(f, "{}", d)}
+        }
     }
 }
 
