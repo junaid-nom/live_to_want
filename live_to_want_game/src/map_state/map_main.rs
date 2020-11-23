@@ -135,6 +135,32 @@ pub struct RegionDistances {
     up: Option<u32>,
     down: Option<u32>,
 }
+impl RegionDistances {
+    pub fn new(start: &Vector2, leftv: &Vector2, rightv: &Vector2, upv: &Vector2, downv: &Vector2, region: &MapRegion) -> Self {
+        RegionDistances {
+            left: match region.get_distance(start, leftv) {
+                LocDistance::Unset => {panic!("trying to get region distances from unset region")}
+                LocDistance::Blocked => {None}
+                LocDistance::Set(d) => {Some(*d)}
+            },
+            right: match region.get_distance(start, rightv) {
+                LocDistance::Unset => {panic!("trying to get region distances from unset region")}
+                LocDistance::Blocked => {None}
+                LocDistance::Set(d) => {Some(*d)}
+            },
+            up: match region.get_distance(start, upv) {
+                LocDistance::Unset => {panic!("trying to get region distances from unset region")}
+                LocDistance::Blocked => {None}
+                LocDistance::Set(d) => {Some(*d)}
+            },
+            down: match region.get_distance(start, downv) {
+                LocDistance::Unset => {panic!("trying to get region distances from unset region")}
+                LocDistance::Blocked => {None}
+                LocDistance::Set(d) => {Some(*d)}
+            },
+        }
+    }
+}
 
 #[derive(Debug, PartialEq)]
 pub enum ExitPoint {
@@ -157,7 +183,6 @@ impl Default for ExitPoint {
 #[derive(Debug, PartialEq)]
 pub enum LocRegionDistance {
     Unset,
-    Blocked,
     Set(RegionDistances),
 }
 impl Default for LocRegionDistance {
@@ -184,7 +209,7 @@ impl MapRegion {
         let mut grid: Vec<Vec<MapLocation>> = Vec::new();
         if xlen + ylen >= 2 {
             for x in 0..xlen {
-                let row = Vec::new();
+                let mut row = Vec::new();
                 for y in 0..ylen {
                     let mut is_exit = ExitPoint::None;
                     let mut is_unblocked_exit = true;
@@ -244,12 +269,11 @@ impl MapRegion {
                 }
                 grid.push(row);
             }
-        }
-        
-        for no in no_creatures {
-            let xx = no.x as usize;
-            let yy = no.y as usize;
-            grid[xx][yy].creatures = CreatureList::new(false, current_frame);
+            for no in no_creatures {
+                let xx = no.x as usize;
+                let yy = no.y as usize;
+                grid[xx][yy].creatures = CreatureList::new(false, current_frame);
+            }
         }
 
         let mut ret = MapRegion {
@@ -268,9 +292,14 @@ impl MapRegion {
 
 
     pub fn get_if_will_not_cause_blocked_paths(&self, loc: Vector2) -> bool {
-        // TODO: Calculate if this region will have blocked paths if you place in a location
+        // TODONEXT: Calculate if this region will have blocked paths if you place in a location
         true
     }
+
+    pub fn get_distance(&self, start: &Vector2, end: &Vector2) -> &LocDistance {
+        &self.grid[start.x as usize][start.y as usize].point_distances[end.x as usize][end.y as usize]
+    }
+
     pub fn update_region_nav(&mut self, current_frame: u128) {
         // TODO: Update all the MapLocation's distances to each other.
         let x_len = self.grid.len();
@@ -282,10 +311,10 @@ impl MapRegion {
             })
         });
 
-        let up_exit: Option<Vector2> = None;
-        let down_exit: Option<Vector2> = None;
-        let right_exit: Option<Vector2> = None;
-        let left_exit: Option<Vector2> = None;
+        let mut up_exit: Option<Vector2> = None;
+        let mut down_exit: Option<Vector2> = None;
+        let mut right_exit: Option<Vector2> = None;
+        let mut left_exit: Option<Vector2> = None;
 
         let neighbors = vec![Vector2::new(-1, 0), Vector2::new(1, 0), Vector2::new(0, -1), Vector2::new(0, 1)];
         for x in 0..x_len {
@@ -293,17 +322,29 @@ impl MapRegion {
                 self.grid[x][y].point_distances[x][y] = LocDistance::Set(0);
                 // TODO NOTE: this is a really lazy way of getting the exit nodes.
                 // so its slightly inaccurate way to get distances between exit points because we just
-                // take the last exit point seen for each exit.
+                // take the last exit point seen for each exit. though at least prioritize the corner exits
                 match self.grid[x][y].is_exit {
                     ExitPoint::None => {}
-                    ExitPoint::Left => {}
-                    ExitPoint::Right => {}
-                    ExitPoint::Up => {}
-                    ExitPoint::Down => {}
-                    ExitPoint::LeftDown => {}
-                    ExitPoint::RightDown => {}
-                    ExitPoint::LeftUp => {}
-                    ExitPoint::RightUp => {}
+                    ExitPoint::Left => {if left_exit.is_none() {left_exit = Some(Vector2::new(x as i32, y as i32));}}
+                    ExitPoint::Right => {if right_exit.is_none() {right_exit = Some(Vector2::new(x as i32, y as i32));}}
+                    ExitPoint::Up => {if up_exit.is_none() {up_exit = Some(Vector2::new(x as i32, y as i32));}}
+                    ExitPoint::Down => {if down_exit.is_none() {down_exit = Some(Vector2::new(x as i32, y as i32));}}
+                    ExitPoint::LeftDown => {
+                        left_exit = Some(Vector2::new(x as i32, y as i32));
+                        right_exit = Some(Vector2::new(x as i32, y as i32));
+                    }
+                    ExitPoint::RightDown => {
+                        right_exit = Some(Vector2::new(x as i32, y as i32));
+                        down_exit = Some(Vector2::new(x as i32, y as i32));
+                    }
+                    ExitPoint::LeftUp => {
+                        left_exit = Some(Vector2::new(x as i32, y as i32));
+                        right_exit = Some(Vector2::new(x as i32, y as i32));
+                    }
+                    ExitPoint::RightUp => {
+                        right_exit = Some(Vector2::new(x as i32, y as i32));
+                        up_exit = Some(Vector2::new(x as i32, y as i32));
+                    }
                 }
                 let mut to_visit: Vec<Vector2> = Vec::new();
                 let mut node_idx = 0;
@@ -342,14 +383,13 @@ impl MapRegion {
                                         LocDistance::Set(dist) => {
                                             // pretty sure its impossible for a node to get seen by a slower path so this if is pointless
                                             // if min_distance == 0 || dist <= min_distance {
-                                                
                                             // }
                                             min_distance = dist;
                                         }
                                     }
                                 }
                             }
-                            if ! self.grid[xx][yy].get_if_blocked(false) {
+                            if !self.grid[xx][yy].get_if_blocked(false) && !self.grid[x][y].get_if_blocked(false) {
                                 self.grid[xx][yy].point_distances[x][y] = LocDistance::Set(min_distance + 1);
                             } else {
                                 self.grid[xx][yy].point_distances[x][y] = LocDistance::Blocked;
@@ -361,7 +401,14 @@ impl MapRegion {
             }
         }
         // TODONEXT: also update distances_from_exits
-
+        let leftv = left_exit.as_ref().unwrap();
+        let rightv = right_exit.as_ref().unwrap();
+        let upv = up_exit.as_ref().unwrap();
+        let downv = down_exit.as_ref().unwrap();
+        self.distances_from_left = LocRegionDistance::Set(RegionDistances::new(leftv, leftv, rightv, upv, downv, self));
+        self.distances_from_right = LocRegionDistance::Set(RegionDistances::new(rightv, leftv, rightv, upv, downv, self));
+        self.distances_from_up = LocRegionDistance::Set(RegionDistances::new(upv, leftv, rightv, upv, downv, self));
+        self.distances_from_down = LocRegionDistance::Set(RegionDistances::new(downv, leftv, rightv, upv, downv, self));
 
         self.last_frame_changed = current_frame;
     }
