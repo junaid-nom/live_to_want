@@ -130,10 +130,10 @@ impl Location{
 #[derive(Debug)]
 #[derive(Default, PartialEq)]
 pub struct RegionDistances {
-    left: Option<u32>,
-    right: Option<u32>,
-    up: Option<u32>,
-    down: Option<u32>,
+    pub left: Option<u32>,
+    pub right: Option<u32>,
+    pub up: Option<u32>,
+    pub down: Option<u32>,
 }
 impl RegionDistances {
     pub fn new(start: &Vector2, leftv: &Vector2, rightv: &Vector2, upv: &Vector2, downv: &Vector2, region: &MapRegion) -> Self {
@@ -216,10 +216,10 @@ pub struct MapRegion {
     pub last_frame_changed: u128, // if nav system last updated before this frame, update it
     // nav stuff:
     pub region_distances: Vec<Vec<LocDistance>>, // cached distance to eveey other region in from this region
-    distances_from_left: LocRegionDistance,
-    distances_from_right: LocRegionDistance,
-    distances_from_up: LocRegionDistance,
-    distances_from_down: LocRegionDistance,
+    pub distances_from_left: LocRegionDistance,
+    pub distances_from_right: LocRegionDistance,
+    pub distances_from_up: LocRegionDistance,
+    pub distances_from_down: LocRegionDistance,
 }
 impl fmt::Display for MapRegion {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -253,7 +253,6 @@ impl fmt::Display for MapRegion {
         write!(f, "{}", lines.join("\n"))
     }
 }
-
 impl MapRegion {
     pub fn new(xlen: usize, ylen: usize, current_frame: u128, no_creatures: &Vec<Vector2>, has_left_neighbor: bool, has_right_neighbor: bool, has_up_neighbor: bool, has_down_neighbor: bool) -> Self {
         let mut grid: Vec<Vec<MapLocation>> = Vec::new();
@@ -392,28 +391,32 @@ impl MapRegion {
                 //println!("Setting {} {}", x, y);
                 // TODO NOTE: this is a really lazy way of getting the exit nodes.
                 // so its slightly inaccurate way to get distances between exit points because we just
-                // take the last exit point seen for each exit. though at least prioritize the corner exits
-                match self.grid[x][y].is_exit {
-                    ExitPoint::None => {}
-                    ExitPoint::Left => {if left_exit.is_none() {left_exit = Some(Vector2::new(x as i32, y as i32));}}
-                    ExitPoint::Right => {if right_exit.is_none() {right_exit = Some(Vector2::new(x as i32, y as i32));}}
-                    ExitPoint::Up => {if up_exit.is_none() {up_exit = Some(Vector2::new(x as i32, y as i32));}}
-                    ExitPoint::Down => {if down_exit.is_none() {down_exit = Some(Vector2::new(x as i32, y as i32));}}
-                    ExitPoint::LeftDown => {
-                        left_exit = Some(Vector2::new(x as i32, y as i32));
-                        right_exit = Some(Vector2::new(x as i32, y as i32));
-                    }
-                    ExitPoint::RightDown => {
-                        right_exit = Some(Vector2::new(x as i32, y as i32));
-                        down_exit = Some(Vector2::new(x as i32, y as i32));
-                    }
-                    ExitPoint::LeftUp => {
-                        left_exit = Some(Vector2::new(x as i32, y as i32));
-                        right_exit = Some(Vector2::new(x as i32, y as i32));
-                    }
-                    ExitPoint::RightUp => {
-                        right_exit = Some(Vector2::new(x as i32, y as i32));
-                        up_exit = Some(Vector2::new(x as i32, y as i32));
+                let end_blocked = self.grid[x][y].get_if_blocked(false);
+                //prioritise mid points for exits for more accurate calculatuon
+                if !end_blocked {
+                    match self.grid[x][y].is_exit {
+                        ExitPoint::None => {}
+                        ExitPoint::Left => {if left_exit.is_none() {left_exit = Some(Vector2::new(x as i32, y as i32));}}
+                        ExitPoint::Right => {if right_exit.is_none() {right_exit = Some(Vector2::new(x as i32, y as i32));}}
+                        ExitPoint::Up => {if up_exit.is_none() {up_exit = Some(Vector2::new(x as i32, y as i32));}}
+                        ExitPoint::Down => {if down_exit.is_none() {down_exit = Some(Vector2::new(x as i32, y as i32));}}
+                        ExitPoint::LeftDown => {
+                            println!(" LEFT DOWN LEFT DOWN LEFT DOWN");
+                            left_exit = Some(Vector2::new(x as i32, y as i32));
+                            down_exit = Some(Vector2::new(x as i32, y as i32));
+                        }
+                        ExitPoint::RightDown => {
+                            right_exit = Some(Vector2::new(x as i32, y as i32));
+                            down_exit = Some(Vector2::new(x as i32, y as i32));
+                        }
+                        ExitPoint::LeftUp => {
+                            left_exit = Some(Vector2::new(x as i32, y as i32));
+                            up_exit = Some(Vector2::new(x as i32, y as i32));
+                        }
+                        ExitPoint::RightUp => {
+                            right_exit = Some(Vector2::new(x as i32, y as i32));
+                            up_exit = Some(Vector2::new(x as i32, y as i32));
+                        }
                     }
                 }
                 let mut to_visit: Vec<Vector2> = Vec::new();
@@ -463,7 +466,7 @@ impl MapRegion {
                                     }
                                 }
                                 
-                                if !self.grid[x][y].get_if_blocked(false) {
+                                if !end_blocked {
                                     if let Some(min_distance) = min_distance {
                                         self.grid[xx][yy].point_distances[x][y] = LocDistance::Set(min_distance + 1);
                                     } else {
@@ -490,10 +493,24 @@ impl MapRegion {
             }
         }
         // also update distances_from_exits
-        let leftv = left_exit.as_ref().unwrap();
-        let rightv = right_exit.as_ref().unwrap();
-        let upv = up_exit.as_ref().unwrap();
-        let downv = down_exit.as_ref().unwrap();
+        let v0 = Vector2::new(0,0);
+        let leftv = match &left_exit {
+            Some(v) => {v}
+            None => {&v0}
+        };
+        let vmax = Vector2::new(x_len as i32 - 1, y_len as i32 - 1);
+        let rightv = match &right_exit {
+            Some(v) => {v}
+            None => {&vmax}
+        };
+        let upv = match &up_exit {
+            Some(v) => {v}
+            None => {&vmax}
+        };
+        let downv = match &down_exit {
+            Some(v) => {v}
+            None => {&v0}
+        };
         self.distances_from_left = LocRegionDistance::Set(RegionDistances::new(leftv, leftv, rightv, upv, downv, self));
         self.distances_from_right = LocRegionDistance::Set(RegionDistances::new(rightv, leftv, rightv, upv, downv, self));
         self.distances_from_up = LocRegionDistance::Set(RegionDistances::new(upv, leftv, rightv, upv, downv, self));

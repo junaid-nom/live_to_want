@@ -7,9 +7,11 @@ use live_to_want_game::*;
 #[test]
 fn test_region_map_update() {
     println!("Poop test");
-    let xlen = 7;
-    let ylen = 5;
-    let blocked_hard = vec![Vector2::new(2,0), Vector2::new(3,1), Vector2::new(4,2), Vector2::new(1,1), Vector2::new(2,2)];
+    let xlen:usize = 7;
+    let ylen:usize = 5;
+    let blocked_hard = vec![
+        //Vector2::new(0,0), Vector2::new(xlen as i32 -1,ylen as i32 -1), Vector2::new(xlen as i32 -1,0), Vector2::new(0, ylen as i32 - 1), 
+        Vector2::new(2,0), Vector2::new(3,1), Vector2::new(4,2), Vector2::new(1,1), Vector2::new(2,2)];
     let r = MapRegion::new(xlen,ylen, 0, &blocked_hard
         , true, true, false, true);
     let leftv = Vector2::new(0,4 );
@@ -63,7 +65,35 @@ fn test_region_map_update() {
     }
 
     // TODO: Make sure the distances to exits are correct
-    
+    println!("d d {:#?}", r.distances_from_down);
+    println!("d u {:#?}", r.distances_from_up);
+    println!("d l {:#?}", r.distances_from_left);
+    println!("d r {:#?}", r.distances_from_right);
+
+    assert_eq!(r.distances_from_down, LocRegionDistance::Set(RegionDistances{
+        left: Some(12),
+        right: Some(0),
+        up: None,
+        down:Some(0),
+    }));
+    assert_eq!(r.distances_from_up, LocRegionDistance::Set(RegionDistances{
+        left: None,
+        right: None,
+        up: Some(0),
+        down:None,
+    }));
+    assert_eq!(r.distances_from_down, LocRegionDistance::Set(RegionDistances{
+        left: Some(12),
+        right: Some(0),
+        up: None,
+        down:Some(0),
+    }));
+    assert_eq!(r.distances_from_down, LocRegionDistance::Set(RegionDistances{
+        left: Some(12),
+        right: Some(0),
+        up: None,
+        down:Some(0),
+    }));
 
     assert_eq!(true, false);
 }
