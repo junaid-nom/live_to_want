@@ -14,9 +14,10 @@ fn test_region_map_update() {
         Vector2::new(2,0), Vector2::new(3,1), Vector2::new(4,2), Vector2::new(1,1), Vector2::new(2,2)];
     let r = MapRegion::new(xlen,ylen, 0, &blocked_hard
         , true, true, false, true);
-    let leftv = Vector2::new(0,4 );
-    let rightv = Vector2::new(6,4 );
-    let downv = Vector2::new(6,0 );
+    let leftv = Vector2::new(0,2 );
+    let rightv = Vector2::new(6,2 );
+    let downv = Vector2::new(3,0 );
+    let upv = Vector2::new(3,4 );
     let middlev = Vector2::new(3,2);
     println!("leftv: {:?}", leftv);
     println!("{}", r.get_distance_strings(&leftv).join("\n"));
@@ -24,8 +25,11 @@ fn test_region_map_update() {
     println!("{}", r.get_distance_strings(&rightv).join("\n"));
     println!("downv: {:?}", downv);
     println!("{}", r.get_distance_strings(&downv).join("\n"));
+    println!("upv: {:?}", upv);
+    println!("{}", r.get_distance_strings(&upv).join("\n"));
     println!("middlev: {:?}", middlev);
     println!("{}", r.get_distance_strings(&middlev).join("\n"));
+    
     println!("Printing whole region");
     println!("{}", r);
 
@@ -71,8 +75,8 @@ fn test_region_map_update() {
     println!("d r {:#?}", r.distances_from_right);
 
     assert_eq!(r.distances_from_down, LocRegionDistance::Set(RegionDistances{
-        left: Some(12),
-        right: Some(0),
+        left: Some(11),
+        right: Some(5),
         up: None,
         down:Some(0),
     }));
@@ -82,17 +86,17 @@ fn test_region_map_update() {
         up: Some(0),
         down:None,
     }));
-    assert_eq!(r.distances_from_down, LocRegionDistance::Set(RegionDistances{
-        left: Some(12),
-        right: Some(0),
+    assert_eq!(r.distances_from_left, LocRegionDistance::Set(RegionDistances{
+        left: Some(0),
+        right: Some(8),
         up: None,
-        down:Some(0),
+        down:Some(11),
     }));
-    assert_eq!(r.distances_from_down, LocRegionDistance::Set(RegionDistances{
-        left: Some(12),
+    assert_eq!(r.distances_from_right, LocRegionDistance::Set(RegionDistances{
+        left: Some(8),
         right: Some(0),
         up: None,
-        down:Some(0),
+        down:Some(5),
     }));
 
     assert_eq!(true, false);

@@ -392,30 +392,50 @@ impl MapRegion {
                 // TODO NOTE: this is a really lazy way of getting the exit nodes.
                 // so its slightly inaccurate way to get distances between exit points because we just
                 let end_blocked = self.grid[x][y].get_if_blocked(false);
+                let dist_x_mid = |xd: i32| {
+                    (xd - ((x_len/2) as i32)).abs()
+                };
+                let dist_y_mid = |yd: i32| {
+                    (yd - ((y_len/2) as i32)).abs()
+                };
                 //prioritise mid points for exits for more accurate calculatuon
+                let dist_x = dist_x_mid(x as i32);
+                let dist_y = dist_y_mid(y as i32);
                 if !end_blocked {
                     match self.grid[x][y].is_exit {
                         ExitPoint::None => {}
-                        ExitPoint::Left => {if left_exit.is_none() {left_exit = Some(Vector2::new(x as i32, y as i32));}}
-                        ExitPoint::Right => {if right_exit.is_none() {right_exit = Some(Vector2::new(x as i32, y as i32));}}
-                        ExitPoint::Up => {if up_exit.is_none() {up_exit = Some(Vector2::new(x as i32, y as i32));}}
-                        ExitPoint::Down => {if down_exit.is_none() {down_exit = Some(Vector2::new(x as i32, y as i32));}}
+                        ExitPoint::Left => {
+                            if left_exit.is_none() || dist_y < dist_y_mid(left_exit.as_ref().unwrap().y) {
+                            left_exit = Some(Vector2::new(x as i32, y as i32));
+                        }}
+                        ExitPoint::Right => {
+                            if right_exit.is_none() || dist_y < dist_y_mid(right_exit.as_ref().unwrap().y) {
+                                right_exit = Some(Vector2::new(x as i32, y as i32));
+                        }}
+                        ExitPoint::Up => {
+                            if up_exit.is_none() || dist_x < dist_x_mid(up_exit.as_ref().unwrap().x) {
+                                up_exit = Some(Vector2::new(x as i32, y as i32));
+                        }}
+                        ExitPoint::Down => {
+                            if down_exit.is_none() || dist_x < dist_x_mid(down_exit.as_ref().unwrap().x) {
+                                down_exit = Some(Vector2::new(x as i32, y as i32));
+                        }}
                         ExitPoint::LeftDown => {
                             println!(" LEFT DOWN LEFT DOWN LEFT DOWN");
-                            left_exit = Some(Vector2::new(x as i32, y as i32));
-                            down_exit = Some(Vector2::new(x as i32, y as i32));
+                            if left_exit.is_none() {left_exit = Some(Vector2::new(x as i32, y as i32));}
+                            if down_exit.is_none() {down_exit = Some(Vector2::new(x as i32, y as i32));}
                         }
                         ExitPoint::RightDown => {
-                            right_exit = Some(Vector2::new(x as i32, y as i32));
-                            down_exit = Some(Vector2::new(x as i32, y as i32));
+                            if right_exit.is_none() {right_exit = Some(Vector2::new(x as i32, y as i32));}
+                            if down_exit.is_none() {down_exit = Some(Vector2::new(x as i32, y as i32));}
                         }
                         ExitPoint::LeftUp => {
-                            left_exit = Some(Vector2::new(x as i32, y as i32));
-                            up_exit = Some(Vector2::new(x as i32, y as i32));
+                            if left_exit.is_none() {left_exit = Some(Vector2::new(x as i32, y as i32));}
+                            if up_exit.is_none() {up_exit = Some(Vector2::new(x as i32, y as i32));}
                         }
                         ExitPoint::RightUp => {
-                            right_exit = Some(Vector2::new(x as i32, y as i32));
-                            up_exit = Some(Vector2::new(x as i32, y as i32));
+                            if right_exit.is_none() {right_exit = Some(Vector2::new(x as i32, y as i32));}
+                            if up_exit.is_none() {up_exit = Some(Vector2::new(x as i32, y as i32));}
                         }
                     }
                 }
@@ -493,24 +513,35 @@ impl MapRegion {
             }
         }
         // also update distances_from_exits
-        let v0 = Vector2::new(0,0);
+        let vl = Vector2::new(0,y_len as i32/2);
         let leftv = match &left_exit {
             Some(v) => {v}
-            None => {&v0}
+            None => {&vl}
         };
-        let vmax = Vector2::new(x_len as i32 - 1, y_len as i32 - 1);
+        let vr = Vector2::new(x_len as i32 - 1,y_len as i32/2);
         let rightv = match &right_exit {
             Some(v) => {v}
-            None => {&vmax}
+            None => {&vr}
         };
+        let vu = Vector2::new(x_len as i32/2,y_len as i32 - 1);
         let upv = match &up_exit {
             Some(v) => {v}
-            None => {&vmax}
+            None => {&vu}
         };
+        let vd = Vector2::new(x_len as i32/2,0);
         let downv = match &down_exit {
             Some(v) => {v}
-            None => {&v0}
+            None => {&vd}
         };
+        // println!("leftv: {:?}", leftv);
+        // println!("{}", self.get_distance_strings(&leftv).join("\n"));
+        // println!("rightv: {:?}", rightv);
+        // println!("{}", self.get_distance_strings(&rightv).join("\n"));
+        // println!("downv: {:?}", downv);
+        // println!("{}", self.get_distance_strings(&downv).join("\n"));
+        // println!("upv: {:?}", upv);
+        // println!("{}", self.get_distance_strings(&upv).join("\n"));
+
         self.distances_from_left = LocRegionDistance::Set(RegionDistances::new(leftv, leftv, rightv, upv, downv, self));
         self.distances_from_right = LocRegionDistance::Set(RegionDistances::new(rightv, leftv, rightv, upv, downv, self));
         self.distances_from_up = LocRegionDistance::Set(RegionDistances::new(upv, leftv, rightv, upv, downv, self));
