@@ -16,14 +16,14 @@ pub struct MapState {
 }
 
 impl MapState {
-    pub fn find_closest_non_blocked(&self, loc: Location) -> Option<Location> {
+    pub fn find_closest_non_blocked(&self, loc: Location, blocker: bool) -> Option<Location> {
         let region = &self.regions[loc.region.x as usize][loc.region.y as usize];
         let mut to_check: Vec<Vector2> = Vec::new();
         to_check.push(loc.position);
         let mut idx = 0;
         while idx < to_check.len() {
             let checking  = &region.grid[to_check[idx].x as usize][to_check[idx].y as usize];
-            if checking.get_if_blocked(true) && region.get_if_will_not_cause_blocked_paths(to_check[idx]) {
+            if checking.get_if_blocked(blocker) && region.get_if_will_not_cause_blocked_paths(to_check[idx]) {
                 // add vector2s to to_check of locations next to this one if they exist
                 // and if they aren't already in the list
                 let neighbors = to_check[idx].get_neighbors(false);
@@ -128,7 +128,7 @@ impl Location{
 }
 
 #[derive(Debug)]
-#[derive(Default, PartialEq)]
+#[derive(Default, PartialEq, Clone)]
 pub struct RegionDistances {
     left: Option<u32>,
     right: Option<u32>,
@@ -162,7 +162,7 @@ impl RegionDistances {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum ExitPoint {
     None,
     Left,
@@ -180,7 +180,7 @@ impl Default for ExitPoint {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum LocRegionDistance {
     Unset,
     Set(RegionDistances),
@@ -290,6 +290,28 @@ impl MapRegion {
         ret
     }
 
+    pub fn copy_blocked(src: &MapRegion) -> Self {
+        let mut grid = Vec::new();
+        for col in &src.grid {
+            let mut new_col = Vec::new();
+            for pt in col {
+                new_col.push(
+                    MapLocation::new(pt.location.clone(), pt.is_exit.clone(), pt.creatures.holds_creatures(), 0, pt.point_distances.len(), pt.point_distances[0].len())
+                )
+            }
+            grid.push(new_col);
+        }
+        MapRegion {
+            exists: src.exists,
+            grid,
+            last_frame_changed: src.last_frame_changed,
+            region_distances: src.region_distances.clone(),
+            distances_from_left: src.distances_from_left.clone(),
+            distances_from_right: src.distances_from_right.clone(),
+            distances_from_up: src.distances_from_up.clone(),
+            distances_from_down: src.distances_from_down.clone(),
+        }
+    }
 
     pub fn get_if_will_not_cause_blocked_paths(&self, loc: Vector2) -> bool {
         // TODONEXT: Calculate if this region will have blocked paths if you place in a location
@@ -414,7 +436,7 @@ impl MapRegion {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum LocDistance {
     Unset,
     Blocked,

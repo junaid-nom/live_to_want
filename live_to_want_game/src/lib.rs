@@ -128,7 +128,7 @@ fn run_frame(mut game_state: GameState, root: &GoalNode) -> GameState {
     // if there are creatures in that unblocked location add them to blocked_nonblockers
     // then add the blocked creature to that loc
     blocked_blockers.into_iter().for_each(|c| {
-        let loc = m.find_closest_non_blocked(Location::new(c.components.region_component.region, c.components.location_component.location));
+        let loc = m.find_closest_non_blocked(Location::new(c.components.region_component.region, c.components.location_component.location), true);
         if let Some(open_loc) = loc {
             let map_loc: &mut MapLocation = &mut m.regions[open_loc.region.x as usize][open_loc.region.y as usize]
                 .grid[open_loc.position.x as usize][open_loc.position.y as usize];
@@ -145,7 +145,7 @@ fn run_frame(mut game_state: GameState, root: &GoalNode) -> GameState {
 
     // then go through blocked_nonblockers and find_closest_non_blocked
     blocked_nonblockers.into_iter().for_each(|c| { 
-        let loc = m.find_closest_non_blocked(Location::new(c.components.region_component.region, c.components.location_component.location));
+        let loc = m.find_closest_non_blocked(Location::new(c.components.region_component.region, c.components.location_component.location), false);
         if let Some(open_loc) = loc {
             let map_loc: &mut MapLocation = &mut m.regions[open_loc.region.x as usize][open_loc.region.y as usize]
                 .grid[open_loc.position.x as usize][open_loc.position.y as usize];

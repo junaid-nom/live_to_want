@@ -18,6 +18,7 @@ pub fn budding_system(m: &MapState, c: &CreatureState) -> Option<EventChain> {
         let location = c.components.location_component.location;
         let region = c.components.region_component.region;
         let map_region = &m.regions[region.x as usize][region.y as usize];
+        let blocker = c.components.block_space_component.is_some();
         for x in &xs {
             for y in &ys {
                 let x = *x;
@@ -25,7 +26,7 @@ pub fn budding_system(m: &MapState, c: &CreatureState) -> Option<EventChain> {
                 if x != 0 || y != 0 {
                     let xt = location.x + x;
                     let yt = location.y + y;
-                    if ! map_region.grid[(xt) as usize][(yt) as usize].get_if_blocked(false) {
+                    if ! map_region.grid[(xt) as usize][(yt) as usize].get_if_blocked(blocker) {
                         open_spots.push(Vector2{x: xt, y: yt});
                     }
                 }
