@@ -104,9 +104,12 @@ impl MapState {
     }
 
     pub fn update_nav(&mut self) {
+        // TODONEXT: Will need to make the target distances have one from each exit
+        // otherwise pretty similar to inside region navigation
+        
         // update the region distances for all regions
         
-        // if the left/right/up/down access changes then update all the region_distances
+        // update all the region_distances
 
         // PANIC if exit nodes are blocked by a creature. also if exit nodes arent together, like there shouldnt be a permablocked location inbetween 2 exit nodes. like for top if it was OOOXOO thats bad because it can cause strange splits where one region is accessible from another but only from a particular entrance. wish I had a better way to make sure u cant do this
     }
@@ -398,7 +401,7 @@ impl MapRegion {
             });
             ret
         };
-        // TODONEXT: Calculate if this region will have blocked paths if you place in a location
+        // : Calculate if this region will have blocked paths if you place in a location
         let path_exists_before = get_paths_exists(&self);
         // get all distances? then make sure none are None that werent before?
         let mut hypothetical_region = MapRegion::copy_blocked(&self);
@@ -438,7 +441,7 @@ impl MapRegion {
             for y in 0..y_len {
                 self.grid[x][y].point_distances[x][y] = LocDistance::Set(0);
                 //println!("Setting {} {}", x, y);
-                // TODO NOTE: this is a really lazy way of getting the exit nodes.
+                // NOTE: this is a lazy way of getting the exit nodes.
                 // so its slightly inaccurate way to get distances between exit points because we just
                 let end_blocked = self.grid[x][y].get_if_blocked(false);
                 let dist_x_mid = |xd: i32| {
