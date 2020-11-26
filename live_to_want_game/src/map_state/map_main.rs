@@ -382,7 +382,34 @@ impl MapRegion {
     }
 
     pub fn get_if_will_not_cause_blocked_paths(&self, loc: Vector2) -> bool {
+        let get_paths_exists = |r: &MapRegion| {
+            let mut ret = Vec::new();
+            let dist_get = |d: &RegionDistances| {
+                let mut retd = Vec::new();
+                retd.push(d.down.is_some());
+                retd.push(d.up.is_some());
+                retd.push(d.left.is_some());
+                retd.push(d.right.is_some());
+                retd
+            };
+            ret.extend(match &r.distances_from_down {
+                LocRegionDistance::Unset => {panic!("Trying to get if will cause blocked on unset region!")},
+                LocRegionDistance::Set(rd) => {dist_get(rd)}
+            });
+            ret
+        };
         // TODONEXT: Calculate if this region will have blocked paths if you place in a location
+        let path_exists_before = get_paths_exists(&self);
+        // get all distances? then make sure none are None that werent before?
+        let mut hypothetical_region = MapRegion::copy_blocked(&self);
+        hypothetical_region.grid[loc.x as usize][loc.y as usize].creatures.creatures = None;
+        hypothetical_region.update_region_nav(1);
+        let path_exists_after = get_paths_exists(&hypothetical_region);
+        for i in 0..path_exists_after.len() {
+            if path_exists_before[i] != path_exists_after[i] {
+                return false
+            }
+        }
         true
     }
 
