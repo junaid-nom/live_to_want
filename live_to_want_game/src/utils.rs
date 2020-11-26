@@ -32,6 +32,59 @@ impl Vector2 {
     }
 }
 
+#[derive(Debug)]
+#[derive(Copy, Clone, Hash, PartialEq, Eq)]
+pub enum Neighbor {
+    Left(Vu2),
+    Right(Vu2),
+    Down(Vu2),
+    Up(Vu2),
+}
+impl Neighbor {
+    pub fn get(&self) -> Vu2{
+        match &self {
+            Neighbor::Left(v) => {*v}
+            Neighbor::Right(v) => {*v}
+            Neighbor::Down(v) => {*v}
+            Neighbor::Up(v) => {*v}
+        }
+    }
+}
+
+#[derive(Debug)]
+#[derive(Default)]
+#[derive(Copy, Clone, Hash, PartialEq, Eq)]
+// TODO: Convert to usize. need to do checked_add/checked_sub everywhere
+pub struct Vu2 {
+    pub x: usize,
+    pub y: usize,
+}
+impl Vu2 {
+    pub fn new(x: usize, y: usize) -> Self {
+        Vu2{ x, y }
+    }
+    pub fn add(v1: &Vu2, v2: &Vu2) -> Vu2 {
+        Vu2::new(v1.x + v2.x, v1.y + v2.y)
+    }
+    pub fn get_valid_neighbors(&self, xlen: usize, ylen: usize) -> Vec<Neighbor> {
+        let mut ret = Vec::new();
+        if self.y+1 < ylen {
+            ret.push(Neighbor::Up(Vu2::new(self.x, self.y+1)));
+        }
+        if self.x+1 < xlen {
+            ret.push(Neighbor::Right(Vu2::new(self.x+1, self.y)));
+        }
+        if self.x > 0 {
+            ret.push(Neighbor::Left(Vu2::new(self.x-1, self.y)));
+        }
+        if self.y > 0 {
+            ret.push(Neighbor::Down(Vu2::new(self.x, self.y-1)));
+        }
+        ret
+    }
+}
+
+
 pub fn get_2d_vec<T: Default>(xlen: usize, ylen: usize) -> Vec<Vec<T>> {
     let mut ret = Vec::new();
 

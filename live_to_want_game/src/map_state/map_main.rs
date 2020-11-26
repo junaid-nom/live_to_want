@@ -1,17 +1,41 @@
-use std::{vec::Drain, fmt};
+use std::{fmt, ops::Index, vec::Drain, ops::IndexMut};
 
-use crate::{UID, creature::CreatureState, creature::IDComponent, get_2d_vec, utils::Vector2, make_string_certain_length};
+use crate::{UID, Vu2, creature::CreatureState, creature::IDComponent, Neighbor, get_2d_vec, make_string_certain_length, utils::Vector2};
 use rand::prelude::*;
 extern crate rayon;
 use rayon::prelude::*;
 
 use super::Item;
 
+type RegionGrid = Vec<Vec<MapRegion>>;
+// trait IndexVu2<T> {
+//     fn g(&self, v: Vu2) -> &T;
+//     fn gm(&mut self, v: Vu2) -> &mut T;
+// }
+// impl IndexVu2<MapRegion> for RegionGrid {
+//     fn g(&self, v: Vu2) -> &MapRegion {
+//         &self[v.x][v.y]
+//     }
+//     fn gm(&mut self, v: Vu2) -> &mut MapRegion {
+//         &mut self[v.x][v.y]
+//     }
+// }
+impl Index<Vu2> for RegionGrid {
+    type Output = MapRegion;
 
+    fn index(&self, index: Vu2) -> &Self::Output {
+        &self[index.x][index.y]
+    }
+}
+impl IndexMut<Vu2> for RegionGrid {
+    fn index_mut(&mut self, index: Vu2) -> &mut Self::Output {
+        &mut self[index.x][index.y]
+    }
+}
 #[derive(Debug)]
 #[derive(Default)]
 pub struct MapState {
-    pub regions: Vec<Vec<MapRegion>>,
+    pub regions: RegionGrid,
     pub frame_count: u128,
 }
 
@@ -104,12 +128,104 @@ impl MapState {
     }
 
     pub fn update_nav(&mut self) {
+        // Regions should already be updated if they changed before calling this.
+
         // TODONEXT: Will need to make the target distances have one from each exit
         // otherwise pretty similar to inside region navigation
-        
-        // Regions should already be updated if they changed before calling this.
-        
         // update all the region_distances
+        let xlen = self.regions.len();
+        let ylen = self.regions[0].len();
+
+        for xdst in 0..xlen {
+            for ydst in 0..ylen {
+                let dst = Vu2::new(xdst, ydst);
+                self.regions[dst].region_distances[dst] = RegionSetDistances::Set(RegionDistances::new0());
+                // get all neigbors that are valid
+                let mut to_visit: Vec<Neighbor> = Vec::new();
+                dst.get_valid_neighbors(xlen, ylen).into_iter().for_each(|d| to_visit.push(d));
+                let mut vidx = 0;
+                while vidx < to_visit.len() {
+                    let visiting = to_visit[vidx].get();
+                    if self.regions[visiting].region_distances[dst] == RegionSetDistances::Unset {
+                        if self.regions[visiting].exists {
+                            let mut min_dist = None;
+                            let mut min_direction = None;
+                            let mut to_visit_next = Vec::new(); 
+                            visiting.get_valid_neighbors(xlen, ylen).into_iter().for_each(|neighbor| {
+                                let nv = neighbor.get();
+                                let nregion = &self.regions[nv];
+                                match &nregion.region_distances[dst] {
+                                    RegionSetDistances::Unset => {
+                                        // Only add it to, to visit if it actually has a neighbor that's set since this
+                                        // could become not set at the end. Otherwise will cause infinite loop of adding stuff
+                                        to_visit_next.push(neighbor);
+                                    }
+                                    RegionSetDistances::Blocked => {}
+                                    RegionSetDistances::Set(dsts) => {
+                                        // Get the distance from the side the visitor must enter the neighbor from
+                                        // to the destination (so opposite of neighbor side)
+                                        let dist = match neighbor {
+                                            Neighbor::Left(_) => {dsts.right}
+                                            Neighbor::Right(_) => {dsts.left}
+                                            Neighbor::Down(_) => {dsts.up}
+                                            Neighbor::Up(_) => {dsts.down}
+                                        };
+                                        // good chance its impossible for a node to find a smaller min dist than the first.
+                                        // but just in case checking
+                                        if let Some(d) = dist {
+                                            match min_dist {
+                                                Some(md) => {
+                                                    if d<md {
+                                                        min_dist=Some(d);
+                                                        min_direction = Some(neighbor);
+                                                }}
+                                                None => {
+                                                    min_dist = Some(d); 
+                                                    min_direction = Some(neighbor);
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            });
+                            if let Some(dist) = min_dist{
+                                to_visit.extend(to_visit_next);
+                                let set_dists = |distance_from: &LocRegionDistance| {
+                                    let new_dists = match distance_from {
+                                        LocRegionDistance::Unset => {panic!("Unset Region dist being used for neighbor dist!")}
+                                        LocRegionDistance::Set(dists) => {
+                                            dists.add_distance(dist)
+                                        }
+                                    };
+                                    RegionSetDistances::Set(new_dists)
+                                };
+                                // We now need distances to the edge from the different other edges.
+                                // We just use distances_from because distance from/to is the same.
+                                // so for example, if the neighbor we want to go to is left, we need distances to go to our left edge
+                                match min_direction.unwrap() {
+                                    Neighbor::Left(_) => {
+                                        self.regions[visiting].region_distances[dst] = set_dists(&self.regions[visiting].distances_from_left);
+                                    }
+                                    Neighbor::Right(_) => {
+                                        self.regions[visiting].region_distances[dst] = set_dists(&self.regions[visiting].distances_from_right);
+                                    }
+                                    Neighbor::Down(_) => {
+                                        self.regions[visiting].region_distances[dst] = set_dists(&self.regions[visiting].distances_from_down);
+                                    }
+                                    Neighbor::Up(_) => {
+                                        self.regions[visiting].region_distances[dst] = set_dists(&self.regions[visiting].distances_from_up);
+                                    }
+                                }
+                            }
+                        } else {
+                            self.regions[visiting].region_distances[dst] = RegionSetDistances::Blocked;
+                        }
+                    }
+                    vidx+=1;
+                }
+            }
+        }
+        // TODONext Set all RegionSetDistances that are unset, to Blocked
 
         // PANIC if exit nodes are blocked by a creature. also if exit nodes arent together, like there shouldnt be a permablocked location inbetween 2 exit nodes. like for top if it was OOOXOO thats bad because it can cause strange splits where one region is accessible from another but only from a particular entrance. wish I had a better way to make sure u cant do this
     }
@@ -161,6 +277,28 @@ impl RegionDistances {
                 LocSetDistance::Blocked => {None}
                 LocSetDistance::Set(d) => {Some(*d)}
             },
+        }
+    }
+    pub fn new0() -> Self {
+        RegionDistances {
+            left: Some(0),
+            right: Some(0),
+            up: Some(0),
+            down: Some(0),
+        }
+    }
+    pub fn add_distance(&self, d: u32) -> RegionDistances {
+        let add_d = |od:Option<u32>, dist:u32| {
+            match od {
+                Some(ud) => {Some(ud+dist)}
+                None => {None}
+            }
+        };
+        RegionDistances {
+            left: add_d(self.left, d),
+            right: add_d(self.right, d),
+            up: add_d(self.up, d),
+            down: add_d(self.down, d),
         }
     }
 }
@@ -227,6 +365,27 @@ impl Default for LocRegionDistance {
     }
 }
 
+type RegionDistancesGrid = Vec<Vec<RegionSetDistances>>;
+// impl IndexVu2<RegionSetDistances> for RegionDistancesGrid {
+//     fn g(&self, v: Vu2) -> &RegionSetDistances {
+//         &self[v.x][v.y]
+//     }
+//     fn gm(&mut self, v: Vu2) -> &mut RegionSetDistances {
+//         &mut self[v.x][v.y]
+//     }
+// }
+impl Index<Vu2> for RegionDistancesGrid {
+    type Output = RegionSetDistances;
+
+    fn index(&self, index: Vu2) -> &Self::Output {
+        &self[index.x][index.y]
+    }
+}
+impl IndexMut<Vu2> for RegionDistancesGrid {
+    fn index_mut(&mut self, index: Vu2) -> &mut Self::Output {
+        &mut self[index.x][index.y]
+    }
+}
 #[derive(Debug)]
 #[derive(Default)]
 pub struct MapRegion {
@@ -234,7 +393,7 @@ pub struct MapRegion {
     pub grid: Vec<Vec<MapLocation>>,
     pub last_frame_changed: u128, // if nav system last updated before this frame, update it
     // nav stuff:
-    pub region_distances: Vec<Vec<LocSetDistance>>, // cached distance to eveey other region in from this region
+    pub region_distances: RegionDistancesGrid, // cached distance to eveey other region in from this region
     pub distances_from_left: LocRegionDistance,
     pub distances_from_right: LocRegionDistance,
     pub distances_from_up: LocRegionDistance,

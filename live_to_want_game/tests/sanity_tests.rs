@@ -189,3 +189,12 @@ fn test_closer_mut() {
     add_avg(&x3);
     assert_eq!(avg, 9);
 }
+
+#[test]
+#[should_panic]
+fn test_usize() {
+    let mut x: usize = 5;
+    x = x-6; // This causes a panic jesus
+    assert_eq!(x, 0);
+}
+
