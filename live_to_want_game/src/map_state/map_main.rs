@@ -228,6 +228,7 @@ impl MapState {
         // TODONext Set all RegionSetDistances that are unset, to Blocked
 
         // PANIC if exit nodes are blocked by a creature. also if exit nodes arent together, like there shouldnt be a permablocked location inbetween 2 exit nodes. like for top if it was OOOXOO thats bad because it can cause strange splits where one region is accessible from another but only from a particular entrance. wish I had a better way to make sure u cant do this
+        // TODONEXT IMPORTANT: Really really really need to do this check on Region creation otherwise can get horrible pathfinding! (The check to make sure no exit side is completely blocked or has blocked points in the middle)
     }
 }
 

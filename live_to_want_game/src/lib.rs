@@ -34,6 +34,7 @@ pub use ai::*;
 // DECISION:
 // All VecVecs have 0,0 as bottom left corner.
 // Exit points will be blocked off if there is no neighboring region.
+// Exits must never be blocked from each other or path finding gets fucked, so only allow all exits of a side to be blocked if there is no region on that side at all!
 
 // TODO Big: 
 // Pretty sure items in a MapLocation and inventory in a creature state don't have to be rc<refcell<>>
