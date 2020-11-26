@@ -107,7 +107,7 @@ impl MapState {
         // TODONEXT: Will need to make the target distances have one from each exit
         // otherwise pretty similar to inside region navigation
         
-        // update the region distances for all regions
+        // Regions should already be updated if they changed before calling this.
         
         // update all the region_distances
 
@@ -142,26 +142,42 @@ impl RegionDistances {
     pub fn new(start: &Vector2, leftv: &Vector2, rightv: &Vector2, upv: &Vector2, downv: &Vector2, region: &MapRegion) -> Self {
         RegionDistances {
             left: match region.get_distance(start, leftv) {
-                LocDistance::Unset => {panic!("trying to get region distances from unset region")}
-                LocDistance::Blocked => {None}
-                LocDistance::Set(d) => {Some(*d)}
+                LocSetDistance::Unset => {panic!("trying to get region distances from unset region")}
+                LocSetDistance::Blocked => {None}
+                LocSetDistance::Set(d) => {Some(*d)}
             },
             right: match region.get_distance(start, rightv) {
-                LocDistance::Unset => {panic!("trying to get region distances from unset region")}
-                LocDistance::Blocked => {None}
-                LocDistance::Set(d) => {Some(*d)}
+                LocSetDistance::Unset => {panic!("trying to get region distances from unset region")}
+                LocSetDistance::Blocked => {None}
+                LocSetDistance::Set(d) => {Some(*d)}
             },
             up: match region.get_distance(start, upv) {
-                LocDistance::Unset => {panic!("trying to get region distances from unset region")}
-                LocDistance::Blocked => {None}
-                LocDistance::Set(d) => {Some(*d)}
+                LocSetDistance::Unset => {panic!("trying to get region distances from unset region")}
+                LocSetDistance::Blocked => {None}
+                LocSetDistance::Set(d) => {Some(*d)}
             },
             down: match region.get_distance(start, downv) {
-                LocDistance::Unset => {panic!("trying to get region distances from unset region")}
-                LocDistance::Blocked => {None}
-                LocDistance::Set(d) => {Some(*d)}
+                LocSetDistance::Unset => {panic!("trying to get region distances from unset region")}
+                LocSetDistance::Blocked => {None}
+                LocSetDistance::Set(d) => {Some(*d)}
             },
         }
+    }
+}
+impl fmt::Display for RegionDistances {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let mut avg:f32 = 0.0;
+        let mut somes = 0;
+        let mut add_avg = |rd: &Option<u32>| match rd {
+            Some(d) => {avg += *d as f32; somes+=1;}
+            None => {}
+        };
+        add_avg(&self.left);
+        add_avg(&self.right);
+        add_avg(&self.up);
+        add_avg(&self.down);
+        let to_write = if somes != 0 {(avg/somes as f32).to_string()} else {"X".to_string()};
+        write!(f, "{}", to_write)
     }
 }
 
@@ -218,7 +234,7 @@ pub struct MapRegion {
     pub grid: Vec<Vec<MapLocation>>,
     pub last_frame_changed: u128, // if nav system last updated before this frame, update it
     // nav stuff:
-    pub region_distances: Vec<Vec<LocDistance>>, // cached distance to eveey other region in from this region
+    pub region_distances: Vec<Vec<LocSetDistance>>, // cached distance to eveey other region in from this region
     pub distances_from_left: LocRegionDistance,
     pub distances_from_right: LocRegionDistance,
     pub distances_from_up: LocRegionDistance,
@@ -416,7 +432,7 @@ impl MapRegion {
         true
     }
 
-    pub fn get_distance(&self, start: &Vector2, end: &Vector2) -> &LocDistance {
+    pub fn get_distance(&self, start: &Vector2, end: &Vector2) -> &LocSetDistance {
         &self.grid[start.x as usize][start.y as usize].point_distances[end.x as usize][end.y as usize]
     }
 
@@ -439,7 +455,7 @@ impl MapRegion {
         let neighbors = vec![Vector2::new(-1, 0), Vector2::new(1, 0), Vector2::new(0, -1), Vector2::new(0, 1)];
         for x in 0..x_len {
             for y in 0..y_len {
-                self.grid[x][y].point_distances[x][y] = LocDistance::Set(0);
+                self.grid[x][y].point_distances[x][y] = LocSetDistance::Set(0);
                 //println!("Setting {} {}", x, y);
                 // NOTE: this is a lazy way of getting the exit nodes.
                 // so its slightly inaccurate way to get distances between exit points because we just
@@ -510,7 +526,7 @@ impl MapRegion {
                     if xx < x_len as i32 && xx >= 0 && yy < y_len as i32 && yy >= 0 {
                         let xx = xx as usize;
                         let yy = yy as usize;
-                        if self.grid[xx][yy].point_distances[x][y] == LocDistance::Unset {
+                        if self.grid[xx][yy].point_distances[x][y] == LocSetDistance::Unset {
                             if !self.grid[xx][yy].get_if_blocked(false) {
                                 // get neighbor that has point_distance set:
                                 let mut min_distance: Option<u32> = None;
@@ -521,14 +537,14 @@ impl MapRegion {
                                         let xxn = xxn as usize;
                                         let yyn = yyn as usize;
                                         match self.grid[xxn][yyn].point_distances[x][y] {
-                                            LocDistance::Unset => {
+                                            LocSetDistance::Unset => {
                                                 // TODO NOTE: This will add duplicates to the list of already visited places.
                                                 // So can either check if to_visit has this var, or just skip in the loop as done above.
                                                 // maybe worth changing but probably not.
                                                 to_visit.push(Vector2::new(xxn as i32, yyn as i32));
                                             }
-                                            LocDistance::Blocked => {}
-                                            LocDistance::Set(dist) => {
+                                            LocSetDistance::Blocked => {}
+                                            LocSetDistance::Set(dist) => {
                                                 // pretty sure its impossible for a node to get seen by a slower path so this if is pointless
                                                 // if min_distance == 0 || dist <= min_distance {
                                                 // }
@@ -540,15 +556,15 @@ impl MapRegion {
                                 
                                 if !end_blocked {
                                     if let Some(min_distance) = min_distance {
-                                        self.grid[xx][yy].point_distances[x][y] = LocDistance::Set(min_distance + 1);
+                                        self.grid[xx][yy].point_distances[x][y] = LocSetDistance::Set(min_distance + 1);
                                     } else {
                                         panic!("Got no neighbor that is in route to destination!");
                                     }
                                 } else {
-                                    self.grid[xx][yy].point_distances[x][y] = LocDistance::Blocked;
+                                    self.grid[xx][yy].point_distances[x][y] = LocSetDistance::Blocked;
                                 }
                             } else {
-                                self.grid[xx][yy].point_distances[x][y] = LocDistance::Blocked;
+                                self.grid[xx][yy].point_distances[x][y] = LocSetDistance::Blocked;
                             }
                         }
                     }
@@ -557,8 +573,8 @@ impl MapRegion {
                 // Anything unset by now must be blocked off
                 for xx in 0..x_len {
                     for yy in 0..y_len {
-                        if self.grid[xx][yy].point_distances[x][y] == LocDistance::Unset {
-                            self.grid[xx][yy].point_distances[x][y] = LocDistance::Blocked;
+                        if self.grid[xx][yy].point_distances[x][y] == LocSetDistance::Unset {
+                            self.grid[xx][yy].point_distances[x][y] = LocSetDistance::Blocked;
                         }
                     }
                 }
@@ -604,22 +620,43 @@ impl MapRegion {
 }
 
 #[derive(Debug, PartialEq, Clone)]
-pub enum LocDistance {
+pub enum LocSetDistance {
     Unset,
     Blocked,
     Set(u32),
 }
-impl Default for LocDistance {
+impl Default for LocSetDistance {
     fn default() -> Self {
-        LocDistance::Unset
+        LocSetDistance::Unset
     }
 }
-impl fmt::Display for LocDistance {
+impl fmt::Display for LocSetDistance {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            LocDistance::Unset => {write!(f, "{}", "U")}
-            LocDistance::Blocked => {write!(f, "{}", "X")}
-            LocDistance::Set(d) => {write!(f, "{}", d)}
+            LocSetDistance::Unset => {write!(f, "{}", "U")}
+            LocSetDistance::Blocked => {write!(f, "{}", "X")}
+            LocSetDistance::Set(d) => {write!(f, "{}", d)}
+        }
+    }
+}
+
+#[derive(Debug, PartialEq, Clone)]
+pub enum RegionSetDistances {
+    Unset,
+    Blocked,
+    Set(RegionDistances),
+}
+impl Default for RegionSetDistances {
+    fn default() -> Self {
+        RegionSetDistances::Unset
+    }
+}
+impl fmt::Display for RegionSetDistances {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            RegionSetDistances::Unset => {write!(f, "{}", "U")}
+            RegionSetDistances::Blocked => {write!(f, "{}", "X")}
+            RegionSetDistances::Set(d) => {write!(f, "{}", d)}
         }
     }
 }
@@ -633,7 +670,7 @@ pub struct MapLocation {
     pub is_exit: ExitPoint, // exits should not be allowed to have creatures placed on them. also they must not have a block INBETWEEN them.
     pub creatures: CreatureList, // some locations will be perma blocked and no creatures allowed
     pub items: Vec<Item>,
-    pub point_distances: Vec<Vec<LocDistance>>,
+    pub point_distances: Vec<Vec<LocSetDistance>>,
 }
 impl MapLocation {
     pub fn new(loc: Vector2, is_exit: ExitPoint, has_creatures: bool, current_frame: u128, xlen: usize, ylen: usize) -> Self {
@@ -662,7 +699,7 @@ impl MapLocation {
         for x in 0..x_len {
             let mut row = Vec::new();
             for y in 0..y_len {
-                row.push(LocDistance::Unset);
+                row.push(LocSetDistance::Unset);
             }
             self.point_distances.push(row);
         }

@@ -34,15 +34,15 @@ fn test_region_map_update() {
     println!("{}", r);
 
     // 2,1 is blocked indirectly
-    assert_eq!(r.grid[2][1].point_distances[3][2], LocDistance::Blocked);
+    assert_eq!(r.grid[2][1].point_distances[3][2], LocSetDistance::Blocked);
     
     // because of blocked stuff, distance to 1,0 is 13 for lowerright corner
-    assert_eq!(r.grid[6][0].point_distances[1][0], LocDistance::Set(13));
+    assert_eq!(r.grid[6][0].point_distances[1][0], LocSetDistance::Set(13));
 
     // make sure all exits are correctly set
     // also make sure all blocked are blocked
     for x in 0..7 {
-        assert_eq!(r.grid[x][4].point_distances[3][2], LocDistance::Blocked);
+        assert_eq!(r.grid[x][4].point_distances[3][2], LocSetDistance::Blocked);
         assert_eq!(r.grid[x][4].creatures.get_if_blocked(), true);
         if x == 0 {
             assert_eq!(r.grid[x][4].is_exit, ExitPoint::LeftUp);
@@ -65,7 +65,7 @@ fn test_region_map_update() {
         let xx = v.x as usize;
         let yy = v.y as usize;
         assert_eq!(r.grid[xx][yy].creatures.get_if_blocked(), true);
-        assert_eq!(r.grid[xx][yy].point_distances[3][2], LocDistance::Blocked);
+        assert_eq!(r.grid[xx][yy].point_distances[3][2], LocSetDistance::Blocked);
     }
 
     // TODO: Make sure the distances to exits are correct
@@ -136,15 +136,15 @@ fn test_region_map_hypothetical_blocks() {
     assert_eq!(r.get_if_will_not_cause_blocked_paths(Vector2::new(6,2)), true);
 
     // 2,1 is blocked indirectly
-    assert_eq!(r.grid[2][1].point_distances[3][2], LocDistance::Blocked);
+    assert_eq!(r.grid[2][1].point_distances[3][2], LocSetDistance::Blocked);
     
     // because of blocked stuff, distance to 1,0 is 13 for lowerright corner
-    assert_eq!(r.grid[6][0].point_distances[1][0], LocDistance::Set(13));
+    assert_eq!(r.grid[6][0].point_distances[1][0], LocSetDistance::Set(13));
 
     // make sure all exits are correctly set
     // also make sure all blocked are blocked
     for x in 0..7 {
-        assert_eq!(r.grid[x][4].point_distances[3][2], LocDistance::Blocked);
+        assert_eq!(r.grid[x][4].point_distances[3][2], LocSetDistance::Blocked);
         assert_eq!(r.grid[x][4].creatures.get_if_blocked(), true);
         if x == 0 {
             assert_eq!(r.grid[x][4].is_exit, ExitPoint::LeftUp);
@@ -167,7 +167,7 @@ fn test_region_map_hypothetical_blocks() {
         let xx = v.x as usize;
         let yy = v.y as usize;
         assert_eq!(r.grid[xx][yy].creatures.get_if_blocked(), true);
-        assert_eq!(r.grid[xx][yy].point_distances[3][2], LocDistance::Blocked);
+        assert_eq!(r.grid[xx][yy].point_distances[3][2], LocSetDistance::Blocked);
     }
 
     // TODO: Make sure the distances to exits are correct

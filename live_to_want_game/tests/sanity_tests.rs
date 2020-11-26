@@ -174,3 +174,18 @@ fn bool_list_contains() {
     assert_eq!(v2.contains(&true), false);
 }
 
+#[test]
+fn test_closer_mut() {
+    let mut avg = 0;
+    let mut add_avg = |rd: &Option<u32>| match rd {
+        Some(d) => {avg += d;}
+        None => {}
+    };
+    let x1 = Some(2);
+    let x2 = Some(3);
+    let x3 = Some(4);
+    add_avg(&x1);
+    add_avg(&x2);
+    add_avg(&x3);
+    assert_eq!(avg, 9);
+}
