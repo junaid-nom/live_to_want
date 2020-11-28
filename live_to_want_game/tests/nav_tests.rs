@@ -136,3 +136,65 @@ fn test_invalid_regions_1() {
     println!("Printing whole region");
     println!("{}", r);
 }
+
+#[test]
+fn test_invalid_regions_2() {
+    println!("test_region_map_hypothetical_blocks test");
+    let xlen:usize = 5;
+    let ylen:usize = 7;
+    let blocked_hard = vec![
+        Vu2::new(0, ylen-1), Vu2::new(1, ylen-1), Vu2::new(2, ylen-1), Vu2::new(3, ylen-1)
+        ];
+    let r = MapRegion::new(xlen,ylen, 0, &blocked_hard
+        , false, true, true, true);
+    let leftv = Vu2::new(0,ylen/2 );
+    let rightv = Vu2::new(xlen-1,ylen/2 );
+    let downv = Vu2::new(xlen/2,0 );
+    let upv = Vu2::new(xlen/2,ylen-1 );
+    let middlev = Vu2::new(xlen/2,ylen/2);
+    println!("leftv: {:?}", leftv);
+    println!("{}", r.get_distance_strings(&leftv).join("\n"));
+    println!("rightv: {:?}", rightv);
+    println!("{}", r.get_distance_strings(&rightv).join("\n"));
+    println!("downv: {:?}", downv);
+    println!("{}", r.get_distance_strings(&downv).join("\n"));
+    println!("upv: {:?}", upv);
+    println!("{}", r.get_distance_strings(&upv).join("\n"));
+    println!("middlev: {:?}", middlev);
+    println!("{}", r.get_distance_strings(&middlev).join("\n"));
+    
+    println!("Printing whole region");
+    println!("{}", r);
+}
+
+#[test]
+#[should_panic]
+fn test_invalid_regions_3() {
+    println!("test_region_map_hypothetical_blocks test");
+    let xlen:usize = 5;
+    let ylen:usize = 7;
+    let blocked_hard = vec![
+        Vu2::new(1, ylen-1), Vu2::new(2, ylen-1), Vu2::new(3, ylen-1)
+    ];
+    let r = MapRegion::new(xlen,ylen, 0, &blocked_hard
+        , true, true, true, true);
+    let leftv = Vu2::new(0,ylen/2 );
+    let rightv = Vu2::new(xlen-1,ylen/2 );
+    let downv = Vu2::new(xlen/2,0 );
+    let upv = Vu2::new(xlen/2,ylen-1 );
+    let middlev = Vu2::new(xlen/2,ylen/2);
+    println!("leftv: {:?}", leftv);
+    println!("{}", r.get_distance_strings(&leftv).join("\n"));
+    println!("rightv: {:?}", rightv);
+    println!("{}", r.get_distance_strings(&rightv).join("\n"));
+    println!("downv: {:?}", downv);
+    println!("{}", r.get_distance_strings(&downv).join("\n"));
+    println!("upv: {:?}", upv);
+    println!("{}", r.get_distance_strings(&upv).join("\n"));
+    println!("middlev: {:?}", middlev);
+    println!("{}", r.get_distance_strings(&middlev).join("\n"));
+    
+    println!("Printing whole region");
+    println!("{}", r);
+}
+
