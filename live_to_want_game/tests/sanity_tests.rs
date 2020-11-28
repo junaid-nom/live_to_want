@@ -88,10 +88,10 @@ fn how_does_mut_state_work_nested_obj() {
         ml: &'a mut MapLocation,
     }
 
-    fn use_ml(ml: &MapLocation) -> i32 {
+    fn use_ml(ml: &MapLocation) -> usize {
         ml.location.x
     }
-    fn change_ml(ml: &mut Vector2) {
+    fn change_ml(ml: &mut Vu2) {
         ml.x += 1;
     }
 

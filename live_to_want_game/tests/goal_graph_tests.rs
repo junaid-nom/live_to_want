@@ -43,7 +43,7 @@ fn generate_basic_graph() -> GoalNode<'static> {
         }),
         children: Vec::new(),
         name: "berry",
-        get_command: Some(Box::new(|_, c| CreatureCommand::MoveTo("berry", c, Vector2{x: 0, y:0}))),
+        get_command: Some(Box::new(|_, c| CreatureCommand::MoveTo("berry", c, Vu2{x: 0, y:0}))),
         get_requirements_met: Box::new(|_, _| true),
     };
     let fruit = GoalNode {
@@ -63,7 +63,7 @@ fn generate_basic_graph() -> GoalNode<'static> {
         }),
         children: Vec::new(),
         name: "fruit",
-        get_command: Some(Box::new(|_, c| CreatureCommand::MoveTo("fruit", c, Vector2{x: 0, y:0}))),
+        get_command: Some(Box::new(|_, c| CreatureCommand::MoveTo("fruit", c, Vu2{x: 0, y:0}))),
         get_requirements_met: Box::new(|_, _| true),
     };
     gather.children.push(GoalConnection{
@@ -88,7 +88,7 @@ fn generate_basic_graph() -> GoalNode<'static> {
         }),
         children: Vec::new(),
         name: "find_deer",
-        get_command: Some(Box::new(|_, c| CreatureCommand::MoveTo("find_deer", c, Vector2{x: 0, y:0}))),
+        get_command: Some(Box::new(|_, c| CreatureCommand::MoveTo("find_deer", c, Vu2{x: 0, y:0}))),
         get_requirements_met: Box::new(|_, _| true),
     };
     let mut attack_deer = GoalNode {
@@ -100,7 +100,7 @@ fn generate_basic_graph() -> GoalNode<'static> {
         }),
         children: Vec::new(),
         name: "attack_deer",
-        get_command: Some(Box::new(|_, c| CreatureCommand::MoveTo("attack_deer", c, Vector2{x: 0, y:0}))),
+        get_command: Some(Box::new(|_, c| CreatureCommand::MoveTo("attack_deer", c, Vu2{x: 0, y:0}))),
         get_requirements_met: Box::new(|_, c| c.components.location_component.location.x==5),
     };
     let mut loot_deer = GoalNode {
@@ -112,7 +112,7 @@ fn generate_basic_graph() -> GoalNode<'static> {
         }),
         children: Vec::new(),
         name: "loot_deer",
-        get_command: Some(Box::new(|_, c| CreatureCommand::MoveTo("loot_deer", c, Vector2{x: 0, y:0}))),
+        get_command: Some(Box::new(|_, c| CreatureCommand::MoveTo("loot_deer", c, Vu2{x: 0, y:0}))),
         get_requirements_met: Box::new(|_, c| c.components.location_component.location.x==6),
     };
     
@@ -125,7 +125,7 @@ fn generate_basic_graph() -> GoalNode<'static> {
         }),
         children: Vec::new(),
         name: "eat",
-        get_command: Some(Box::new(|_, c| CreatureCommand::MoveTo("eat", c, Vector2{x: 0, y:0}))),
+        get_command: Some(Box::new(|_, c| CreatureCommand::MoveTo("eat", c, Vu2{x: 0, y:0}))),
         get_requirements_met: Box::new(|_, c| c.components.location_component.location.y==0 && c.components.location_component.location.x==7),
     };
     let eat = Arc::new(eat);
@@ -138,7 +138,7 @@ fn generate_basic_graph() -> GoalNode<'static> {
         }),
         children: Vec::new(),
         name: "sell",
-        get_command: Some(Box::new(|_, c| CreatureCommand::MoveTo("sell", c, Vector2{x: 0, y:0}))),
+        get_command: Some(Box::new(|_, c| CreatureCommand::MoveTo("sell", c, Vu2{x: 0, y:0}))),
         get_requirements_met: Box::new(|_, c| c.components.location_component.location.y==1 && 
             (c.components.location_component.location.x==7 || c.components.location_component.location.x==11)),
     };
@@ -180,7 +180,7 @@ fn generate_basic_graph() -> GoalNode<'static> {
         }),
         children: Vec::new(),
         name: "find_wolf",
-        get_command: Some(Box::new(|_, c| CreatureCommand::MoveTo("find_wolf", c, Vector2{x: 0, y:0}))),
+        get_command: Some(Box::new(|_, c| CreatureCommand::MoveTo("find_wolf", c, Vu2{x: 0, y:0}))),
         get_requirements_met: Box::new(|_, _| true),
     };
     let mut attack_wolf = GoalNode {
@@ -192,7 +192,7 @@ fn generate_basic_graph() -> GoalNode<'static> {
         }),
         children: Vec::new(),
         name: "attack_wolf",
-        get_command: Some(Box::new(|_, c| CreatureCommand::MoveTo("attack_wolf", c, Vector2{x: 0, y:0}))),
+        get_command: Some(Box::new(|_, c| CreatureCommand::MoveTo("attack_wolf", c, Vu2{x: 0, y:0}))),
         get_requirements_met: Box::new(|_, c| c.components.location_component.location.x==9),
     };
     let mut loot_wolf = GoalNode {
@@ -204,7 +204,7 @@ fn generate_basic_graph() -> GoalNode<'static> {
         }),
         children: Vec::new(),
         name: "loot_wolf",
-        get_command: Some(Box::new(|_, c| CreatureCommand::MoveTo("loot_wolf", c, Vector2{x: 0, y:0}))),
+        get_command: Some(Box::new(|_, c| CreatureCommand::MoveTo("loot_wolf", c, Vu2{x: 0, y:0}))),
         get_requirements_met: Box::new(|_, c| c.components.location_component.location.x==10),
     };
     loot_wolf.children.push(GoalConnection{
@@ -249,7 +249,7 @@ fn generate_basic_graph() -> GoalNode<'static> {
 fn berry_wins() {
     let root = generate_basic_graph();
     let m_s = MapState::default();
-    let c_s = CreatureState::new(Vector2{x: 1, y:0});
+    let c_s = CreatureState::new(Vu2{x: 1, y:0});
     let res = GoalCacheNode::get_final_command(&root, &m_s, &c_s);
     let res = res.unwrap();
     println!("Got: {:#?}", &res);
@@ -264,7 +264,7 @@ fn berry_wins() {
 fn fruit_wins() {
     let root = generate_basic_graph();
     let m_s = MapState::default();
-    let c_s = CreatureState::new(Vector2{x: 1, y:1});
+    let c_s = CreatureState::new(Vu2{x: 1, y:1});
     let res = GoalCacheNode::get_final_command(&root, &m_s, &c_s);
     let res = res.unwrap();
     println!("Got: {:#?}", &res);
@@ -279,7 +279,7 @@ fn fruit_wins() {
 fn find_deer_wins() {
     let root = generate_basic_graph();
     let m_s = MapState::default();
-    let c_s = CreatureState::new(Vector2{x: 0, y:0});
+    let c_s = CreatureState::new(Vu2{x: 0, y:0});
     let res = GoalCacheNode::get_final_command(&root, &m_s, &c_s);
     let res = res.unwrap();
     println!("Got: {:#?}", &res);
@@ -294,7 +294,7 @@ fn find_deer_wins() {
 fn attack_deer_wins() {
     let root = generate_basic_graph();
     let m_s = MapState::default();
-    let c_s = CreatureState::new(Vector2{x: 5, y:0});
+    let c_s = CreatureState::new(Vu2{x: 5, y:0});
     let res = GoalCacheNode::get_final_command(&root, &m_s, &c_s);
     let res = res.unwrap();
     println!("Got: {:#?}", &res);
@@ -309,7 +309,7 @@ fn attack_deer_wins() {
 fn loot_deer_wins() {
     let root = generate_basic_graph();
     let m_s = MapState::default();
-    let c_s = CreatureState::new(Vector2{x: 6, y:0});
+    let c_s = CreatureState::new(Vu2{x: 6, y:0});
     let res = GoalCacheNode::get_final_command(&root, &m_s, &c_s);
     let res = res.unwrap();
     println!("Got: {:#?}", &res);
@@ -324,7 +324,7 @@ fn loot_deer_wins() {
 fn eat_deer_wins() {
     let root = generate_basic_graph();
     let m_s = MapState::default();
-    let c_s = CreatureState::new(Vector2{x: 7, y:0});
+    let c_s = CreatureState::new(Vu2{x: 7, y:0});
     let res = GoalCacheNode::get_final_command(&root, &m_s, &c_s);
     let res = res.unwrap();
     println!("Got: {:#?}", &res);
@@ -339,7 +339,7 @@ fn eat_deer_wins() {
 fn sell_deer_wins() {
     let root = generate_basic_graph();
     let m_s = MapState::default();
-    let c_s = CreatureState::new(Vector2{x: 7, y:1});
+    let c_s = CreatureState::new(Vu2{x: 7, y:1});
     let res = GoalCacheNode::get_final_command(&root, &m_s, &c_s);
     let res = res.unwrap();
     println!("Got: {:#?}", &res);
@@ -354,7 +354,7 @@ fn sell_deer_wins() {
 fn attack_wolf_wins() {
     let root = generate_basic_graph();
     let m_s = MapState::default();
-    let c_s = CreatureState::new(Vector2{x: 9, y:0});
+    let c_s = CreatureState::new(Vu2{x: 9, y:0});
     let res = GoalCacheNode::get_final_command(&root, &m_s, &c_s);
     let res = res.unwrap();
     println!("Got: {:#?}", &res);
@@ -370,7 +370,7 @@ fn attack_wolf_wins() {
 fn loot_wolf_wins() {
     let root = generate_basic_graph();
     let m_s = MapState::default();
-    let c_s = CreatureState::new(Vector2{x: 10, y:0});
+    let c_s = CreatureState::new(Vu2{x: 10, y:0});
     let res = GoalCacheNode::get_final_command(&root, &m_s, &c_s);
     let res = res.unwrap();
     println!("Got: {:#?}", &res);
@@ -386,7 +386,7 @@ fn loot_wolf_wins() {
 fn sell_wolf_wins() {
     let root = generate_basic_graph();
     let m_s = MapState::default();
-    let c_s = CreatureState::new(Vector2{x: 11, y:1});
+    let c_s = CreatureState::new(Vu2{x: 11, y:1});
     let res = GoalCacheNode::get_final_command(&root, &m_s, &c_s);
     let res = res.unwrap();
     println!("Got: {:#?}", &res);

@@ -82,6 +82,30 @@ impl Vu2 {
         }
         ret
     }
+    pub fn get_neighbors(&self) -> Vec<Neighbor> {
+        let mut ret = Vec::new();
+        ret.push(Neighbor::Up(Vu2::new(self.x, self.y+1)));
+        ret.push(Neighbor::Right(Vu2::new(self.x+1, self.y)));
+        if self.x > 0 {
+            ret.push(Neighbor::Left(Vu2::new(self.x-1, self.y)));
+        }
+        if self.y > 0 {
+            ret.push(Neighbor::Down(Vu2::new(self.x, self.y-1)));
+        }
+        ret
+    }
+    pub fn get_neighbors_vu2(&self) -> Vec<Vu2> {
+        let mut ret = Vec::new();
+        ret.push(Vu2::new(self.x, self.y+1));
+        ret.push(Vu2::new(self.x+1, self.y));
+        if self.x > 0 {
+            ret.push(Vu2::new(self.x-1, self.y));
+        }
+        if self.y > 0 {
+            ret.push(Vu2::new(self.x, self.y-1));
+        }
+        ret
+    }
 }
 
 

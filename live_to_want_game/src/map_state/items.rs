@@ -1,4 +1,4 @@
-use crate::{creature::CreatureState, utils::Vector2, tasks::EventChain, tasks::Event, tasks::EventType, tasks::EventTarget, utils::UID};
+use crate::{creature::CreatureState, utils::Vu2, tasks::EventChain, tasks::Event, tasks::EventType, tasks::EventTarget, utils::UID};
 
 use super::MapLocation;
 
@@ -25,7 +25,7 @@ pub struct Item {
 #[derive(Debug)]
 pub enum CreatureCommand<'b>{
     // str here is for debugging purposes and is usually just the name of the node
-    MoveTo(&'static str, &'b CreatureState, Vector2),
+    MoveTo(&'static str, &'b CreatureState, Vu2),
     Chase(&'static str, &'b CreatureState, &'b CreatureState),
     Attack(&'static str, &'b CreatureState, &'b CreatureState),
     TakeItem(&'static str, InventoryHolder<'b>, InventoryHolder<'b>, Item),

@@ -1,6 +1,6 @@
 use std::fmt::Formatter;
 
-use crate::{map_state::Item, utils::Vector2};
+use crate::{map_state::Item, utils::Vector2, utils::Vu2};
 
 use super::{ComponentMap, IDComponent, LocationComponent, HealthComponent, NameComponent, StarvationComponent, REPRODUCE_STARTING_CALORIES};
 
@@ -24,14 +24,14 @@ pub struct CreatureState {
     pub inventory: Vec<Item>,
 }
 impl CreatureState {
-    pub fn new<'a>(loc: Vector2) -> CreatureState {
+    pub fn new<'a>(loc: Vu2) -> CreatureState {
         let mut ret = CreatureState::default();
         ret.components.location_component = LocationComponent{location:loc};
         ret
     }
 
     // for reproduction via budding mostly
-    pub fn copy(c: &CreatureState, new_loc: Vector2) -> CreatureState {
+    pub fn copy(c: &CreatureState, new_loc: Vu2) -> CreatureState {
         // TODO: make all components implement copy/clone traits so its easy to copy em
         // then use default for inventory and memory
         let cmap = ComponentMap{

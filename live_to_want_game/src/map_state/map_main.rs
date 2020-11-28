@@ -42,7 +42,7 @@ pub struct MapState {
 impl MapState {
     pub fn find_closest_non_blocked(&self, loc: Location, blocker: bool) -> Option<Location> {
         let region = &self.regions[loc.region.x as usize][loc.region.y as usize];
-        let mut to_check: Vec<Vector2> = Vec::new();
+        let mut to_check: Vec<Vu2> = Vec::new();
         to_check.push(loc.position);
         let mut idx = 0;
         while idx < to_check.len() {
@@ -50,7 +50,7 @@ impl MapState {
             if checking.get_if_blocked(blocker) && region.get_if_will_not_cause_blocked_paths(to_check[idx]) {
                 // add vector2s to to_check of locations next to this one if they exist
                 // and if they aren't already in the list
-                let neighbors = to_check[idx].get_neighbors(false);
+                let neighbors = to_check[idx].get_neighbors_vu2();
                 for n in neighbors {
                     if self.location_exists_and_holds_creatures(&loc.region, &to_check[idx]) && !to_check.contains(&n) {
                         to_check.push(n);
@@ -67,7 +67,7 @@ impl MapState {
         None
     }
 
-    pub fn location_exists_and_holds_creatures(&self, region: &Vector2, position: &Vector2) -> bool {
+    pub fn location_exists_and_holds_creatures(&self, region: &Vu2, position: &Vu2) -> bool {
         if self.regions.len() < region.x as usize && self.regions[region.x as usize].len() < region.y as usize { 
             let r = &self.regions[region.x as usize][region.y as usize].grid;
             if r.len() < position.x as usize && r[position.x as usize].len() < position.y as usize {
@@ -100,30 +100,30 @@ impl MapState {
         // between region map as well.
         // Need to also teach AI how to like "break" things to create shorter path?
         let mut ret = Vec::new();
-        if start.region == goal.region {
-            let mut current_loc = start.position;
-            while current_loc != goal.position {
-                let xchange = 
-                    if current_loc.x > goal.position.x { -1 } 
-                    else if current_loc.x < goal.position.x { 1 }
-                    else { 0 };
-                let ychange = 
-                    if current_loc.y > goal.position.y { -1 } 
-                    else if current_loc.y < goal.position.y { 1 }
-                    else { 0 };
-                if xchange == 0 { current_loc.y += ychange; } else if ychange == 0 { current_loc.x += xchange; } 
-                    else {
-                        if rand::random() {
-                            current_loc.x += xchange;
-                        } else {
-                            current_loc.y += ychange;
-                        }
-                    };
-                ret.push(Location{region:start.region, position: current_loc});
-            }
-        } else {
-            panic!("Havent implemented cross-region navigation yet");
-        }
+        // if start.region == goal.region {
+        //     let mut current_loc = start.position;
+        //     while current_loc != goal.position {
+        //         let xchange = 
+        //             if current_loc.x > goal.position.x { -1 } 
+        //             else if current_loc.x < goal.position.x { 1 }
+        //             else { 0 };
+        //         let ychange = 
+        //             if current_loc.y > goal.position.y { -1 } 
+        //             else if current_loc.y < goal.position.y { 1 }
+        //             else { 0 };
+        //         if xchange == 0 { current_loc.y += ychange; } else if ychange == 0 { current_loc.x += xchange; } 
+        //             else {
+        //                 if rand::random() {
+        //                     current_loc.x += xchange;
+        //                 } else {
+        //                     current_loc.y += ychange;
+        //                 }
+        //             };
+        //         ret.push(Location{region:start.region, position: current_loc});
+        //     }
+        // } else {
+        //     panic!("Havent implemented cross-region navigation yet");
+        // }
         ret
     }
 
@@ -225,21 +225,33 @@ impl MapState {
                 }
             }
         }
-        // TODONext Set all RegionSetDistances that are unset, to Blocked
+        // Set all RegionSetDistances that are unset, to Blocked
+        for xdst in 0..xlen {
+            for ydst in 0..ylen {
+                let dst = Vu2::new(xdst, ydst);
+                for xsrc in 0..xlen {
+                    for ysrc in 0..ylen {
+                        let src = Vu2::new(xsrc, ysrc);
+                        if self.regions[src].region_distances[dst] == RegionSetDistances::Unset {
+                            self.regions[src].region_distances[dst] = RegionSetDistances::Blocked;
+                        }
+                    }
+                }
+            }
+        }
 
-        // PANIC if exit nodes are blocked by a creature. also if exit nodes arent together, like there shouldnt be a permablocked location inbetween 2 exit nodes. like for top if it was OOOXOO thats bad because it can cause strange splits where one region is accessible from another but only from a particular entrance. wish I had a better way to make sure u cant do this
-        // TODONEXT IMPORTANT: Really really really need to do this check on Region creation otherwise can get horrible pathfinding! (The check to make sure no exit side is completely blocked or has blocked points in the middle)
+        
     }
 }
 
 #[derive(Debug)]
 #[derive(Default, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Location {
-    pub region: Vector2,
-    pub position: Vector2,
+    pub region: Vu2,
+    pub position: Vu2,
 }
 impl Location{
-    pub fn new(region: Vector2, position: Vector2) -> Location {
+    pub fn new(region: Vu2, position: Vu2) -> Location {
         Location{
             region,
             position
@@ -367,14 +379,6 @@ impl Default for LocRegionDistance {
 }
 
 type RegionDistancesGrid = Vec<Vec<RegionSetDistances>>;
-// impl IndexVu2<RegionSetDistances> for RegionDistancesGrid {
-//     fn g(&self, v: Vu2) -> &RegionSetDistances {
-//         &self[v.x][v.y]
-//     }
-//     fn gm(&mut self, v: Vu2) -> &mut RegionSetDistances {
-//         &mut self[v.x][v.y]
-//     }
-// }
 impl Index<Vu2> for RegionDistancesGrid {
     type Output = RegionSetDistances;
 
@@ -387,11 +391,25 @@ impl IndexMut<Vu2> for RegionDistancesGrid {
         &mut self[index.x][index.y]
     }
 }
+
+type MapLocationGrid = Vec<Vec<MapLocation>>;
+impl Index<Vu2> for MapLocationGrid {
+    type Output = MapLocation;
+
+    fn index(&self, index: Vu2) -> &Self::Output {
+        &self[index.x][index.y]
+    }
+}
+impl IndexMut<Vu2> for MapLocationGrid {
+    fn index_mut(&mut self, index: Vu2) -> &mut Self::Output {
+        &mut self[index.x][index.y]
+    }
+}
 #[derive(Debug)]
 #[derive(Default)]
 pub struct MapRegion {
     pub exists: bool,
-    pub grid: Vec<Vec<MapLocation>>,
+    pub grid: MapLocationGrid,
     pub last_frame_changed: u128, // if nav system last updated before this frame, update it
     // nav stuff:
     pub region_distances: RegionDistancesGrid, // cached distance to eveey other region in from this region
@@ -433,7 +451,7 @@ impl fmt::Display for MapRegion {
     }
 }
 impl MapRegion {
-    pub fn new(xlen: usize, ylen: usize, current_frame: u128, no_creatures: &Vec<Vector2>, has_left_neighbor: bool, has_right_neighbor: bool, has_up_neighbor: bool, has_down_neighbor: bool) -> Self {
+    pub fn new(xlen: usize, ylen: usize, current_frame: u128, no_creatures: &Vec<Vu2>, has_left_neighbor: bool, has_right_neighbor: bool, has_up_neighbor: bool, has_down_neighbor: bool) -> Self {
         let mut grid: Vec<Vec<MapLocation>> = Vec::new();
         if xlen + ylen >= 2 {
             for x in 0..xlen {
@@ -493,7 +511,7 @@ impl MapRegion {
                         }
                         is_exit = ExitPoint::Up;
                     }
-                    row.push(MapLocation::new(Vector2::new(x as i32, y as i32), is_exit, is_unblocked_exit, current_frame, xlen, ylen));
+                    row.push(MapLocation::new(Vu2::new(x, y), is_exit, is_unblocked_exit, current_frame, xlen, ylen));
                 }
                 grid.push(row);
             }
@@ -503,6 +521,56 @@ impl MapRegion {
                 grid[xx][yy].creatures = CreatureList::new(false, current_frame);
             }
         }
+
+        // PANIC if exit nodes are blocked by a creature. also if exit nodes arent together, like there shouldnt be a permablocked location inbetween 2 exit nodes. like for top if it was OOOXOO thats bad because it can cause strange splits where one region is accessible from another but only from a particular entrance. wish I had a better way to make sure u cant do this
+        // IMPORTANT: Really really really need to do this check on Region creation otherwise can get horrible pathfinding! (The check to make sure no exit side is completely blocked or has blocked points in the middle)
+        let hole_counter =|locs: Vec<Vu2>, should_have_hole: bool| {
+            // Count the number of times there's a hole immediately after a blocked.
+            let mut holes = 0;
+            if locs.len() > 0 {
+                let mut prev_blocked = true;
+                for loc in locs {
+                    let cur_blocked = grid[loc.x][loc.y].get_if_blocked(false);
+                    if prev_blocked && !cur_blocked {
+                        holes += 1;
+                    }
+                    prev_blocked = cur_blocked;
+                }
+            }
+            if should_have_hole && holes != 1 {
+                panic!("Trying to create region with two holes in exit!")
+            }
+            if !should_have_hole && holes != 0 {
+                panic!("Trying to create region with no opening in exit but there is opening!")
+            }
+        };
+        /*
+        Alternative: 
+                fn count_holes(array: &[bool]) -> usize {
+            once(&true).chain(array)
+                .zip(array)
+                .filter(|&(&a, &b)| a && !b)
+                .count()
+            }
+        */
+
+        // check all left exits:
+        let mut to_check_left = Vec::new();
+        let mut to_check_right = Vec::new();
+        let mut to_check_up = Vec::new();
+        let mut to_check_down = Vec::new();
+        for y in 0..ylen {
+            to_check_left.push(Vu2::new(0, y));
+            to_check_right.push(Vu2::new(xlen - 1, y));
+        }
+        for x in 0..xlen {
+            to_check_down.push(Vu2::new(x, 0));
+            to_check_up.push(Vu2::new(x, ylen - 1));
+        }
+        hole_counter(to_check_left, has_left_neighbor);
+        hole_counter(to_check_right, has_right_neighbor);
+        hole_counter(to_check_up, has_up_neighbor);
+        hole_counter(to_check_down, has_down_neighbor);
 
         let mut ret = MapRegion {
             exists: xlen + ylen >= 2,
@@ -541,7 +609,7 @@ impl MapRegion {
         }
     }
 
-    pub fn get_distance_strings(&self, end_point: &Vector2) -> Vec<String> {
+    pub fn get_distance_strings(&self, end_point: &Vu2) -> Vec<String> {
         let mut lines = Vec::new();
         let xx = end_point.x as usize;
         let yy = end_point.y as usize;
@@ -560,7 +628,7 @@ impl MapRegion {
         lines
     }
 
-    pub fn get_if_will_not_cause_blocked_paths(&self, loc: Vector2) -> bool {
+    pub fn get_if_will_not_cause_blocked_paths(&self, loc: Vu2) -> bool {
         let get_paths_exists = |r: &MapRegion| {
             let mut ret = Vec::new();
             let dist_get = |d: &RegionDistances| {
@@ -826,14 +894,14 @@ impl fmt::Display for RegionSetDistances {
 pub struct MapLocation {
     pub id_component_items: IDComponent,
     pub id_component_creatures: IDComponent,
-    pub location: Vector2,
+    pub location: Vu2,
     pub is_exit: ExitPoint, // exits should not be allowed to have creatures placed on them. also they must not have a block INBETWEEN them.
     pub creatures: CreatureList, // some locations will be perma blocked and no creatures allowed
     pub items: Vec<Item>,
     pub point_distances: Vec<Vec<LocSetDistance>>,
 }
 impl MapLocation {
-    pub fn new(loc: Vector2, is_exit: ExitPoint, has_creatures: bool, current_frame: u128, xlen: usize, ylen: usize) -> Self {
+    pub fn new(loc: Vu2, is_exit: ExitPoint, has_creatures: bool, current_frame: u128, xlen: usize, ylen: usize) -> Self {
         MapLocation {
             id_component_items: IDComponent::new(),
             id_component_creatures: IDComponent::new(),

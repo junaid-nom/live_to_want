@@ -1,4 +1,4 @@
-use crate::{utils::{UID, get_id, Vector2}, map_state::Location};
+use crate::{utils::{UID, get_id, Vector2, Vu2}, map_state::Location};
 
 use super::CreatureState;
 
@@ -85,7 +85,7 @@ impl Clone for BuddingComponent {
 
 #[derive(Default, Debug, Hash, PartialEq, Eq)]
 pub struct LocationComponent {
-    pub location: Vector2,
+    pub location: Vu2,
 }
 impl Component for LocationComponent {
     fn get_visible() -> bool {
@@ -95,7 +95,7 @@ impl Component for LocationComponent {
 
 #[derive(Default, Debug, Hash, PartialEq, Eq, Copy, Clone)]
 pub struct RegionComponent {
-    pub region: Vector2,
+    pub region: Vu2,
 }
 impl Component for RegionComponent {
     fn get_visible() -> bool {

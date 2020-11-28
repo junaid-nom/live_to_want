@@ -132,7 +132,7 @@ fn test_chain_multithread() {
                 let loc = MapLocation{
                     id_component_items: IDComponent::new(),
                     id_component_creatures: IDComponent::new(),
-                    location: Vector2{x, y},
+                    location: Vu2{x, y},
                     creatures: CreatureList::new(true, 0),
                     items: Vec::new(),
                     is_exit: false,
@@ -148,7 +148,7 @@ fn test_chain_multithread() {
             memory: CreatureMemory::default(),
         };
         deer1.components.location_component = LocationComponent {
-            location: Vector2{x: 1, y: 1}
+            location: Vu2{x: 1, y: 1}
         };
     
         let mut deer2 =CreatureState{
@@ -157,7 +157,7 @@ fn test_chain_multithread() {
             memory: CreatureMemory::default(),
         };
         deer2.components.location_component = LocationComponent {
-            location: Vector2{x: 1, y: 1}
+            location: Vu2{x: 1, y: 1}
         };
         let deer1_id = deer1.components.id_component.id();
         let deer2_id = deer2.components.id_component.id();
