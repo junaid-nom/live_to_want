@@ -537,8 +537,11 @@ impl MapRegion {
                     prev_blocked = cur_blocked;
                 }
             }
-            if should_have_hole && holes != 1 {
+            if should_have_hole && holes > 1 {
                 panic!("Trying to create region with two holes in exit!")
+            }
+            if should_have_hole && holes == 0 {
+                panic!("Trying to create region with opening in exit but there is NO opening!")
             }
             if !should_have_hole && holes != 0 {
                 panic!("Trying to create region with no opening in exit but there is opening!")
