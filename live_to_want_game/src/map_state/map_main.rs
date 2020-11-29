@@ -32,14 +32,66 @@ impl IndexMut<Vu2> for RegionGrid {
         &mut self[index.x][index.y]
     }
 }
+
+#[derive(Debug)]
+#[derive(Default)]
+pub struct RegionCreationStruct {
+    xlen: usize,
+    ylen: usize,
+    current_frame: u128,
+    no_creatures: Vec<Vu2>,
+    has_left_neighbor: bool, 
+    has_right_neighbor: bool, 
+    has_up_neighbor: bool, 
+    has_down_neighbor: bool
+}
+impl RegionCreationStruct {
+    pub fn new(    
+        xlen: usize,
+        ylen: usize,
+        current_frame: u128,
+        no_creatures: Vec<Vu2>,
+        has_left_neighbor: bool, 
+        has_right_neighbor: bool, 
+        has_up_neighbor: bool, 
+        has_down_neighbor: bool
+    ) -> Self {
+        RegionCreationStruct {
+            xlen,
+            ylen,
+            current_frame,
+            no_creatures,
+            has_left_neighbor, 
+            has_right_neighbor, 
+            has_up_neighbor, 
+            has_down_neighbor
+        }
+    }
+}
+
 #[derive(Debug)]
 #[derive(Default)]
 pub struct MapState {
     pub regions: RegionGrid,
     pub frame_count: u128,
 }
-
 impl MapState {
+    pub fn new(rstructs: Vec<Vec<RegionCreationStruct>>, current_frame: u128) -> Self {
+        // pub fn new(xlen: usize, ylen: usize, current_frame: u128, no_creatures: &Vec<Vu2>, has_left_neighbor: bool, has_right_neighbor: bool, has_up_neighbor: bool, has_down_neighbor: bool) -> Self
+        let mut rgrid: RegionGrid = Vec::new();
+        for col in rstructs {
+            let mut new_col = Vec::new();
+            for rc in col {
+                new_col.push(MapRegion::new_struct(rc));
+            }
+            rgrid.push(new_col);
+        }
+        MapState {
+            regions: rgrid,
+            frame_count: current_frame
+        }
+    }
+
     pub fn find_closest_non_blocked(&self, loc: Location, blocker: bool) -> Option<Location> {
         let region = &self.regions[loc.region.x as usize][loc.region.y as usize];
         let mut to_check: Vec<Vu2> = Vec::new();
@@ -190,10 +242,10 @@ impl MapState {
                             });
                             if let Some(dist) = min_dist{
                                 to_visit.extend(to_visit_next);
-                                let set_dists = |distance_from: &LocRegionDistance| {
+                                let set_dists = |distance_from: &InnerExitRegionDistance| {
                                     let new_dists = match distance_from {
-                                        LocRegionDistance::Unset => {panic!("Unset Region dist being used for neighbor dist!")}
-                                        LocRegionDistance::Set(dists) => {
+                                        InnerExitRegionDistance::Unset => {panic!("Unset Region dist being used for neighbor dist!")}
+                                        InnerExitRegionDistance::Set(dists) => {
                                             dists.add_distance(dist)
                                         }
                                     };
@@ -239,8 +291,26 @@ impl MapState {
                 }
             }
         }
-
+    }
+}
+impl fmt::Display for MapState {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let mut lines = Vec::new();
+        let line_space = 5;
+        let xlen = self.regions.len();
+        let ylen = self.regions[0].len();
+        for y in 0..ylen {
+            let mut f_string = String::new();
+            for x in 0..xlen {
+                let mr = &self.regions[x][y];
+                let dy = make_string_certain_length(mr.display_distances(), line_space, ' ');
+                f_string = format!("{}{}", f_string, dy);
+                //f_string = format!("{}{}{}_", f_string, ml.location.x, ml.location.y);
+            }
+            lines.insert(0, f_string);
+        }
         
+        write!(f, "{}", lines.join("\n"))
     }
 }
 
@@ -368,13 +438,13 @@ impl fmt::Display for ExitPoint {
 }
 
 #[derive(Debug, PartialEq, Clone)]
-pub enum LocRegionDistance {
+pub enum InnerExitRegionDistance {
     Unset,
     Set(RegionDistances),
 }
-impl Default for LocRegionDistance {
+impl Default for InnerExitRegionDistance {
     fn default() -> Self {
-        LocRegionDistance::Unset
+        InnerExitRegionDistance::Unset
     }
 }
 
@@ -413,10 +483,10 @@ pub struct MapRegion {
     pub last_frame_changed: u128, // if nav system last updated before this frame, update it
     // nav stuff:
     pub region_distances: RegionDistancesGrid, // cached distance to eveey other region in from this region
-    pub distances_from_left: LocRegionDistance,
-    pub distances_from_right: LocRegionDistance,
-    pub distances_from_up: LocRegionDistance,
-    pub distances_from_down: LocRegionDistance,
+    pub distances_from_left: InnerExitRegionDistance,
+    pub distances_from_right: InnerExitRegionDistance,
+    pub distances_from_up: InnerExitRegionDistance,
+    pub distances_from_down: InnerExitRegionDistance,
 }
 impl fmt::Display for MapRegion {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -580,13 +650,17 @@ impl MapRegion {
             grid,
             last_frame_changed: current_frame,
             region_distances: get_2d_vec(xlen, ylen),
-            distances_from_left: LocRegionDistance::Unset,
-            distances_from_right: LocRegionDistance::Unset,
-            distances_from_up: LocRegionDistance::Unset,
-            distances_from_down: LocRegionDistance::Unset,
+            distances_from_left: InnerExitRegionDistance::Unset,
+            distances_from_right: InnerExitRegionDistance::Unset,
+            distances_from_up: InnerExitRegionDistance::Unset,
+            distances_from_down: InnerExitRegionDistance::Unset,
         };
         ret.update_region_nav(current_frame);
         ret
+    }
+
+    pub fn new_struct(rstruct: RegionCreationStruct) -> Self {
+        MapRegion::new(rstruct.xlen, rstruct.ylen, rstruct.current_frame, &rstruct.no_creatures, rstruct.has_left_neighbor, rstruct.has_right_neighbor, rstruct.has_up_neighbor, rstruct.has_down_neighbor)
     }
 
     pub fn copy_blocked(src: &MapRegion) -> Self {
@@ -631,6 +705,34 @@ impl MapRegion {
         lines
     }
 
+    pub fn display_distances(&self) -> String {
+        let mut retString = "".to_string();
+        match &self.distances_from_down {
+            InnerExitRegionDistance::Unset => {panic!("Trying to display distances of unset region!")}
+            InnerExitRegionDistance::Set(rd) => {
+                if rd.left.is_some() {
+                    retString.push('L');
+                }
+                if rd.right.is_some() {
+                    retString.push('R');
+                }
+                if rd.up.is_some() {
+                    retString.push('U');
+                }
+                if rd.down.is_some() {
+                    retString.push('D');
+                }
+            }
+        };
+        if retString.len() == 4 {
+            retString = "O".to_string();
+        }
+        if retString.len() == 0 {
+            retString = "X".to_string();
+        }
+        retString
+    }
+
     pub fn get_if_will_not_cause_blocked_paths(&self, loc: Vu2) -> bool {
         let get_paths_exists = |r: &MapRegion| {
             let mut ret = Vec::new();
@@ -643,8 +745,8 @@ impl MapRegion {
                 retd
             };
             ret.extend(match &r.distances_from_down {
-                LocRegionDistance::Unset => {panic!("Trying to get if will cause blocked on unset region!")},
-                LocRegionDistance::Set(rd) => {dist_get(rd)}
+                InnerExitRegionDistance::Unset => {panic!("Trying to get if will cause blocked on unset region!")},
+                InnerExitRegionDistance::Set(rd) => {dist_get(rd)}
             });
             ret
         };
@@ -841,10 +943,10 @@ impl MapRegion {
         // println!("upv: {:?}", upv);
         // println!("{}", self.get_distance_strings(&upv).join("\n"));
 
-        self.distances_from_left = LocRegionDistance::Set(RegionDistances::new(leftv, leftv, rightv, upv, downv, self));
-        self.distances_from_right = LocRegionDistance::Set(RegionDistances::new(rightv, leftv, rightv, upv, downv, self));
-        self.distances_from_up = LocRegionDistance::Set(RegionDistances::new(upv, leftv, rightv, upv, downv, self));
-        self.distances_from_down = LocRegionDistance::Set(RegionDistances::new(downv, leftv, rightv, upv, downv, self));
+        self.distances_from_left = InnerExitRegionDistance::Set(RegionDistances::new(leftv, leftv, rightv, upv, downv, self));
+        self.distances_from_right = InnerExitRegionDistance::Set(RegionDistances::new(rightv, leftv, rightv, upv, downv, self));
+        self.distances_from_up = InnerExitRegionDistance::Set(RegionDistances::new(upv, leftv, rightv, upv, downv, self));
+        self.distances_from_down = InnerExitRegionDistance::Set(RegionDistances::new(downv, leftv, rightv, upv, downv, self));
 
         self.last_frame_changed = current_frame;
     }

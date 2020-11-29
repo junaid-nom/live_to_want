@@ -5,6 +5,11 @@ use rayon::prelude::*;
 use live_to_want_game::*;
 
 #[test]
+fn test_map_state() {
+    
+}
+
+#[test]
 fn test_region_map_hypothetical_blocks() {
     println!("test_region_map_hypothetical_blocks test");
     let xlen:usize = 7;
@@ -79,25 +84,25 @@ fn test_region_map_hypothetical_blocks() {
     println!("d l {:#?}", r.distances_from_left);
     println!("d r {:#?}", r.distances_from_right);
 
-    assert_eq!(r.distances_from_down, LocRegionDistance::Set(RegionDistances{
+    assert_eq!(r.distances_from_down, InnerExitRegionDistance::Set(RegionDistances{
         left: Some(11),
         right: Some(5),
         up: None,
         down:Some(0),
     }));
-    assert_eq!(r.distances_from_up, LocRegionDistance::Set(RegionDistances{
+    assert_eq!(r.distances_from_up, InnerExitRegionDistance::Set(RegionDistances{
         left: None,
         right: None,
         up: Some(0),
         down:None,
     }));
-    assert_eq!(r.distances_from_left, LocRegionDistance::Set(RegionDistances{
+    assert_eq!(r.distances_from_left, InnerExitRegionDistance::Set(RegionDistances{
         left: Some(0),
         right: Some(8),
         up: None,
         down:Some(11),
     }));
-    assert_eq!(r.distances_from_right, LocRegionDistance::Set(RegionDistances{
+    assert_eq!(r.distances_from_right, InnerExitRegionDistance::Set(RegionDistances{
         left: Some(8),
         right: Some(0),
         up: None,
@@ -206,6 +211,37 @@ fn test_invalid_regions_4() {
     let ylen:usize = 7;
     let blocked_hard = vec![
         Vu2::new(0, ylen-1), Vu2::new(1, ylen-1), Vu2::new(2, ylen-1), Vu2::new(3, ylen-1), Vu2::new(4, ylen-1)
+    ];
+    let r = MapRegion::new(xlen,ylen, 0, &blocked_hard
+        , true, true, true, true);
+    let leftv = Vu2::new(0,ylen/2 );
+    let rightv = Vu2::new(xlen-1,ylen/2 );
+    let downv = Vu2::new(xlen/2,0 );
+    let upv = Vu2::new(xlen/2,ylen-1 );
+    let middlev = Vu2::new(xlen/2,ylen/2);
+    println!("leftv: {:?}", leftv);
+    println!("{}", r.get_distance_strings(&leftv).join("\n"));
+    println!("rightv: {:?}", rightv);
+    println!("{}", r.get_distance_strings(&rightv).join("\n"));
+    println!("downv: {:?}", downv);
+    println!("{}", r.get_distance_strings(&downv).join("\n"));
+    println!("upv: {:?}", upv);
+    println!("{}", r.get_distance_strings(&upv).join("\n"));
+    println!("middlev: {:?}", middlev);
+    println!("{}", r.get_distance_strings(&middlev).join("\n"));
+    
+    println!("Printing whole region");
+    println!("{}", r);
+}
+
+#[test]
+#[should_panic]
+fn test_invalid_regions_5() {
+    println!("test_region_map_hypothetical_blocks test");
+    let xlen:usize = 5;
+    let ylen:usize = 7;
+    let blocked_hard = vec![
+        Vu2::new(xlen-1, ylen/2)
     ];
     let r = MapRegion::new(xlen,ylen, 0, &blocked_hard
         , true, true, true, true);
