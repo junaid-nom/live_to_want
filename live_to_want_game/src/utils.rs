@@ -122,7 +122,7 @@ pub fn get_2d_vec<T: Default>(xlen: usize, ylen: usize) -> Vec<Vec<T>> {
     ret
 }
 
-pub fn make_string_certain_length(mut s: String, target_len: usize, fillchar: char) -> String {
+pub fn make_string_at_least_length(mut s: String, target_len: usize, fillchar: char) -> String {
     if s.len() < target_len {
         for _ in s.len()..target_len {
             s.push(fillchar);
@@ -131,6 +131,10 @@ pub fn make_string_certain_length(mut s: String, target_len: usize, fillchar: ch
     } else {
         s
     }
+}
+pub fn make_string_at_most_length(mut s: String, target_len: usize) -> String{
+    s.truncate(target_len);
+    s
 }
 
 pub static COUNTER: AtomicU64 = AtomicU64::new(1); // TODO: Upgrade to a 128 bit one when it comes out of nightly build

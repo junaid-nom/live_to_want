@@ -5,8 +5,42 @@ use rayon::prelude::*;
 use live_to_want_game::*;
 
 #[test]
+fn test_map_state_update() {
+    // TODO Call update on map state changing just a little but of stuff each time to make sure it changes
+}
+
+#[test]
 fn test_map_state() {
-    
+    let openr = RegionCreationStruct::new(5,5, 0, vec![]);
+    let closer = RegionCreationStruct::new(0,0, 0, vec![]);
+    let rgrid = vec![
+        vec![openr.clone(),openr.clone(),closer.clone(),openr.clone(),openr.clone()],
+        vec![openr.clone(),openr.clone(),openr.clone(),closer.clone(),openr.clone()],
+        vec![closer.clone(),openr.clone(),closer.clone(),closer.clone(),openr.clone()],
+        vec![openr.clone(),openr.clone(),openr.clone(),openr.clone(),openr.clone()],
+    ];
+
+    let print_rc = || {
+        for y in (0..rgrid[0].len()).rev() {
+            for x in 0..rgrid.len() {
+                if rgrid[x][y].xlen == 0 {
+                    print!("X ");
+
+                } else {
+                    print!("O ");
+                }
+            }
+            println!("");
+        }
+    };
+    print_rc();
+    let map = MapState::new(rgrid.clone(), 0);
+    print_rc();
+    println!("printing map:");
+    println!("{}", map);
+    let dst = Vu2::new(0, 3);
+    println!("printing dist from {:#?}", dst);
+    println!("{}", map.get_distance_strings(&dst));
 }
 
 #[test]
@@ -17,7 +51,7 @@ fn test_region_map_hypothetical_blocks() {
     let blocked_hard = vec![
         //Vu2::new(0,0), Vu2::new(xlen as i32 -1,ylen as i32 -1), Vu2::new(xlen as i32 -1,0), Vu2::new(0, ylen as i32 - 1), 
         Vu2::new(0,0), Vu2::new(1,0), Vu2::new(2,0), Vu2::new(3,1), Vu2::new(4,2), Vu2::new(1,1), Vu2::new(2,2)];
-    let r = MapRegion::new(xlen,ylen, 0, &blocked_hard
+    let r = MapRegion::new(Vu2::new(1,1), xlen,ylen, 0, &blocked_hard
         , true, true, false, true);
     let leftv = Vu2::new(0,2 );
     let rightv = Vu2::new(6,2 );
@@ -120,7 +154,7 @@ fn test_invalid_regions_1() {
     let blocked_hard = vec![
         Vu2::new(2, 0)
         ];
-    let r = MapRegion::new(xlen,ylen, 0, &blocked_hard
+    let r = MapRegion::new(Vu2::new(1,1), xlen,ylen, 0, &blocked_hard
         , false, true, true, true);
     let leftv = Vu2::new(0,ylen/2 );
     let rightv = Vu2::new(xlen-1,ylen/2 );
@@ -150,7 +184,7 @@ fn test_invalid_regions_2() {
     let blocked_hard = vec![
         Vu2::new(0, ylen-1), Vu2::new(1, ylen-1), Vu2::new(2, ylen-1), Vu2::new(3, ylen-1)
         ];
-    let r = MapRegion::new(xlen,ylen, 0, &blocked_hard
+    let r = MapRegion::new(Vu2::new(1,1), xlen,ylen, 0, &blocked_hard
         , false, true, true, true);
     let leftv = Vu2::new(0,ylen/2 );
     let rightv = Vu2::new(xlen-1,ylen/2 );
@@ -181,7 +215,7 @@ fn test_invalid_regions_3() {
     let blocked_hard = vec![
         Vu2::new(1, ylen-1), Vu2::new(2, ylen-1), Vu2::new(3, ylen-1)
     ];
-    let r = MapRegion::new(xlen,ylen, 0, &blocked_hard
+    let r = MapRegion::new(Vu2::new(1,1), xlen,ylen, 0, &blocked_hard
         , true, true, true, true);
     let leftv = Vu2::new(0,ylen/2 );
     let rightv = Vu2::new(xlen-1,ylen/2 );
@@ -212,7 +246,7 @@ fn test_invalid_regions_4() {
     let blocked_hard = vec![
         Vu2::new(0, ylen-1), Vu2::new(1, ylen-1), Vu2::new(2, ylen-1), Vu2::new(3, ylen-1), Vu2::new(4, ylen-1)
     ];
-    let r = MapRegion::new(xlen,ylen, 0, &blocked_hard
+    let r = MapRegion::new(Vu2::new(1,1), xlen,ylen, 0, &blocked_hard
         , true, true, true, true);
     let leftv = Vu2::new(0,ylen/2 );
     let rightv = Vu2::new(xlen-1,ylen/2 );
@@ -243,7 +277,7 @@ fn test_invalid_regions_5() {
     let blocked_hard = vec![
         Vu2::new(xlen-1, ylen/2)
     ];
-    let r = MapRegion::new(xlen,ylen, 0, &blocked_hard
+    let r = MapRegion::new(Vu2::new(1,1), xlen,ylen, 0, &blocked_hard
         , true, true, true, true);
     let leftv = Vu2::new(0,ylen/2 );
     let rightv = Vu2::new(xlen-1,ylen/2 );
