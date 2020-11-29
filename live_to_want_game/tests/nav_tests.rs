@@ -41,6 +41,16 @@ fn test_map_state() {
     let dst = Vu2::new(0, 3);
     println!("printing dist from {:#?}", dst);
     println!("{}", map.get_distance_strings(&dst));
+    println!("{:#?}", map.regions[Vu2::new(0,0)].region_distances[dst]);
+    // NOTE: It's okay if region_distances are based on a single direction.
+    // in actual navigation algo can look at the distnaces to end of the neighbors and pick 
+    // one randomly if they are the same instead!
+    assert_eq!(map.regions[Vu2::new(0,0)].region_distances[dst], RegionSetDistances::Set(RegionDistances{
+        left: None,
+        right: Some(44),
+        up: Some(40),
+        down: None,
+    }));
 }
 
 #[test]
