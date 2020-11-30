@@ -939,70 +939,8 @@ impl MapRegion {
                         grid.push(col);
                     }
                     grid[dst] = LocSetDistance::Set(0);
-                    let up_exit =  Arc::clone(&up_exit);
-                    let mut up_exit = up_exit.lock().unwrap();
-
-                    let down_exit =  Arc::clone(&down_exit);
-                    let mut down_exit = down_exit.lock().unwrap();
-
-                    let right_exit =  Arc::clone(&right_exit);
-                    let mut right_exit = right_exit.lock().unwrap();
-
-                    let left_exit =  Arc::clone(&left_exit);
-                    let mut left_exit = left_exit.lock().unwrap();
-
-                    // if x_len > 10 {
-                    //     println!("Setting {} {}", x, y);
-                    // }
-                    // NOTE: this is a lazy way of getting the exit nodes.
-                    // so its slightly inaccurate way to get distances between exit points because we just
                     let end_blocked = self.grid[dst].get_if_blocked(false);
-                    let dist_x_mid = |xd: i32| {
-                        (xd - ((x_len/2) as i32)).abs() as usize
-                    };
-                    let dist_y_mid = |yd: i32| {
-                        (yd - ((y_len/2) as i32)).abs() as usize
-                    };
-                    //prioritise mid points for exits for more accurate calculatuon
-                    let dist_x = dist_x_mid(x as i32);
-                    let dist_y = dist_y_mid(y as i32);
-                    if !end_blocked {
-                        match self.grid[x][y].is_exit {
-                            ExitPoint::None => {}
-                            ExitPoint::Left => {
-                                if left_exit.is_none() || dist_y < dist_y_mid(left_exit.as_ref().unwrap().y as i32) {
-                                    *left_exit = Some(Vu2::new(x, y));
-                            }}
-                            ExitPoint::Right => {
-                                if right_exit.is_none() || dist_y < dist_y_mid(right_exit.as_ref().unwrap().y as i32) {
-                                    *right_exit = Some(Vu2::new(x , y ));
-                            }}
-                            ExitPoint::Up => {
-                                if up_exit.is_none() || dist_x < dist_x_mid(up_exit.as_ref().unwrap().x as i32) {
-                                    *up_exit = Some(Vu2::new(x , y ));
-                            }}
-                            ExitPoint::Down => {
-                                if down_exit.is_none() || dist_x < dist_x_mid(down_exit.as_ref().unwrap().x as i32) {
-                                    *down_exit = Some(Vu2::new(x , y ));
-                            }}
-                            ExitPoint::LeftDown => {
-                                if left_exit.is_none() {*left_exit = Some(Vu2::new(x , y ));}
-                                if down_exit.is_none() {*down_exit = Some(Vu2::new(x , y ));}
-                            }
-                            ExitPoint::RightDown => {
-                                if right_exit.is_none() {*right_exit = Some(Vu2::new(x , y ));}
-                                if down_exit.is_none() {*down_exit = Some(Vu2::new(x , y ));}
-                            }
-                            ExitPoint::LeftUp => {
-                                if left_exit.is_none() {*left_exit = Some(Vu2::new(x , y ));}
-                                if up_exit.is_none() {*up_exit = Some(Vu2::new(x , y ));}
-                            }
-                            ExitPoint::RightUp => {
-                                if right_exit.is_none() {*right_exit = Some(Vu2::new(x , y ));}
-                                if up_exit.is_none() {*up_exit = Some(Vu2::new(x , y ));}
-                            }
-                        }
-                    }
+
                     let mut to_visit: Vec<Vu2> = Vec::new();
                     let mut node_idx = 0;
                     // add neighbors to, to_visit.
@@ -1058,6 +996,73 @@ impl MapRegion {
                         for yy in 0..y_len {
                             if grid[xx][yy] == LocSetDistance::Unset {
                                 grid[xx][yy] = LocSetDistance::Blocked;
+                            }
+                        }
+                    }
+                    
+                    {
+                        let up_exit =  Arc::clone(&up_exit);
+                        let mut up_exit = up_exit.lock().unwrap();
+
+                        let down_exit =  Arc::clone(&down_exit);
+                        let mut down_exit = down_exit.lock().unwrap();
+
+                        let right_exit =  Arc::clone(&right_exit);
+                        let mut right_exit = right_exit.lock().unwrap();
+
+                        let left_exit =  Arc::clone(&left_exit);
+                        let mut left_exit = left_exit.lock().unwrap();
+
+                        // if x_len > 10 {
+                        //     println!("Setting {} {}", x, y);
+                        // }
+                        // NOTE: this is a lazy way of getting the exit nodes.
+                        // so its slightly inaccurate way to get distances between exit points because we just
+                        
+                        let dist_x_mid = |xd: i32| {
+                            (xd - ((x_len/2) as i32)).abs() as usize
+                        };
+                        let dist_y_mid = |yd: i32| {
+                            (yd - ((y_len/2) as i32)).abs() as usize
+                        };
+                        //prioritise mid points for exits for more accurate calculatuon
+                        let dist_x = dist_x_mid(x as i32);
+                        let dist_y = dist_y_mid(y as i32);
+                        if !end_blocked {
+                            match self.grid[x][y].is_exit {
+                                ExitPoint::None => {}
+                                ExitPoint::Left => {
+                                    if left_exit.is_none() || dist_y < dist_y_mid(left_exit.as_ref().unwrap().y as i32) {
+                                        *left_exit = Some(Vu2::new(x, y));
+                                }}
+                                ExitPoint::Right => {
+                                    if right_exit.is_none() || dist_y < dist_y_mid(right_exit.as_ref().unwrap().y as i32) {
+                                        *right_exit = Some(Vu2::new(x , y ));
+                                }}
+                                ExitPoint::Up => {
+                                    if up_exit.is_none() || dist_x < dist_x_mid(up_exit.as_ref().unwrap().x as i32) {
+                                        *up_exit = Some(Vu2::new(x , y ));
+                                }}
+                                ExitPoint::Down => {
+                                    if down_exit.is_none() || dist_x < dist_x_mid(down_exit.as_ref().unwrap().x as i32) {
+                                        *down_exit = Some(Vu2::new(x , y ));
+                                }}
+                                ExitPoint::LeftDown => {
+                                    if left_exit.is_none() {*left_exit = Some(Vu2::new(x , y ));}
+                                    if down_exit.is_none() {*down_exit = Some(Vu2::new(x , y ));}
+                                }
+                                ExitPoint::RightDown => {
+                                    if right_exit.is_none() {*right_exit = Some(Vu2::new(x , y ));}
+                                    if down_exit.is_none() {*down_exit = Some(Vu2::new(x , y ));}
+                                }
+                                ExitPoint::LeftUp => {
+                                    if left_exit.is_none() {*left_exit = Some(Vu2::new(x , y ));}
+                                    if up_exit.is_none() {*up_exit = Some(Vu2::new(x , y ));}
+                                }
+                                ExitPoint::RightUp => {
+                                    if right_exit.is_none() {*right_exit = Some(Vu2::new(x , y ));}
+                                    if up_exit.is_none() {*up_exit = Some(Vu2::new(x , y ));}
+                                }
                             }
                         }
                     }
