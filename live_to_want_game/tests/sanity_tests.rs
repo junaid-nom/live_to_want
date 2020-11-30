@@ -1,4 +1,4 @@
-use std::{cell::{Ref, RefCell}, rc::Rc};
+use std::{sync::Mutex, cell::{Ref, RefCell}, rc::Rc, sync::Arc};
 use std::collections::HashMap;
 use std::ops::Deref;
 use std::{fmt::{Debug, Formatter}, borrow::Borrow};
@@ -9,6 +9,22 @@ extern crate rayon;
 use live_to_want_game::*;
 use rayon::prelude::*;
 
+
+#[test]
+fn test_arc_mutex() {
+    let mut up_exit = Arc::new(Mutex::new(None));
+    (0..10).into_iter().for_each(
+        |x| {
+            let up_exit = Arc::clone(&up_exit);
+            let mut up_exit = up_exit.lock().unwrap();
+            match *up_exit {
+                Some(a) => {*up_exit = Some(a+1)}
+                None => {*up_exit = Some(0)}
+            } 
+        }
+    );
+    println!("{:#?}", up_exit);
+}
 
 #[test]
 fn iter_iter_par() {

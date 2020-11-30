@@ -1,4 +1,4 @@
-use std::{fmt, ops::Index, vec::Drain, ops::IndexMut};
+use std::{fmt, ops::Index, ops::IndexMut, sync::Arc, vec::Drain, sync::Mutex};
 
 use crate::{Neighbor, UID, Vu2, creature::CreatureState, creature::IDComponent, get_2d_vec, make_string_at_least_length, utils::Vector2, make_string_at_most_length};
 use rand::prelude::*;
@@ -913,24 +913,44 @@ impl MapRegion {
             let x_len = self.grid.len();
             let y_len = self.grid[0].len();
 
-            self.grid.par_iter_mut().for_each(|xp| {
-                xp.par_iter_mut().for_each(|yp| {
-                    yp.reset_point_distances();
-                })
-            });
+            // self.grid.par_iter_mut().for_each(|xp| {
+            //     xp.par_iter_mut().for_each(|yp| {
+            //         yp.reset_point_distances();
+            //     })
+            // });
 
-            let mut up_exit: Option<Vu2> = None;
-            let mut down_exit: Option<Vu2> = None;
-            let mut right_exit: Option<Vu2> = None;
-            let mut left_exit: Option<Vu2> = None;
+            let mut up_exit: Arc<Mutex<Option<Vu2>>> = Arc::new(Mutex::new(None));
+            let mut down_exit: Arc<Mutex<Option<Vu2>>> = Arc::new(Mutex::new(None));
+            let mut right_exit: Arc<Mutex<Option<Vu2>>> = Arc::new(Mutex::new(None));
+            let mut left_exit: Arc<Mutex<Option<Vu2>>> = Arc::new(Mutex::new(None));
 
             // TODO Could parallelize this by making each dst return a grid[src] readonly.
             // then after for each MapLocation, set its grid based on grid[src]s (also in parallel)
             // prob not worth it if we have multiple regions usually getting updated a frame, if not might be totally worth!
-            for x in 0..x_len {
-                for y in 0..y_len {
+            let new_grid:Vec<Vec< Vec<Vec<LocSetDistance>> >> = (0..x_len).into_par_iter().map(|x| {
+                (0..y_len).into_par_iter().map(|y| {
                     let dst = Vu2::new(x,y);
-                    self.grid[dst].point_distances[dst] = LocSetDistance::Set(0);
+                    let mut grid = Vec::new();
+                    for _ in 0..x_len{
+                        let mut col = Vec::new();
+                        for _ in 0..y_len {
+                            col.push(LocSetDistance::Unset);
+                        }
+                        grid.push(col);
+                    }
+                    grid[dst] = LocSetDistance::Set(0);
+                    let up_exit =  Arc::clone(&up_exit);
+                    let mut up_exit = up_exit.lock().unwrap();
+
+                    let down_exit =  Arc::clone(&down_exit);
+                    let mut down_exit = down_exit.lock().unwrap();
+
+                    let right_exit =  Arc::clone(&right_exit);
+                    let mut right_exit = right_exit.lock().unwrap();
+
+                    let left_exit =  Arc::clone(&left_exit);
+                    let mut left_exit = left_exit.lock().unwrap();
+
                     // if x_len > 10 {
                     //     println!("Setting {} {}", x, y);
                     // }
@@ -951,35 +971,35 @@ impl MapRegion {
                             ExitPoint::None => {}
                             ExitPoint::Left => {
                                 if left_exit.is_none() || dist_y < dist_y_mid(left_exit.as_ref().unwrap().y as i32) {
-                                left_exit = Some(Vu2::new(x, y));
+                                    *left_exit = Some(Vu2::new(x, y));
                             }}
                             ExitPoint::Right => {
                                 if right_exit.is_none() || dist_y < dist_y_mid(right_exit.as_ref().unwrap().y as i32) {
-                                    right_exit = Some(Vu2::new(x , y ));
+                                    *right_exit = Some(Vu2::new(x , y ));
                             }}
                             ExitPoint::Up => {
                                 if up_exit.is_none() || dist_x < dist_x_mid(up_exit.as_ref().unwrap().x as i32) {
-                                    up_exit = Some(Vu2::new(x , y ));
+                                    *up_exit = Some(Vu2::new(x , y ));
                             }}
                             ExitPoint::Down => {
                                 if down_exit.is_none() || dist_x < dist_x_mid(down_exit.as_ref().unwrap().x as i32) {
-                                    down_exit = Some(Vu2::new(x , y ));
+                                    *down_exit = Some(Vu2::new(x , y ));
                             }}
                             ExitPoint::LeftDown => {
-                                if left_exit.is_none() {left_exit = Some(Vu2::new(x , y ));}
-                                if down_exit.is_none() {down_exit = Some(Vu2::new(x , y ));}
+                                if left_exit.is_none() {*left_exit = Some(Vu2::new(x , y ));}
+                                if down_exit.is_none() {*down_exit = Some(Vu2::new(x , y ));}
                             }
                             ExitPoint::RightDown => {
-                                if right_exit.is_none() {right_exit = Some(Vu2::new(x , y ));}
-                                if down_exit.is_none() {down_exit = Some(Vu2::new(x , y ));}
+                                if right_exit.is_none() {*right_exit = Some(Vu2::new(x , y ));}
+                                if down_exit.is_none() {*down_exit = Some(Vu2::new(x , y ));}
                             }
                             ExitPoint::LeftUp => {
-                                if left_exit.is_none() {left_exit = Some(Vu2::new(x , y ));}
-                                if up_exit.is_none() {up_exit = Some(Vu2::new(x , y ));}
+                                if left_exit.is_none() {*left_exit = Some(Vu2::new(x , y ));}
+                                if up_exit.is_none() {*up_exit = Some(Vu2::new(x , y ));}
                             }
                             ExitPoint::RightUp => {
-                                if right_exit.is_none() {right_exit = Some(Vu2::new(x , y ));}
-                                if up_exit.is_none() {up_exit = Some(Vu2::new(x , y ));}
+                                if right_exit.is_none() {*right_exit = Some(Vu2::new(x , y ));}
+                                if up_exit.is_none() {*up_exit = Some(Vu2::new(x , y ));}
                             }
                         }
                     }
@@ -996,13 +1016,13 @@ impl MapRegion {
                         // then set this points distance to 1 + min_neighbor_distance
                         // also add this nodes neighbors to to_visit, if they have an unset point_distance
                         let visiting = to_visit[node_idx];
-                        if self.grid[visiting].point_distances[dst] == LocSetDistance::Unset {
+                        if grid[visiting] == LocSetDistance::Unset {
                             if !self.grid[visiting].get_if_blocked(false) {
                                 // get neighbor that has point_distance set:
                                 let mut min_distance: Option<u32> = None;
                                 for neighbor in visiting.get_valid_neighbors(x_len, y_len) {
                                     let n = neighbor.get();
-                                    match self.grid[n].point_distances[dst] {
+                                    match grid[n] {
                                         LocSetDistance::Unset => {
                                             // TODO NOTE: This will add duplicates to the list of already visited places.
                                             // So can either check if to_visit has this var, or just skip in the loop as done above.
@@ -1020,15 +1040,15 @@ impl MapRegion {
                                 }
                                 if !end_blocked {
                                     if let Some(min_distance) = min_distance {
-                                        self.grid[visiting].point_distances[dst] = LocSetDistance::Set(min_distance + 1);
+                                        grid[visiting] = LocSetDistance::Set(min_distance + 1);
                                     } else {
                                         panic!("Got no neighbor that is in route to destination!");
                                     }
                                 } else {
-                                    self.grid[visiting].point_distances[dst] = LocSetDistance::Blocked;
+                                    grid[visiting] = LocSetDistance::Blocked;
                                 }
                             } else {
-                                self.grid[visiting].point_distances[dst] = LocSetDistance::Blocked;
+                                grid[visiting] = LocSetDistance::Blocked;
                             }
                         }
                         node_idx+=1;
@@ -1036,33 +1056,46 @@ impl MapRegion {
                     // Anything unset by now must be blocked off
                     for xx in 0..x_len {
                         for yy in 0..y_len {
-                            if self.grid[xx][yy].point_distances[x][y] == LocSetDistance::Unset {
-                                self.grid[xx][yy].point_distances[x][y] = LocSetDistance::Blocked;
+                            if grid[xx][yy] == LocSetDistance::Unset {
+                                grid[xx][yy] = LocSetDistance::Blocked;
                             }
                         }
                     }
-                }
-            }
+                    grid
+                }).collect()
+            }).collect();
+            
+            //copy every grid to the real self.grid
+            self.grid.par_iter_mut().for_each(|row| {
+                row.par_iter_mut().for_each(|mloc| {
+                    for x in 0..x_len {
+                        for y in 0..y_len {
+                            mloc.point_distances[x][y] = new_grid[x][y][mloc.location.x][mloc.location.y];
+                        }
+                    }
+                })
+            });
+
             // also update distances_from_exits
             let vl = Vu2::new(0,y_len/2);
-            let leftv = match &left_exit {
-                Some(v) => {self.left=Some(*v); v}
-                None => {self.left=None; &vl}
+            let leftv = match *left_exit.lock().unwrap() {
+                Some(v) => {self.left=Some(v); v}
+                None => {self.left=None; vl}
             };
             let vr = Vu2::new(x_len - 1,y_len/2);
-            let rightv = match &right_exit {
-                Some(v) => {self.right=Some(*v); v}
-                None => {self.right=None; &vr}
+            let rightv = match *right_exit.lock().unwrap() {
+                Some(v) => {self.right=Some(v); v}
+                None => {self.right=None; vr}
             };
             let vu = Vu2::new(x_len/2,y_len - 1);
-            let upv = match &up_exit {
-                Some(v) => {self.up=Some(*v); v}
-                None => {self.up=None; &vu}
+            let upv = match *up_exit.lock().unwrap() {
+                Some(v) => {self.up=Some(v); v}
+                None => {self.up=None; vu}
             };
             let vd = Vu2::new(x_len/2,0);
-            let downv = match &down_exit {
-                Some(v) => {self.down=Some(*v); v}
-                None => {self.down=None; &vd}
+            let downv = match *down_exit.lock().unwrap() {
+                Some(v) => {self.down=Some(v); v}
+                None => {self.down=None; vd}
             };
             // println!("leftv: {:?}", leftv);
             // println!("{}", self.get_distance_strings(&leftv).join("\n"));
@@ -1073,10 +1106,10 @@ impl MapRegion {
             // println!("upv: {:?}", upv);
             // println!("{}", self.get_distance_strings(&upv).join("\n"));
 
-            self.distances_from_left = InnerExitRegionDistance::Set(RegionDistances::new(leftv, leftv, rightv, upv, downv, self));
-            self.distances_from_right = InnerExitRegionDistance::Set(RegionDistances::new(rightv, leftv, rightv, upv, downv, self));
-            self.distances_from_up = InnerExitRegionDistance::Set(RegionDistances::new(upv, leftv, rightv, upv, downv, self));
-            self.distances_from_down = InnerExitRegionDistance::Set(RegionDistances::new(downv, leftv, rightv, upv, downv, self));
+            self.distances_from_left = InnerExitRegionDistance::Set(RegionDistances::new(&leftv, &leftv, &rightv, &upv, &downv, self));
+            self.distances_from_right = InnerExitRegionDistance::Set(RegionDistances::new(&rightv, &leftv, &rightv, &upv, &downv, self));
+            self.distances_from_up = InnerExitRegionDistance::Set(RegionDistances::new(&upv, &leftv, &rightv, &upv, &downv, self));
+            self.distances_from_down = InnerExitRegionDistance::Set(RegionDistances::new(&downv, &leftv, &rightv, &upv, &downv, self));
 
         }
         else {
@@ -1089,10 +1122,11 @@ impl MapRegion {
 
         let end_time = std::time::Instant::now();
         println!("Total update time: {}", (end_time - start_time).as_millis());
+        
     }
 }
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Clone, Copy)]
 pub enum LocSetDistance {
     Unset,
     Blocked,
