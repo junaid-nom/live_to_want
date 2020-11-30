@@ -1000,6 +1000,7 @@ impl MapRegion {
                         }
                     }
                     
+                    // mutex stuff related to exits
                     {
                         let up_exit =  Arc::clone(&up_exit);
                         let mut up_exit = up_exit.lock().unwrap();
