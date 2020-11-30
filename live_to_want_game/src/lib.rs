@@ -185,6 +185,7 @@ fn run_frame(mut game_state: GameState, root: &GoalNode) -> GameState {
             }).collect();
 
             if changes.contains(&true) {
+                // for each changed region, update it's region's inner nav (implement update_region_nav)
                 y.update_region_nav(current_frame);
                 Some(Vector2::new(xidx as i32, yidx as i32))
             } else {
@@ -195,8 +196,9 @@ fn run_frame(mut game_state: GameState, root: &GoalNode) -> GameState {
     }).collect();
     let changed_regions: Vec<Vector2> = changed_regions.into_par_iter().filter_map(|opt| opt).collect();
     // TODONEXT:
-    // for each changed region, update it's region's inner nav (implement update_region_nav)
-    // then update the entire map's between region nav (TODO: Optimize this? Maybe don't need to update every single region but ones that update paths significantly?).
+    // each region should have already been updated above.
+    // now update the entire map's between region nav if we had any updated regions (TODO: Optimize this? Maybe don't need to update every single region but ones that update paths significantly?).
+    // TODO: The map update isn't parallelized at all could be a bottleneck?
     if changed_regions.len() > 0 {
         m.update_nav();
     }

@@ -170,8 +170,9 @@ impl MapState {
         region
     }
 
-    // nav stuff
     pub fn navigate_to(&mut self, start: &Location, goal: &Location) -> Vec<Location> {
+        // TODONEXT: Make this work with new nav system. For both inner region and extra region navigation!
+
         // Currently just using a simple algo that assumes there are NO blockers anywhere and in same region
         // TODO: make a VecVec VecVec of region(with last updated piece)->location->blocked. and then 
         // make a giant cached navigation thing FOR EACH point...
@@ -232,7 +233,7 @@ impl MapState {
     pub fn update_nav(&mut self) {
         // Regions should already be updated if they changed before calling this.
 
-        // TODONEXT: Will need to make the target distances have one from each exit
+        // need to make the target distances have one from each exit
         // otherwise pretty similar to inside region navigation
         // update all the region_distances
         let xlen = self.regions.len();
