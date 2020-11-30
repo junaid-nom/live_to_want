@@ -4,8 +4,60 @@ use std::{rc::Rc, cell::RefCell};
 use rayon::prelude::*;
 use live_to_want_game::*;
 
+
 #[test]
-fn test_map_state_update() {
+fn nav_test_map_walk_around() {
+    // make sure that a path that is longer region wise, is actually shorter if you include inside-region distances
+    let xlen = 100;
+    let ylen = 100;
+    let openr = RegionCreationStruct::new(5,5, 0, vec![]);
+    let openbigr = RegionCreationStruct::new(xlen,ylen, 0, vec![]);
+
+    // 3x2
+    //dst = 2,0 src = 0,0
+    // 1,0 super long
+    let rgrid = vec![
+        vec![openr.clone(),openr.clone()],
+        vec![openbigr.clone(),openr.clone()],
+        vec![openr.clone(),openr.clone()],
+    ];
+
+    let print_rc = || {
+        for y in (0..rgrid[0].len()).rev() {
+            for x in 0..rgrid.len() {
+                if rgrid[x][y].xlen == 0 {
+                    print!("X ");
+
+                } else {
+                    print!("O ");
+                }
+            }
+            println!("");
+        }
+    };
+    print_rc();
+    let mut map = MapState::new(rgrid.clone(), 0);
+    print_rc();
+    println!("printing map:");
+    println!("{}", map);
+    let dst = Vu2::new(2, 0);
+    let src = Vu2::new(0,0);
+    println!("printing dist from {:#?}", dst);
+    println!("{}", map.get_distance_strings(&dst));
+    println!("{:#?}", map.regions[src].region_distances[dst]);
+    // NOTE: It's okay if region_distances are based on a single direction.
+    // in actual navigation algo can look at the distnaces to end of the neighbors and pick 
+    // one randomly if they are the same instead!
+    assert_eq!(map.regions[src].region_distances[dst], RegionSetDistances::Set(RegionDistances{
+        left: None,
+        right: Some(16),
+        up: Some(12),
+        down: None,
+    }));
+}
+
+#[test]
+fn nav_test_map_state_update() {
     // TODO Call update on map state changing just a little but of stuff each time to make sure it changes
     let xlen = 9;
     let ylen = 9;
@@ -102,7 +154,7 @@ fn test_map_state_update() {
 }
 
 #[test]
-fn test_map_state() {
+fn nav_test_map_state() {
     let openr = RegionCreationStruct::new(5,5, 0, vec![]);
     let closer = RegionCreationStruct::new(0,0, 0, vec![]);
     let rgrid = vec![
@@ -146,7 +198,7 @@ fn test_map_state() {
 }
 
 #[test]
-fn test_region_map_hypothetical_blocks() {
+fn nav_test_region_map_hypothetical_blocks() {
     println!("test_region_map_hypothetical_blocks test");
     let xlen:usize = 7;
     let ylen:usize = 5;
@@ -249,7 +301,7 @@ fn test_region_map_hypothetical_blocks() {
 
 #[test]
 #[should_panic]
-fn test_invalid_regions_1() {
+fn nav_test_invalid_regions_1() {
     println!("test_region_map_hypothetical_blocks test");
     let xlen:usize = 5;
     let ylen:usize = 7;
@@ -279,7 +331,7 @@ fn test_invalid_regions_1() {
 }
 
 #[test]
-fn test_invalid_regions_2() {
+fn nav_test_invalid_regions_2() {
     println!("test_region_map_hypothetical_blocks test");
     let xlen:usize = 5;
     let ylen:usize = 7;
@@ -310,7 +362,7 @@ fn test_invalid_regions_2() {
 
 #[test]
 #[should_panic]
-fn test_invalid_regions_3() {
+fn nav_test_invalid_regions_3() {
     println!("test_region_map_hypothetical_blocks test");
     let xlen:usize = 5;
     let ylen:usize = 7;
@@ -341,7 +393,7 @@ fn test_invalid_regions_3() {
 
 #[test]
 #[should_panic]
-fn test_invalid_regions_4() {
+fn nav_test_invalid_regions_4() {
     println!("test_region_map_hypothetical_blocks test");
     let xlen:usize = 5;
     let ylen:usize = 7;
@@ -372,7 +424,7 @@ fn test_invalid_regions_4() {
 
 #[test]
 #[should_panic]
-fn test_invalid_regions_5() {
+fn nav_test_invalid_regions_5() {
     println!("test_region_map_hypothetical_blocks test");
     let xlen:usize = 5;
     let ylen:usize = 7;

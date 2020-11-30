@@ -106,7 +106,7 @@ impl MapState {
         for col in rstructs {
             let mut new_col = Vec::new();
             for rc in col {
-                println!("making region {} {}: {:#?}", rgrid.len(), new_col.len(), rc);
+                //println!("making region {} {}: {:#?}", rgrid.len(), new_col.len(), rc);
                 new_col.push(MapRegion::new_struct(rc));
             }
             rgrid.push(new_col);
@@ -217,9 +217,9 @@ impl MapState {
             let mut f_string = String::new();
             for x in 0..xlen {
                 let mr = &self.regions[x][y];
-                println!("Region Info {} {}: {}",x,y,self.regions[x][y].get_exit_points_string());
-                println!("Region Info {} {}: {}",x,y,self.regions[x][y].get_exit_distances_string());
-                println!("Region Info {} {}: {}",x,y,self.regions[x][y].get_to_exit_region_distances_string(end_point));
+                //println!("Region Info {} {}: {}",x,y,self.regions[x][y].get_exit_points_string());
+                //println!("Region Info {} {}: {}",x,y,self.regions[x][y].get_exit_distances_string());
+                //println!("Region Info {} {}: {}",x,y,self.regions[x][y].get_to_exit_region_distances_string(end_point));
                 
                 let dy = make_string_at_least_length(format!("{}", mr.region_distances[xx][yy]), 5, ' ');
                 f_string = format!("{}{}", f_string, dy);
@@ -255,80 +255,88 @@ impl MapState {
                 let mut vidx = 0;
                 while vidx < to_visit.len() {
                     let visiting = to_visit[vidx].get();
-                    if self.regions[visiting].region_distances[dst] == RegionSetDistances::Unset {
-                        if self.regions[visiting].exists {
-                            let mut min_dist = None;
-                            let mut min_direction = None;
-                            let mut to_visit_next = Vec::new(); 
-                            visiting.get_valid_neighbors(xlen, ylen).into_iter().for_each(|neighbor| {
-                                let nv = neighbor.get();
-                                let nregion = &self.regions[nv];
-                                match &nregion.region_distances[dst] {
-                                    RegionSetDistances::Unset => {
-                                        // Only add it to, to visit if it actually has a neighbor that's set since this
-                                        // could become not set at the end. Otherwise will cause infinite loop of adding stuff
+                    let unset_currently = self.regions[visiting].region_distances[dst] == RegionSetDistances::Unset;
+                    if self.regions[visiting].exists {
+                        let mut min_dist = None;
+                        let mut min_direction = None;
+                        let mut to_visit_next = Vec::new();
+                        // Note we add the same node multiple times, this is because its possible
+                        // that a better faster path is revealed later on because of a tiny region vs a large region
+                        // causes the 2nd seen one to be shorter
+                        visiting.get_valid_neighbors(xlen, ylen).into_iter().for_each(|neighbor| {
+                            let nv = neighbor.get();
+                            let nregion = &self.regions[nv];
+                            match &nregion.region_distances[dst] {
+                                RegionSetDistances::Unset => {
+                                    // Only add it to, to visit if it actually has a neighbor that's set since this
+                                    // could become not set at the end. Otherwise will cause infinite loop of adding stuff
+                                    // also only set if this is unset initially because now will see this node multiple times
+                                    if unset_currently {
                                         to_visit_next.push(neighbor);
                                     }
-                                    RegionSetDistances::Blocked => {}
-                                    RegionSetDistances::Set(dsts) => {
-                                        // Get the distance from the side the visitor must enter the neighbor from
-                                        // to the destination (so opposite of neighbor side)
-                                        let dist = match neighbor {
-                                            Neighbor::Left(_) => {dsts.right}
-                                            Neighbor::Right(_) => {dsts.left}
-                                            Neighbor::Down(_) => {dsts.up}
-                                            Neighbor::Up(_) => {dsts.down}
-                                        };
-                                        // good chance its impossible for a node to find a smaller min dist than the first.
-                                        // but just in case checking
-                                        if let Some(d) = dist {
-                                            match min_dist {
-                                                Some(md) => {
-                                                    if d<md {
-                                                        min_dist=Some(d);
-                                                        min_direction = Some(neighbor);
-                                                }}
-                                                None => {
-                                                    min_dist = Some(d); 
+                                }
+                                RegionSetDistances::Blocked => {}
+                                RegionSetDistances::Set(dsts) => {
+                                    // in case this new path is faster readd neighbors
+                                    if unset_currently {
+                                        to_visit_next.push(neighbor);
+                                    }
+                                    // Get the distance from the side the visitor must enter the neighbor from
+                                    // to the destination (so opposite of neighbor side)
+                                    let dist = match neighbor {
+                                        Neighbor::Left(_) => {dsts.right}
+                                        Neighbor::Right(_) => {dsts.left}
+                                        Neighbor::Down(_) => {dsts.up}
+                                        Neighbor::Up(_) => {dsts.down}
+                                    };
+                                    // might find shorter path in a later visited node
+                                    if let Some(d) = dist {
+                                        match min_dist {
+                                            Some(md) => {
+                                                if d<md {
+                                                    min_dist=Some(d);
                                                     min_direction = Some(neighbor);
-                                                }
+                                            }}
+                                            None => {
+                                                min_dist = Some(d); 
+                                                min_direction = Some(neighbor);
                                             }
                                         }
                                     }
                                 }
-                            });
-                            if let Some(dist) = min_dist{
-                                to_visit.extend(to_visit_next);
-                                let set_dists = |distance_from: &InnerExitRegionDistance| {
-                                    let new_dists = match distance_from {
-                                        InnerExitRegionDistance::Unset => {panic!("Unset Region dist being used for neighbor dist!")}
-                                        InnerExitRegionDistance::Set(dists) => {
-                                            dists.add_distance(dist)
-                                        }
-                                    };
-                                    RegionSetDistances::Set(new_dists)
+                            }
+                        });
+                        if let Some(dist) = min_dist{
+                            to_visit.extend(to_visit_next);
+                            let set_dists = |distance_from: &InnerExitRegionDistance| {
+                                let new_dists = match distance_from {
+                                    InnerExitRegionDistance::Unset => {panic!("Unset Region dist being used for neighbor dist!")}
+                                    InnerExitRegionDistance::Set(dists) => {
+                                        dists.add_distance(dist)
+                                    }
                                 };
-                                // We now need distances to the edge from the different other edges.
-                                // We just use distances_from because distance from/to is the same.
-                                // so for example, if the neighbor we want to go to is left, we need distances to go to our left edge
-                                match min_direction.unwrap() {
-                                    Neighbor::Left(_) => {
-                                        self.regions[visiting].region_distances[dst] = set_dists(&self.regions[visiting].distances_from_left);
-                                    }
-                                    Neighbor::Right(_) => {
-                                        self.regions[visiting].region_distances[dst] = set_dists(&self.regions[visiting].distances_from_right);
-                                    }
-                                    Neighbor::Down(_) => {
-                                        self.regions[visiting].region_distances[dst] = set_dists(&self.regions[visiting].distances_from_down);
-                                    }
-                                    Neighbor::Up(_) => {
-                                        self.regions[visiting].region_distances[dst] = set_dists(&self.regions[visiting].distances_from_up);
-                                    }
+                                RegionSetDistances::Set(new_dists)
+                            };
+                            // We now need distances to the edge from the different other edges.
+                            // We just use distances_from because distance from/to is the same.
+                            // so for example, if the neighbor we want to go to is left, we need distances to go to our left edge
+                            match min_direction.unwrap() {
+                                Neighbor::Left(_) => {
+                                    self.regions[visiting].region_distances[dst] = set_dists(&self.regions[visiting].distances_from_left);
+                                }
+                                Neighbor::Right(_) => {
+                                    self.regions[visiting].region_distances[dst] = set_dists(&self.regions[visiting].distances_from_right);
+                                }
+                                Neighbor::Down(_) => {
+                                    self.regions[visiting].region_distances[dst] = set_dists(&self.regions[visiting].distances_from_down);
+                                }
+                                Neighbor::Up(_) => {
+                                    self.regions[visiting].region_distances[dst] = set_dists(&self.regions[visiting].distances_from_up);
                                 }
                             }
-                        } else {
-                            self.regions[visiting].region_distances[dst] = RegionSetDistances::Blocked;
                         }
+                    } else {
+                        self.regions[visiting].region_distances[dst] = RegionSetDistances::Blocked;
                     }
                     vidx+=1;
                 }
@@ -899,6 +907,7 @@ impl MapRegion {
     }
 
     pub fn update_region_nav(&mut self, current_frame: u128) {
+        let start_time = std::time::Instant::now();
         if self.exists {
             // Update all the MapLocation's distances to each other.
             let x_len = self.grid.len();
@@ -915,14 +924,19 @@ impl MapRegion {
             let mut right_exit: Option<Vu2> = None;
             let mut left_exit: Option<Vu2> = None;
 
-            let neighbors = vec![Vector2::new(-1, 0), Vector2::new(1, 0), Vector2::new(0, -1), Vector2::new(0, 1)];
+            // TODO Could parallelize this by making each dst return a grid[src] readonly.
+            // then after for each MapLocation, set its grid based on grid[src]s (also in parallel)
+            // prob not worth it if we have multiple regions usually getting updated a frame, if not might be totally worth!
             for x in 0..x_len {
                 for y in 0..y_len {
-                    self.grid[x][y].point_distances[x][y] = LocSetDistance::Set(0);
-                    //println!("Setting {} {}", x, y);
+                    let dst = Vu2::new(x,y);
+                    self.grid[dst].point_distances[dst] = LocSetDistance::Set(0);
+                    // if x_len > 10 {
+                    //     println!("Setting {} {}", x, y);
+                    // }
                     // NOTE: this is a lazy way of getting the exit nodes.
                     // so its slightly inaccurate way to get distances between exit points because we just
-                    let end_blocked = self.grid[x][y].get_if_blocked(false);
+                    let end_blocked = self.grid[dst].get_if_blocked(false);
                     let dist_x_mid = |xd: i32| {
                         (xd - ((x_len/2) as i32)).abs() as usize
                     };
@@ -969,65 +983,52 @@ impl MapRegion {
                             }
                         }
                     }
-                    let mut to_visit: Vec<Vector2> = Vec::new();
+                    let mut to_visit: Vec<Vu2> = Vec::new();
                     let mut node_idx = 0;
                     // add neighbors to, to_visit.
                     // then add their neighbors etc.
-                    for neighbor in &neighbors {
-                        to_visit.push(Vector2::add(&Vector2::new(x as i32, y as i32), neighbor));
+                    for neighbor in dst.get_valid_neighbors(x_len, y_len) {
+                        to_visit.push(neighbor.get());
                     }
                     //println!("starting neighbors: {:#?}", to_visit);
                     while node_idx < to_visit.len() {
                         // for each node, get its neighbor with the lowest distance to target
                         // then set this points distance to 1 + min_neighbor_distance
                         // also add this nodes neighbors to to_visit, if they have an unset point_distance
-                        let v = to_visit[node_idx];
-                        let xx = v.x;
-                        let yy = v.y;
-                        //println!("target: {},{} from:{},{}", x,y,xx,yy);
-                        if xx < x_len as i32 && xx >= 0 && yy < y_len as i32 && yy >= 0 {
-                            let xx = xx as usize;
-                            let yy = yy as usize;
-                            if self.grid[xx][yy].point_distances[x][y] == LocSetDistance::Unset {
-                                if !self.grid[xx][yy].get_if_blocked(false) {
-                                    // get neighbor that has point_distance set:
-                                    let mut min_distance: Option<u32> = None;
-                                    for neighbor in &neighbors {
-                                        let xxn = xx as i32 + neighbor.x;
-                                        let yyn = yy as i32 + neighbor.y;
-                                        if xxn < x_len as i32 && xxn >= 0 && yyn < y_len as i32 && yyn >= 0 { 
-                                            let xxn = xxn as usize;
-                                            let yyn = yyn as usize;
-                                            match self.grid[xxn][yyn].point_distances[x][y] {
-                                                LocSetDistance::Unset => {
-                                                    // TODO NOTE: This will add duplicates to the list of already visited places.
-                                                    // So can either check if to_visit has this var, or just skip in the loop as done above.
-                                                    // maybe worth changing but probably not.
-                                                    to_visit.push(Vector2::new(xxn as i32, yyn as i32));
-                                                }
-                                                LocSetDistance::Blocked => {}
-                                                LocSetDistance::Set(dist) => {
-                                                    // pretty sure its impossible for a node to get seen by a slower path so this if is pointless
-                                                    // if min_distance == 0 || dist <= min_distance {
-                                                    // }
-                                                    min_distance = Some(dist);
-                                                }
-                                            }
+                        let visiting = to_visit[node_idx];
+                        if self.grid[visiting].point_distances[dst] == LocSetDistance::Unset {
+                            if !self.grid[visiting].get_if_blocked(false) {
+                                // get neighbor that has point_distance set:
+                                let mut min_distance: Option<u32> = None;
+                                for neighbor in visiting.get_valid_neighbors(x_len, y_len) {
+                                    let n = neighbor.get();
+                                    match self.grid[n].point_distances[dst] {
+                                        LocSetDistance::Unset => {
+                                            // TODO NOTE: This will add duplicates to the list of already visited places.
+                                            // So can either check if to_visit has this var, or just skip in the loop as done above.
+                                            // maybe worth changing but probably not.
+                                            to_visit.push(n);
+                                        }
+                                        LocSetDistance::Blocked => {}
+                                        LocSetDistance::Set(dist) => {
+                                            // pretty sure its impossible for a node to get seen by a slower path so this if is pointless
+                                            // if min_distance == 0 || dist <= min_distance {
+                                            // }
+                                            min_distance = Some(dist);
                                         }
                                     }
-                                    
-                                    if !end_blocked {
-                                        if let Some(min_distance) = min_distance {
-                                            self.grid[xx][yy].point_distances[x][y] = LocSetDistance::Set(min_distance + 1);
-                                        } else {
-                                            panic!("Got no neighbor that is in route to destination!");
-                                        }
+                                }
+                                if !end_blocked {
+                                    if let Some(min_distance) = min_distance {
+                                        self.grid[visiting].point_distances[dst] = LocSetDistance::Set(min_distance + 1);
                                     } else {
-                                        self.grid[xx][yy].point_distances[x][y] = LocSetDistance::Blocked;
+                                        panic!("Got no neighbor that is in route to destination!");
                                     }
                                 } else {
-                                    self.grid[xx][yy].point_distances[x][y] = LocSetDistance::Blocked;
+                                    self.grid[visiting].point_distances[dst] = LocSetDistance::Blocked;
                                 }
+                            } else {
+                                self.grid[visiting].point_distances[dst] = LocSetDistance::Blocked;
                             }
                         }
                         node_idx+=1;
@@ -1085,6 +1086,9 @@ impl MapRegion {
             self.distances_from_right = InnerExitRegionDistance::Set(RegionDistances::new_none());
         }
         self.last_frame_changed = current_frame;
+
+        let end_time = std::time::Instant::now();
+        println!("Total update time: {}", (end_time - start_time).as_millis());
     }
 }
 
@@ -1130,6 +1134,20 @@ impl fmt::Display for RegionSetDistances {
     }
 }
 
+type LocSetDistanceGrid = Vec<Vec<LocSetDistance>>;
+impl Index<Vu2> for LocSetDistanceGrid {
+    type Output = LocSetDistance;
+
+    fn index(&self, index: Vu2) -> &Self::Output {
+        &self[index.x][index.y]
+    }
+}
+impl IndexMut<Vu2> for LocSetDistanceGrid {
+    fn index_mut(&mut self, index: Vu2) -> &mut Self::Output {
+        &mut self[index.x][index.y]
+    }
+}
+
 #[derive(Debug)]
 #[derive(Default)]
 pub struct MapLocation {
@@ -1139,7 +1157,7 @@ pub struct MapLocation {
     pub is_exit: ExitPoint, // exits should not be allowed to have creatures placed on them. also they must not have a block INBETWEEN them.
     pub creatures: CreatureList, // some locations will be perma blocked and no creatures allowed
     pub items: Vec<Item>,
-    pub point_distances: Vec<Vec<LocSetDistance>>,
+    pub point_distances: LocSetDistanceGrid,
 }
 impl MapLocation {
     pub fn new(loc: Vu2, is_exit: ExitPoint, has_creatures: bool, current_frame: u128, xlen: usize, ylen: usize) -> Self {

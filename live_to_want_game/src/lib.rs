@@ -168,7 +168,6 @@ fn run_frame(mut game_state: GameState, root: &GoalNode) -> GameState {
     // basically just need to update the last frame changed for each region
     // then run some "update nav system" that checks every region and sees which ones have a last_frame_updated < last_frame(in MapRegion)
 
-    
 
     // How the fuck do I know which regions need to be updated? Maybe make creatures private, and add function like "add_creature"?
     let changed_regions: Vec<Option<Vector2>> = m.regions.par_iter_mut().enumerate().flat_map(|(xidx, x)| {
