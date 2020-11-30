@@ -7,6 +7,98 @@ use live_to_want_game::*;
 #[test]
 fn test_map_state_update() {
     // TODO Call update on map state changing just a little but of stuff each time to make sure it changes
+    let xlen = 9;
+    let ylen = 9;
+    let openr = RegionCreationStruct::new(5,5, 0, vec![]);
+    let openbigr = RegionCreationStruct::new(xlen,ylen, 0, vec![]);
+
+
+    let maze_creation_open = vec![
+        Vu2::new(4, 0),
+        Vu2::new(2, 1),Vu2::new(3, 1),Vu2::new(4, 1),
+        Vu2::new(2, 2), Vu2::new(5, 2),Vu2::new(6, 2),Vu2::new(7, 2),
+        Vu2::new(2, 3),Vu2::new(3, 3),Vu2::new(4, 3),Vu2::new(5, 3),Vu2::new(7, 3),
+        Vu2::new(0, 4),Vu2::new(1, 4),Vu2::new(3, 4),Vu2::new(5, 4),Vu2::new(7, 4),Vu2::new(8, 4),
+        Vu2::new(1, 5),Vu2::new(3, 5),Vu2::new(4, 5),Vu2::new(5, 5),Vu2::new(6, 5),
+        Vu2::new(1, 6),Vu2::new(2, 6),Vu2::new(3, 6),Vu2::new(6, 6),
+        Vu2::new(4, 6),Vu2::new(5, 6),Vu2::new(6, 6),
+        Vu2::new(4, 8),
+    ];
+
+    let closer = RegionCreationStruct::new(0,0, 0, vec![]);
+    let rgrid = vec![
+        vec![openr.clone(),openbigr.clone(),closer.clone(),openr.clone(),openr.clone()],
+        vec![openbigr.clone(),openr.clone(),openr.clone(),closer.clone(),openr.clone()],
+        vec![closer.clone(),openr.clone(),closer.clone(),closer.clone(),openr.clone()],
+        vec![openr.clone(),openr.clone(),openr.clone(),openr.clone(),openr.clone()],
+    ];
+
+    let print_rc = || {
+        for y in (0..rgrid[0].len()).rev() {
+            for x in 0..rgrid.len() {
+                if rgrid[x][y].xlen == 0 {
+                    print!("X ");
+
+                } else {
+                    print!("O ");
+                }
+            }
+            println!("");
+        }
+    };
+    print_rc();
+    let mut map = MapState::new(rgrid.clone(), 0);
+    print_rc();
+    println!("printing map:");
+    println!("{}", map);
+    let dst = Vu2::new(0, 3);
+    let src = Vu2::new(0,1);
+    println!("printing dist from {:#?}", dst);
+    println!("{}", map.get_distance_strings(&dst));
+    println!("{:#?}", map.regions[src].region_distances[dst]);
+    // NOTE: It's okay if region_distances are based on a single direction.
+    // in actual navigation algo can look at the distnaces to end of the neighbors and pick 
+    // one randomly if they are the same instead!
+    assert_eq!(map.regions[src].region_distances[dst], RegionSetDistances::Set(RegionDistances{
+        left: None,
+        right: Some(36),
+        up: None,
+        down: Some(44),
+    }));
+
+    for x in 0..xlen {
+        for y in 0..ylen {
+            let loc = Vu2::new(x,y);
+            if !maze_creation_open.contains(&loc) {
+                if map.regions[0][1].grid[loc].creatures.holds_creatures() {
+                    // Note some edges are blocked because no neighbor so a few points in the path will be blocked
+                    let mut new_creature = CreatureState::new(loc);
+                    new_creature.components.block_space_component = Some(BlockSpaceComponent{});
+                    map.regions[0][1].grid[loc].creatures.add_creature(new_creature, 1);
+                }
+            }
+        }
+    }
+    map.regions[0][1].update_region_nav(1);
+    map.update_nav();
+    println!("printing dist after update from {:#?}", dst);
+    println!("{}", map.get_distance_strings(&dst));
+    println!("{:#?}", map.regions[src].region_distances[dst]);
+    println!("{}", map.regions[src].to_string());
+    assert_eq!(map.regions[src].region_distances[dst], RegionSetDistances::Set(RegionDistances{
+        left: None,
+        right: Some(36),
+        up: None,
+        down: Some(50),
+    }));
+    // make sure calling update more than once is deterministic and stuff
+    map.update_nav();
+    assert_eq!(map.regions[src].region_distances[dst], RegionSetDistances::Set(RegionDistances{
+        left: None,
+        right: Some(36),
+        up: None,
+        down: Some(50),
+    }));
 }
 
 #[test]
