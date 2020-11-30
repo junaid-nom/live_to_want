@@ -198,7 +198,7 @@ fn run_frame(mut game_state: GameState, root: &GoalNode) -> GameState {
     // TODONEXT:
     // each region should have already been updated above.
     // now update the entire map's between region nav if we had any updated regions (TODO: Optimize this? Maybe don't need to update every single region but ones that update paths significantly?).
-    // TODO: The map update isn't parallelized at all could be a bottleneck?
+    // TODO: The map update isn't parallelized at all could be a bottleneck? If so this could also only be run every X frame. because its just inter-region nav which can be inaccurate a little since no region path can actually be blocked fully.
     if changed_regions.len() > 0 {
         m.update_nav();
     }
