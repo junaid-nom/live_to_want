@@ -1,6 +1,6 @@
 use fmt::Debug;
 
-use crate::{CreatureList, creature::CreatureState, map_state::Item, map_state::ItemType, map_state::MapState, utils::UID};
+use crate::{CreatureList, creature::CreatureState, map_state::Item, map_state::ItemType, Location, map_state::MapState, utils::UID};
 use std::collections::HashMap;
 use core::fmt;
 extern crate rayon;
@@ -201,6 +201,28 @@ impl Event {
                     _ => panic!("Wrong event target for budding")
                 }
             }
+            EventType::IterateMovement(current_frame) => {
+                match effected {
+                    EventTarget::CreatureTarget(c) => {
+                        let movement = c.components.movement_component.as_mut().unwrap();
+                        let dst_reached =  c.components.location_component.location == movement.destination.position &&
+                        c.components.region_component.region == movement.destination.region;
+                        movement.check_ready_and_reset_move(*current_frame, dst_reached);
+                        None
+                    },
+                    _ => panic!("Wrong event target for budding")
+                }
+            }
+            EventType::InitializeMovement(current_frame, destination) => {
+                match effected {
+                    EventTarget::CreatureTarget(c) => {
+                        let movement = c.components.movement_component.as_mut().unwrap();
+                        movement.set_new_destination(*destination, *current_frame);
+                        None
+                    },
+                    _ => panic!("Wrong event target for budding")
+                }
+            }
         }
     }
 }
@@ -220,6 +242,8 @@ pub enum EventType {
     RemoveItem(u32, ItemType),
     AddItem(u32, ItemType),
     IterateBudding(),
+    IterateMovement(u128),
+    InitializeMovement(u128, Location),
 }
 
 pub fn process_events_from_mapstate (m: &mut MapState, event_chains: Vec<EventChain>) {

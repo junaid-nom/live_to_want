@@ -170,7 +170,7 @@ impl MapState {
         region
     }
 
-    pub fn navigate_to(&mut self, start: &Location, goal: &Location) -> Vec<Location> {
+    pub fn navigate_to(&self, start: &Location, goal: &Location) -> Location {
         // TODONEXT: Make this work with new nav system. For both inner region and extra region navigation!
 
         // Currently just using a simple algo that assumes there are NO blockers anywhere and in same region
@@ -179,7 +179,7 @@ impl MapState {
         // will get weird cause if u change the viable entrance/exits of regions it would mean needing to change the
         // between region map as well.
         // Need to also teach AI how to like "break" things to create shorter path?
-        let mut ret = Vec::new();
+        let mut ret = Location::new(Vu2::new(0,0), Vu2::new(0,0));
         // if start.region == goal.region {
         //     let mut current_loc = start.position;
         //     while current_loc != goal.position {
@@ -390,6 +390,12 @@ impl Location{
         Location{
             region,
             position
+        }
+    }
+    pub fn new0() -> Self {
+        Location{
+            region: Vu2::new(0,0),
+            position: Vu2::new(0,0)
         }
     }
 }

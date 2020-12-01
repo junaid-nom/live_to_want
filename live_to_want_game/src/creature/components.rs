@@ -142,22 +142,42 @@ impl Component for BlockSpaceComponent {
     }
 }
 
-// Events set the Navigation Component.
-// Nagivation system then will set this MovementComponent system
-// Movement system will then run, where it will check frame_ready_to_move and if
-// its ready, create an event chain to move obj
 // DONE: Okay so I need to CHANGE the event-chain system to also be able to RETURN
 // a new event chain dynamically created! That has a new Event type that OWNS a creaturestate
 // that is then meant to be moved into a new location (spawn will be similar)
 #[derive(Hash, Debug, PartialEq, Eq)]
 pub struct MovementComponent {
-    pub speed: usize,
+    //TODO: Add support for "sprint" feature. Also add hgher metabolism thing
+    pub frames_to_move: usize,
     pub destination: Location,
-    pub cached_navigation: Vec<Location>,
-    pub cache_last_updated_frame: u128,
-    pub navigating: bool,
-    pub moving: bool,
     pub frame_ready_to_move: u128, // essentially if frame_ready to move is the current frame or earlier, move to destination
+    pub moving: bool,
+}
+impl MovementComponent {
+    pub fn set_new_destination(&mut self, dst:Location, current_frame: u128) {
+        //TODONEXT 
+        // if already moving right now, and its to the same place allow it.
+        if self.moving {
+            // fuck it, if your moving keep your frame_ready_to_move
+            self.destination = dst;
+        } else {
+            self.moving = true;
+            self.frame_ready_to_move = current_frame + self.frames_to_move as u128;
+            self.destination = dst;
+        }
+    }
+    pub fn check_ready_and_reset_move(&mut self, current_frame: u128, dst_reached: bool) -> bool {
+        if dst_reached {
+            self.moving = false;
+        }
+        if self.moving && self.frame_ready_to_move <= current_frame{
+            // Check if its ready to move, then move and set next frame_ready to move
+            self.frame_ready_to_move = current_frame + self.frames_to_move as u128;
+            true
+        } else {
+            false
+        }
+    }
 }
 impl Component for MovementComponent {
     fn get_visible() -> bool {
@@ -167,11 +187,8 @@ impl Component for MovementComponent {
 impl Clone for MovementComponent {
     fn clone(&self) -> Self {
         MovementComponent{
-            speed: self.speed,
+            frames_to_move: self.frames_to_move,
             destination: self.destination,
-            cached_navigation: Vec::new(),
-            cache_last_updated_frame: self.cache_last_updated_frame,
-            navigating: false,
             moving: false,
             frame_ready_to_move: self.frame_ready_to_move,
         }

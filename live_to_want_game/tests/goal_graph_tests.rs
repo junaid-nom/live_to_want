@@ -43,7 +43,7 @@ fn generate_basic_graph() -> GoalNode<'static> {
         }),
         children: Vec::new(),
         name: "berry",
-        get_command: Some(Box::new(|_, c| CreatureCommand::MoveTo("berry", c, Vu2{x: 0, y:0}))),
+        get_command: Some(Box::new(|_, c| CreatureCommand::MoveTo("berry", c, Location::new0(), 0))),
         get_requirements_met: Box::new(|_, _| true),
     };
     let fruit = GoalNode {
@@ -63,7 +63,7 @@ fn generate_basic_graph() -> GoalNode<'static> {
         }),
         children: Vec::new(),
         name: "fruit",
-        get_command: Some(Box::new(|_, c| CreatureCommand::MoveTo("fruit", c, Vu2{x: 0, y:0}))),
+        get_command: Some(Box::new(|_, c| CreatureCommand::MoveTo("fruit", c, Location::new0(), 0))),
         get_requirements_met: Box::new(|_, _| true),
     };
     gather.children.push(GoalConnection{
@@ -88,7 +88,7 @@ fn generate_basic_graph() -> GoalNode<'static> {
         }),
         children: Vec::new(),
         name: "find_deer",
-        get_command: Some(Box::new(|_, c| CreatureCommand::MoveTo("find_deer", c, Vu2{x: 0, y:0}))),
+        get_command: Some(Box::new(|_, c| CreatureCommand::MoveTo("find_deer", c, Location::new0(), 0))),
         get_requirements_met: Box::new(|_, _| true),
     };
     let mut attack_deer = GoalNode {
@@ -100,7 +100,7 @@ fn generate_basic_graph() -> GoalNode<'static> {
         }),
         children: Vec::new(),
         name: "attack_deer",
-        get_command: Some(Box::new(|_, c| CreatureCommand::MoveTo("attack_deer", c, Vu2{x: 0, y:0}))),
+        get_command: Some(Box::new(|_, c| CreatureCommand::MoveTo("attack_deer", c, Location::new0(), 0))),
         get_requirements_met: Box::new(|_, c| c.components.location_component.location.x==5),
     };
     let mut loot_deer = GoalNode {
@@ -112,7 +112,7 @@ fn generate_basic_graph() -> GoalNode<'static> {
         }),
         children: Vec::new(),
         name: "loot_deer",
-        get_command: Some(Box::new(|_, c| CreatureCommand::MoveTo("loot_deer", c, Vu2{x: 0, y:0}))),
+        get_command: Some(Box::new(|_, c| CreatureCommand::MoveTo("loot_deer", c, Location::new0(), 0))),
         get_requirements_met: Box::new(|_, c| c.components.location_component.location.x==6),
     };
     
@@ -125,7 +125,7 @@ fn generate_basic_graph() -> GoalNode<'static> {
         }),
         children: Vec::new(),
         name: "eat",
-        get_command: Some(Box::new(|_, c| CreatureCommand::MoveTo("eat", c, Vu2{x: 0, y:0}))),
+        get_command: Some(Box::new(|_, c| CreatureCommand::MoveTo("eat", c, Location::new0(), 0))),
         get_requirements_met: Box::new(|_, c| c.components.location_component.location.y==0 && c.components.location_component.location.x==7),
     };
     let eat = Arc::new(eat);
@@ -138,7 +138,7 @@ fn generate_basic_graph() -> GoalNode<'static> {
         }),
         children: Vec::new(),
         name: "sell",
-        get_command: Some(Box::new(|_, c| CreatureCommand::MoveTo("sell", c, Vu2{x: 0, y:0}))),
+        get_command: Some(Box::new(|_, c| CreatureCommand::MoveTo("sell", c, Location::new0(), 0))),
         get_requirements_met: Box::new(|_, c| c.components.location_component.location.y==1 && 
             (c.components.location_component.location.x==7 || c.components.location_component.location.x==11)),
     };
@@ -180,7 +180,7 @@ fn generate_basic_graph() -> GoalNode<'static> {
         }),
         children: Vec::new(),
         name: "find_wolf",
-        get_command: Some(Box::new(|_, c| CreatureCommand::MoveTo("find_wolf", c, Vu2{x: 0, y:0}))),
+        get_command: Some(Box::new(|_, c| CreatureCommand::MoveTo("find_wolf", c, Location::new0(), 0))),
         get_requirements_met: Box::new(|_, _| true),
     };
     let mut attack_wolf = GoalNode {
@@ -192,7 +192,7 @@ fn generate_basic_graph() -> GoalNode<'static> {
         }),
         children: Vec::new(),
         name: "attack_wolf",
-        get_command: Some(Box::new(|_, c| CreatureCommand::MoveTo("attack_wolf", c, Vu2{x: 0, y:0}))),
+        get_command: Some(Box::new(|_, c| CreatureCommand::MoveTo("attack_wolf", c, Location::new0(), 0))),
         get_requirements_met: Box::new(|_, c| c.components.location_component.location.x==9),
     };
     let mut loot_wolf = GoalNode {
@@ -204,7 +204,7 @@ fn generate_basic_graph() -> GoalNode<'static> {
         }),
         children: Vec::new(),
         name: "loot_wolf",
-        get_command: Some(Box::new(|_, c| CreatureCommand::MoveTo("loot_wolf", c, Vu2{x: 0, y:0}))),
+        get_command: Some(Box::new(|_, c| CreatureCommand::MoveTo("loot_wolf", c, Location::new0(), 0))),
         get_requirements_met: Box::new(|_, c| c.components.location_component.location.x==10),
     };
     loot_wolf.children.push(GoalConnection{
@@ -255,7 +255,7 @@ fn berry_wins() {
     println!("Got: {:#?}", &res);
 
     match res {
-        CreatureCommand::MoveTo(n, _, _) => assert_eq!(n, "berry"),
+        CreatureCommand::MoveTo(n, _, _, _) => assert_eq!(n, "berry"),
         _ => panic!("should return moveto!"),
     };
 }
@@ -270,7 +270,7 @@ fn fruit_wins() {
     println!("Got: {:#?}", &res);
 
     match res {
-        CreatureCommand::MoveTo(n, _, _) => assert_eq!(n, "fruit"),
+        CreatureCommand::MoveTo(n, _, _, _) => assert_eq!(n, "fruit"),
         _ => panic!("should return moveto!"),
     };
 }
@@ -285,7 +285,7 @@ fn find_deer_wins() {
     println!("Got: {:#?}", &res);
 
     match res {
-        CreatureCommand::MoveTo(n, _, _) => assert_eq!(n, "find_deer"),
+        CreatureCommand::MoveTo(n, _, _, _) => assert_eq!(n, "find_deer"),
         _ => panic!("should return moveto!"),
     };
 }
@@ -300,7 +300,7 @@ fn attack_deer_wins() {
     println!("Got: {:#?}", &res);
 
     match res {
-        CreatureCommand::MoveTo(n, _, _) => assert_eq!(n, "attack_deer"),
+        CreatureCommand::MoveTo(n, _, _, _) => assert_eq!(n, "attack_deer"),
         _ => panic!("should return moveto!"),
     };
 }
@@ -315,7 +315,7 @@ fn loot_deer_wins() {
     println!("Got: {:#?}", &res);
 
     match res {
-        CreatureCommand::MoveTo(n, _, _) => assert_eq!(n, "loot_deer"),
+        CreatureCommand::MoveTo(n, _, _, _) => assert_eq!(n, "loot_deer"),
         _ => panic!("should return moveto!"),
     };
 }
@@ -330,7 +330,7 @@ fn eat_deer_wins() {
     println!("Got: {:#?}", &res);
 
     match res {
-        CreatureCommand::MoveTo(n, _, _) => assert_eq!(n, "eat"),
+        CreatureCommand::MoveTo(n, _, _, _) => assert_eq!(n, "eat"),
         _ => panic!("should return moveto!"),
     };
 }
@@ -345,7 +345,7 @@ fn sell_deer_wins() {
     println!("Got: {:#?}", &res);
 
     match res {
-        CreatureCommand::MoveTo(n, _, _) => assert_eq!(n, "sell"),
+        CreatureCommand::MoveTo(n, _, _, _) => assert_eq!(n, "sell"),
         _ => panic!("should return moveto!"),
     };
 }
@@ -360,7 +360,7 @@ fn attack_wolf_wins() {
     println!("Got: {:#?}", &res);
 
     match res {
-        CreatureCommand::MoveTo(n, _, _) => assert_eq!(n, "attack_wolf"),
+        CreatureCommand::MoveTo(n, _, _, _) => assert_eq!(n, "attack_wolf"),
         _ => panic!("should return moveto!"),
     };
 }
@@ -376,7 +376,7 @@ fn loot_wolf_wins() {
     println!("Got: {:#?}", &res);
 
     match res {
-        CreatureCommand::MoveTo(n, _, _) => assert_eq!(n, "loot_wolf"),
+        CreatureCommand::MoveTo(n, _, _, _) => assert_eq!(n, "loot_wolf"),
         _ => panic!("should return moveto!"),
     };
 }
@@ -392,7 +392,7 @@ fn sell_wolf_wins() {
     println!("Got: {:#?}", &res);
 
     match res {
-        CreatureCommand::MoveTo(n, _, _) => assert_eq!(n, "sell"),
+        CreatureCommand::MoveTo(n, _, _, _) => assert_eq!(n, "sell"),
         _ => panic!("should return moveto!"),
     };
 }

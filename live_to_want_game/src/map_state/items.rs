@@ -1,4 +1,4 @@
-use crate::{creature::CreatureState, utils::Vu2, tasks::EventChain, tasks::Event, tasks::EventType, tasks::EventTarget, utils::UID};
+use crate::{creature::CreatureState, tasks::Event, tasks::EventChain, tasks::EventTarget, tasks::EventType, Location, utils::UID, utils::Vu2};
 
 use super::MapLocation;
 
@@ -25,7 +25,7 @@ pub struct Item {
 #[derive(Debug)]
 pub enum CreatureCommand<'b>{
     // str here is for debugging purposes and is usually just the name of the node
-    MoveTo(&'static str, &'b CreatureState, Vu2),
+    MoveTo(&'static str, &'b CreatureState, Location, u128), // Assume this sets the destination not instantly move to
     Chase(&'static str, &'b CreatureState, &'b CreatureState),
     Attack(&'static str, &'b CreatureState, &'b CreatureState),
     TakeItem(&'static str, InventoryHolder<'b>, InventoryHolder<'b>, Item),
@@ -33,7 +33,19 @@ pub enum CreatureCommand<'b>{
 impl CreatureCommand<'_> {
     pub fn to_event_chain(&self) -> Option<EventChain> {
         match self {
-            CreatureCommand::MoveTo(_, _, _) => {}
+            CreatureCommand::MoveTo(_, c, destination, current_frame) => {
+                // TODONEXT: initialize movement component to new destination
+                let init_move = Event {
+                    event_type: EventType::InitializeMovement(*current_frame, *destination),
+                    on_fail: None,
+                    get_requirements: Box::new(|_,_| true),
+                    target: c.components.id_component.id(),
+                };
+                return Some(EventChain{
+                    index: 0,
+                    events: vec![init_move]
+                });
+            }
             CreatureCommand::Chase(_, _, _) => {}
             CreatureCommand::Attack(_, _, _) => {}
             CreatureCommand::TakeItem(_, src, dst, item) => {

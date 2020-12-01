@@ -1,6 +1,6 @@
 use std::fmt::Formatter;
 
-use crate::{map_state::Item, utils::Vector2, utils::Vu2};
+use crate::{map_state::Item, Location, utils::Vector2, utils::Vu2};
 
 use super::{ComponentMap, IDComponent, LocationComponent, HealthComponent, NameComponent, StarvationComponent, REPRODUCE_STARTING_CALORIES};
 
@@ -66,6 +66,10 @@ impl CreatureState {
             inventory: Vec::new(),
             memory: CreatureMemory::default(),
         }
+    }
+
+    pub fn get_location(&self) -> Location {
+        Location::new(self.components.region_component.region, self.components.location_component.location)
     }
 }
 impl Default for CreatureState {

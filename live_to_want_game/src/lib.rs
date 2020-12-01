@@ -213,7 +213,6 @@ fn run_frame(mut game_state: GameState, root: &GoalNode) -> GameState {
                         cit.for_each(
                             |c| {
                                 starvation_system(c);
-                                navigation_system(c);
                             }
                         );
                     }

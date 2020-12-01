@@ -90,14 +90,11 @@ pub fn starvation_system(c: &mut CreatureState) {
 }
 
 
-pub fn navigation_system(c: &mut CreatureState) {
-    // TODO if the target for the creature is currently blocked, fuck
-}
-
 pub fn movement_system(m: &MapState, c: &CreatureState) -> Option<EventChain> {
     if let Some(movement) = c.components.movement_component.as_ref() {
-        if movement.frame_ready_to_move <= m.frame_count {
-            let dest = m.location_to_map_location(&movement.destination).id_component_creatures.id();
+        if movement.moving && movement.frame_ready_to_move <= m.frame_count {
+            let next_move = m.navigate_to(&c.get_location(), &movement.destination);
+            let dest = m.location_to_map_location(&next_move).id_component_creatures.id();
             let rm_event = Event {
                 event_type: EventType::RemoveCreature(c.components.id_component.id(), 
                     Some(dest), m.frame_count),
@@ -105,6 +102,16 @@ pub fn movement_system(m: &MapState, c: &CreatureState) -> Option<EventChain> {
                 on_fail: None,
                 target: dest,
             };
+            let iter_move = Event {
+                event_type: EventType::IterateMovement(m.frame_count),
+                get_requirements: Box::new(|_,_| true),
+                on_fail: None,
+                target: c.components.id_component.id(),
+            };
+            return Some(EventChain {
+                index:0,
+                events: vec![rm_event, iter_move],
+            });
         }
     }
     None
