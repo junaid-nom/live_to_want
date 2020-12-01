@@ -42,7 +42,6 @@ pub fn budding_system(m: &MapState, c: &CreatureState) -> Option<EventChain> {
                 get_requirements: Box::new(|_,_| true),
             };
             Some(EventChain{
-                index: 0,
                 events: vec![create_event, bud_iterate_event],
             })
         } else {
@@ -54,7 +53,6 @@ pub fn budding_system(m: &MapState, c: &CreatureState) -> Option<EventChain> {
                 get_requirements: Box::new(|_,_| true),
             };
             Some(EventChain{
-                index: 0,
                 events: vec![event],
             })
         }
@@ -94,13 +92,14 @@ pub fn movement_system(m: &MapState, c: &CreatureState) -> Option<EventChain> {
     if let Some(movement) = c.components.movement_component.as_ref() {
         if movement.moving && movement.frame_ready_to_move <= m.frame_count {
             let next_move = m.navigate_to(&c.get_location(), &movement.destination);
+            let src = m.location_to_map_location(&c.get_location()).id_component_creatures.id();
             let dest = m.location_to_map_location(&next_move).id_component_creatures.id();
             let rm_event = Event {
                 event_type: EventType::RemoveCreature(c.components.id_component.id(), 
                     Some(dest), m.frame_count),
                 get_requirements: Box::new(|_,_| true),
                 on_fail: None,
-                target: dest,
+                target: src,
             };
             let iter_move = Event {
                 event_type: EventType::IterateMovement(m.frame_count),
@@ -109,7 +108,6 @@ pub fn movement_system(m: &MapState, c: &CreatureState) -> Option<EventChain> {
                 target: c.components.id_component.id(),
             };
             return Some(EventChain {
-                index:0,
                 events: vec![rm_event, iter_move],
             });
         }

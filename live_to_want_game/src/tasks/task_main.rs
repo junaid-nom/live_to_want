@@ -25,21 +25,20 @@ impl TaskList<'_, '_> {
 
 #[derive(Debug)]
 pub struct EventChain {
-    pub index: usize,
+    //pub index: usize,
     pub events: Vec<Event>,
 }
 impl EventChain {
-    fn process(self, effected: &mut EventTarget) -> Option<EventChain> {
-        let e = &self.events[*&self.index];
+    fn process(mut self, effected: &mut EventTarget) -> Option<EventChain> {
+        let e = self.events.remove(0);
         let success = (*e.get_requirements)(&*effected, &e.event_type);
         if success {
             let added_event = e.mutate(effected);
             let mut se = self;
-            se.index+=1;
             if let Some(e) = added_event {
-                se.events.insert(se.index, e);
+                se.events.push(e);
             }
-            if se.events.len() > se.index {
+            if se.events.len() > 0 {
                 Some(se)
             }
             else {
@@ -47,7 +46,7 @@ impl EventChain {
             }
         } else {
             let mut e = self;
-            e.events.remove(e.index).on_fail
+            e.events.remove(0).on_fail
         }
     }
 }
@@ -79,18 +78,18 @@ pub struct Event {
     pub target: UID,
 }
 impl Event {
-    pub fn mutate(&self, effected: &mut EventTarget) -> Option<Event> {
-        match &self.event_type {
+    pub fn mutate(self, effected: &mut EventTarget) -> Option<Event> {
+        match self.event_type {
             EventType::RemoveCreature(id, next_op, current_frame) => {
                 match effected {
                     EventTarget::LocationCreaturesTarget(v, _) => {
-                        let rmed = v.drain_specific_creature(*id, *current_frame);
+                        let rmed = v.drain_specific_creature(id, current_frame);
                         if let Some(next) = next_op {
                             return Some(Event {
-                                event_type: EventType::AddCreature(rmed, *current_frame),
+                                event_type: EventType::AddCreature(rmed, current_frame),
                                 get_requirements: Box::new(|_, _| true),
                                 on_fail: None,
-                                target: *next,
+                                target: next,
                             });
                         } else {
                             return None;
@@ -100,6 +99,12 @@ impl Event {
                 }
             },
             EventType::AddCreature(c, current_frame) => {
+                match effected {
+                    EventTarget::LocationCreaturesTarget(c_list, id) => {
+                        c_list.add_creature(c, current_frame);
+                    }
+                    _ => { panic!("trying to add creature wrong target"); }
+                }
                 return None
             },
             EventType::RemoveItem(q, t) => {
@@ -109,7 +114,7 @@ impl Event {
                         let mut zero_index = None;
                         let mut i = 0;
                         for v in v.iter_mut() {
-                            if v.item_type == *t {
+                            if v.item_type == t {
                                 v.quantity -= q;
                                 found = true;
                                 if v.quantity == 0 {
@@ -132,7 +137,7 @@ impl Event {
                         let mut i = 0;
                         for v in c.inventory.iter_mut() {
                             
-                            if v.item_type == *t {
+                            if v.item_type == t {
                                 v.quantity -= q;
                                 found = true;
                                 if v.quantity == 0 {
@@ -161,27 +166,27 @@ impl Event {
                     EventTarget::LocationItemTarget(v, _) => {
                         let mut inventory = v;
                         for v in inventory.iter_mut() {
-                            if v.item_type == *t {
+                            if v.item_type == t {
                                 v.quantity += q;
                                 return None;
                             }
                         }
                         inventory.push(Item{
-                            item_type: *t,
-                            quantity: *q,
+                            item_type: t,
+                            quantity: q,
                         });
                         return None
                     }
                     EventTarget::CreatureTarget(c) => {
                         for v in c.inventory.iter_mut() {
-                            if v.item_type == *t {
+                            if v.item_type == t {
                                 v.quantity += q;
                                 return None;
                             }
                         }
                         c.inventory.push(Item{
-                            item_type: *t,
-                            quantity: *q,
+                            item_type: t,
+                            quantity: q,
                         });
                         return None
                     }
@@ -207,7 +212,7 @@ impl Event {
                         let movement = c.components.movement_component.as_mut().unwrap();
                         let dst_reached =  c.components.location_component.location == movement.destination.position &&
                         c.components.region_component.region == movement.destination.region;
-                        movement.check_ready_and_reset_move(*current_frame, dst_reached);
+                        movement.check_ready_and_reset_move(current_frame, dst_reached);
                         None
                     },
                     _ => panic!("Wrong event target for budding")
@@ -217,7 +222,7 @@ impl Event {
                 match effected {
                     EventTarget::CreatureTarget(c) => {
                         let movement = c.components.movement_component.as_mut().unwrap();
-                        movement.set_new_destination(*destination, *current_frame);
+                        movement.set_new_destination(destination, current_frame);
                         None
                     },
                     _ => panic!("Wrong event target for budding")
@@ -254,17 +259,21 @@ pub fn process_events_from_mapstate (m: &mut MapState, event_chains: Vec<EventCh
         x.par_iter_mut().flat_map(|y| {
             y.grid.par_iter_mut().flat_map(|xl| {
                 xl.par_iter_mut().flat_map(|yl| {
-                    if let Some(cit) = yl.creatures.get_par_iter_mut() {
+                    let mut creatures = &mut yl.creatures;
+                    let mut ret = if let Some(cit) = creatures.get_par_iter_mut() {
                         let mut cc: Vec<EventTarget> = cit.map(
                             |c| {
                             EventTarget::CreatureTarget(c)
                             }
                         ).collect();
                         cc.push(EventTarget::LocationItemTarget(&mut yl.items, yl.id_component_items.id()));
+                        
                         cc
                     } else {
                         Vec::new()
-                    }
+                    };
+                    ret.push(EventTarget::LocationCreaturesTarget(creatures, yl.id_component_creatures.id()));
+                    ret
                 })
             })
         })
@@ -286,11 +295,13 @@ pub fn process_events<'a, 'b>(targets: &'a mut Vec<EventTarget<'b>>, event_chain
                 EventTarget::CreatureTarget(c) => {c.components.id_component.id()}
                 EventTarget::LocationCreaturesTarget(_, id) => {*id}
             };
+            println!("Adding id: {}", id);
             uid_map.insert(id, t);
         }
     }
     for ec in event_chains.into_iter() {
-        let key = ec.events[ec.index].target;
+        let key = ec.events[0].target;
+        println!("looking at key: {}", key);
         match tasks_map.get_mut(&key) {
             Some(tl) => {
                 tl.tasks.push(ec);

@@ -42,7 +42,6 @@ impl CreatureCommand<'_> {
                     target: c.components.id_component.id(),
                 };
                 return Some(EventChain{
-                    index: 0,
                     events: vec![init_move]
                 });
             }
@@ -103,7 +102,6 @@ impl CreatureCommand<'_> {
                     target: get_id_from_inventory(dst),
                 };
                 return Some(EventChain{
-                    index: 0,
                     events: vec![remove, add],
                 })
             }
