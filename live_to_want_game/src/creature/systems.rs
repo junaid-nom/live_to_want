@@ -1,6 +1,6 @@
 use rand::Rng;
 
-use crate::{map_state::MapState, tasks::EventChain, tasks::Event, tasks::EventType, Vu2};
+use crate::{Vu2, map_state::MapState, tasks::Event, tasks::EventChain, tasks::EventType, Location};
 
 use super::{CreatureState, STARVING_SLOW_METABOLISM_FACTOR};
 
@@ -88,12 +88,13 @@ pub fn starvation_system(c: &mut CreatureState) {
 }
 
 
-pub fn movement_system(m: &MapState, c: &CreatureState) -> Option<EventChain> {
+pub fn movement_system_move(m: &MapState, c: &CreatureState) -> Option<EventChain> {
     if let Some(movement) = c.components.movement_component.as_ref() {
         if movement.moving && movement.frame_ready_to_move <= m.frame_count {
             let next_move = m.navigate_to(&c.get_location(), &movement.destination);
             let src = m.location_to_map_location(&c.get_location()).id_component_creatures.id();
             let dest = m.location_to_map_location(&next_move).id_component_creatures.id();
+            println!("creating movement src id: {} , creature loc: {:?} dst loc: {:?} dst id: {}", src, c.get_location(), next_move, dest);
             let rm_event = Event {
                 event_type: EventType::RemoveCreature(c.components.id_component.id(), 
                     Some(dest), m.frame_count),
@@ -101,17 +102,31 @@ pub fn movement_system(m: &MapState, c: &CreatureState) -> Option<EventChain> {
                 on_fail: None,
                 target: src,
             };
-            let iter_move = Event {
-                event_type: EventType::IterateMovement(m.frame_count),
-                get_requirements: Box::new(|_,_| true),
-                on_fail: None,
-                target: c.components.id_component.id(),
-            };
+            // let iter_move = Event {
+            //     event_type: EventType::IterateMovement(m.frame_count),
+            //     get_requirements: Box::new(|_,_| true),
+            //     on_fail: None,
+            //     target: c.components.id_component.id(),
+            // };
             return Some(EventChain {
-                events: vec![rm_event, iter_move],
+                events: vec![rm_event],
             });
         }
     }
     None
 }
 
+pub fn movement_system_iterate(current_frame: u128, c: &mut CreatureState, current_location: Location) {
+    if let Some(movement) = c.components.movement_component.as_mut() {
+        if movement.moving && movement.frame_ready_to_move <= current_frame {
+            let dst_reached =  c.components.location_component.location == movement.destination.position &&
+            c.components.region_component.region == movement.destination.region;
+            movement.check_ready_and_reset_move(current_frame, dst_reached);
+            
+        }
+    }
+    // actually update there position!
+    // TODO maybe only needs to change after movement system changed position, so can put inside the if above for speed?
+    c.components.region_component.region = current_location.region;
+    c.components.location_component.location = current_location.position;
+}

@@ -206,18 +206,18 @@ impl Event {
                     _ => panic!("Wrong event target for budding")
                 }
             }
-            EventType::IterateMovement(current_frame) => {
-                match effected {
-                    EventTarget::CreatureTarget(c) => {
-                        let movement = c.components.movement_component.as_mut().unwrap();
-                        let dst_reached =  c.components.location_component.location == movement.destination.position &&
-                        c.components.region_component.region == movement.destination.region;
-                        movement.check_ready_and_reset_move(current_frame, dst_reached);
-                        None
-                    },
-                    _ => panic!("Wrong event target for budding")
-                }
-            }
+            // EventType::IterateMovement(current_frame) => {
+            //     match effected {
+            //         EventTarget::CreatureTarget(c) => {
+            //             let movement = c.components.movement_component.as_mut().unwrap();
+            //             let dst_reached =  c.components.location_component.location == movement.destination.position &&
+            //             c.components.region_component.region == movement.destination.region;
+            //             movement.check_ready_and_reset_move(current_frame, dst_reached);
+            //             None
+            //         },
+            //         _ => panic!("Wrong event target for budding")
+            //     }
+            // }
             EventType::InitializeMovement(current_frame, destination) => {
                 match effected {
                     EventTarget::CreatureTarget(c) => {
@@ -247,11 +247,11 @@ pub enum EventType {
     RemoveItem(u32, ItemType),
     AddItem(u32, ItemType),
     IterateBudding(),
-    IterateMovement(u128),
+    //IterateMovement(u128),
     InitializeMovement(u128, Location),
 }
 
-pub fn process_events_from_mapstate (m: &mut MapState, event_chains: Vec<EventChain>) {
+pub fn process_events_from_mapstate (m: &mut MapState, event_chains: Vec<EventChain>, creature_list_targets: bool) {
     // get a mut ref to all creatures and locations?
     // note have to do it in a SINGLE LOOP because otherwise compiler gets confused with
     // multiple m.region mut refs. UGG
@@ -260,19 +260,22 @@ pub fn process_events_from_mapstate (m: &mut MapState, event_chains: Vec<EventCh
             y.grid.par_iter_mut().flat_map(|xl| {
                 xl.par_iter_mut().flat_map(|yl| {
                     let mut creatures = &mut yl.creatures;
-                    let mut ret = if let Some(cit) = creatures.get_par_iter_mut() {
-                        let mut cc: Vec<EventTarget> = cit.map(
-                            |c| {
-                            EventTarget::CreatureTarget(c)
-                            }
-                        ).collect();
-                        cc.push(EventTarget::LocationItemTarget(&mut yl.items, yl.id_component_items.id()));
-                        
-                        cc
-                    } else {
-                        Vec::new()
-                    };
-                    ret.push(EventTarget::LocationCreaturesTarget(creatures, yl.id_component_creatures.id()));
+                    let mut ret = Vec::new();
+                    if creatures.holds_creatures() {
+                        if creature_list_targets {
+                            ret.push(EventTarget::LocationCreaturesTarget(creatures, yl.id_component_creatures.id()));
+                        } else {
+                            let mut creatures = if let Some(cit) = creatures.get_par_iter_mut() {
+                                let mut cc: Vec<EventTarget> = cit.map(
+                                    |c| {
+                                    EventTarget::CreatureTarget(c)
+                                    }
+                                ).collect();
+                                ret.extend(cc);
+                            };
+                        }
+                    }
+                    ret.push(EventTarget::LocationItemTarget(&mut yl.items, yl.id_component_items.id()));
                     ret
                 })
             })
@@ -295,13 +298,13 @@ pub fn process_events<'a, 'b>(targets: &'a mut Vec<EventTarget<'b>>, event_chain
                 EventTarget::CreatureTarget(c) => {c.components.id_component.id()}
                 EventTarget::LocationCreaturesTarget(_, id) => {*id}
             };
-            println!("Adding id: {}", id);
+            //println!("Adding id: {}", id);
             uid_map.insert(id, t);
         }
     }
     for ec in event_chains.into_iter() {
         let key = ec.events[0].target;
-        println!("looking at key: {}", key);
+        println!("looking at target: {}", key);
         match tasks_map.get_mut(&key) {
             Some(tl) => {
                 tl.tasks.push(ec);

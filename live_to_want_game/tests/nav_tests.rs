@@ -205,7 +205,7 @@ fn nav_test_region_map_hypothetical_blocks() {
     let blocked_hard = vec![
         //Vu2::new(0,0), Vu2::new(xlen as i32 -1,ylen as i32 -1), Vu2::new(xlen as i32 -1,0), Vu2::new(0, ylen as i32 - 1), 
         Vu2::new(0,0), Vu2::new(1,0), Vu2::new(2,0), Vu2::new(3,1), Vu2::new(4,2), Vu2::new(1,1), Vu2::new(2,2)];
-    let r = MapRegion::new(Vu2::new(1,1), xlen,ylen, 0, &blocked_hard
+    let r = MapRegion::new(Vu2::new(0,0), Vu2::new(1,1), xlen,ylen, 0, &blocked_hard
         , true, true, false, true);
     let leftv = Vu2::new(0,2 );
     let rightv = Vu2::new(6,2 );
@@ -308,7 +308,7 @@ fn nav_test_invalid_regions_1() {
     let blocked_hard = vec![
         Vu2::new(2, 0)
         ];
-    let r = MapRegion::new(Vu2::new(1,1), xlen,ylen, 0, &blocked_hard
+    let r = MapRegion::new(Vu2::new(0,0),Vu2::new(1,1), xlen,ylen, 0, &blocked_hard
         , false, true, true, true);
     let leftv = Vu2::new(0,ylen/2 );
     let rightv = Vu2::new(xlen-1,ylen/2 );
@@ -338,7 +338,7 @@ fn nav_test_invalid_regions_2() {
     let blocked_hard = vec![
         Vu2::new(0, ylen-1), Vu2::new(1, ylen-1), Vu2::new(2, ylen-1), Vu2::new(3, ylen-1)
         ];
-    let r = MapRegion::new(Vu2::new(1,1), xlen,ylen, 0, &blocked_hard
+    let r = MapRegion::new(Vu2::new(0,0),Vu2::new(1,1), xlen,ylen, 0, &blocked_hard
         , false, true, true, true);
     let leftv = Vu2::new(0,ylen/2 );
     let rightv = Vu2::new(xlen-1,ylen/2 );
@@ -369,7 +369,7 @@ fn nav_test_invalid_regions_3() {
     let blocked_hard = vec![
         Vu2::new(1, ylen-1), Vu2::new(2, ylen-1), Vu2::new(3, ylen-1)
     ];
-    let r = MapRegion::new(Vu2::new(1,1), xlen,ylen, 0, &blocked_hard
+    let r = MapRegion::new(Vu2::new(0,0),Vu2::new(1,1), xlen,ylen, 0, &blocked_hard
         , true, true, true, true);
     let leftv = Vu2::new(0,ylen/2 );
     let rightv = Vu2::new(xlen-1,ylen/2 );
@@ -400,7 +400,7 @@ fn nav_test_invalid_regions_4() {
     let blocked_hard = vec![
         Vu2::new(0, ylen-1), Vu2::new(1, ylen-1), Vu2::new(2, ylen-1), Vu2::new(3, ylen-1), Vu2::new(4, ylen-1)
     ];
-    let r = MapRegion::new(Vu2::new(1,1), xlen,ylen, 0, &blocked_hard
+    let r = MapRegion::new(Vu2::new(0,0),Vu2::new(1,1), xlen,ylen, 0, &blocked_hard
         , true, true, true, true);
     let leftv = Vu2::new(0,ylen/2 );
     let rightv = Vu2::new(xlen-1,ylen/2 );
@@ -431,7 +431,7 @@ fn nav_test_invalid_regions_5() {
     let blocked_hard = vec![
         Vu2::new(xlen-1, ylen/2)
     ];
-    let r = MapRegion::new(Vu2::new(1,1), xlen,ylen, 0, &blocked_hard
+    let r = MapRegion::new(Vu2::new(0,0),Vu2::new(1,1), xlen,ylen, 0, &blocked_hard
         , true, true, true, true);
     let leftv = Vu2::new(0,ylen/2 );
     let rightv = Vu2::new(xlen-1,ylen/2 );

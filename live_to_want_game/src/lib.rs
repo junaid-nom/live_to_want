@@ -99,7 +99,7 @@ fn run_frame(mut game_state: GameState, root: &GoalNode) -> GameState {
     }).collect();
     let mut event_chains: Vec<EventChain> = unwrap_option_list(spawn_events);
 
-    process_events_from_mapstate(&mut m, event_chains);
+    process_events_from_mapstate(&mut m, event_chains, false);
 
     // TODO: Deal with blockers that spawned
     // first vec is BLOCKERS second vec is NON BLOCKERS
@@ -207,12 +207,16 @@ fn run_frame(mut game_state: GameState, root: &GoalNode) -> GameState {
     // nav system
     m.regions.par_iter_mut().for_each(|x| {
         x.par_iter_mut().for_each(|y| {
+            let region_loc = y.location;
             y.grid.par_iter_mut().for_each(|xl| {
                 xl.par_iter_mut().for_each(|yl| {
+                    let position = yl.location;
+                    let location = Location::new(region_loc, position);
                     if let Some(cit) = yl.creatures.get_par_iter_mut() {
                         cit.for_each(
                             |c| {
                                 starvation_system(c);
+                                movement_system_iterate(current_frame, c, location);
                             }
                         );
                     }
@@ -221,7 +225,7 @@ fn run_frame(mut game_state: GameState, root: &GoalNode) -> GameState {
         })
     });
 
-    // Can run immutable systems that rely on reading entire mapstate here
+    // Can run immutable systems that rely on reading entire mapstate and need entire creature-list targets here
     let mov_op_ecs: Vec<Option<EventChain>> = m.regions.par_iter().flat_map(|x| {
         x.par_iter().flat_map(|y| {
             y.grid.par_iter().flat_map(|xl| {
@@ -229,7 +233,7 @@ fn run_frame(mut game_state: GameState, root: &GoalNode) -> GameState {
                     if let Some(cit) = yl.creatures.get_par_iter() {
                         let ret: Vec<Option<EventChain>> = cit.map(
                             |c| {
-                                movement_system(&m, c)
+                                movement_system_move(&m, c)
                             }
                         ).collect();
                         return ret;
@@ -241,7 +245,7 @@ fn run_frame(mut game_state: GameState, root: &GoalNode) -> GameState {
         })
     }).collect();
     let mut event_chains: Vec<EventChain> = unwrap_option_list(mov_op_ecs);
-    process_events_from_mapstate(&mut m, event_chains);
+    process_events_from_mapstate(&mut m, event_chains, true);
 
     // TODO: Send out current map state to users via websocket
     // TODO: Then wait for them to respond if doing by-frame, or a timer
@@ -270,7 +274,7 @@ fn run_frame(mut game_state: GameState, root: &GoalNode) -> GameState {
         })
     }).collect();
     let mut event_chains = unwrap_option_list(op_ecs);
-    process_events_from_mapstate(&mut m, event_chains);
+    process_events_from_mapstate(&mut m, event_chains, false);
 
     // Death system
     // TODO: Update nav system if blockers died

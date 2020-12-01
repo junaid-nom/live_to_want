@@ -13,7 +13,7 @@ fn test_movement() {
         vec![openr.clone(),openr.clone()],
         vec![openr.clone(),openr.clone()],
     ];
-    //create map 
+    //create map
     let mut map = MapState::new(rgrid, 0);
     //make creature
     let mut c = CreatureState::new_location(Location::new(Vu2::new(0,0), Vu2::new(1,1)));
@@ -34,11 +34,12 @@ fn test_movement() {
     }).collect();
     
     //process init EC
-    process_events_from_mapstate(&mut map, move_chain);
+    process_events_from_mapstate(&mut map, move_chain, false);
 
     //in loop:
-    for frame_add in 0..2 {
+    for frame_add in 0..4 {
         map.frame_count+=1;
+        let current_frame = map.frame_count;
         println!("Starting frame: {}", map.frame_count);
         //run movement system
         let mov_op_ecs: Vec<Option<EventChain>> = map.regions.par_iter().flat_map(|x| {
@@ -48,7 +49,7 @@ fn test_movement() {
                         if let Some(cit) = yl.creatures.get_par_iter() {
                             let ret: Vec<Option<EventChain>> = cit.map(
                                 |c| {
-                                    movement_system(&map, c)
+                                    movement_system_move(&map, c)
                                 }
                             ).collect();
                             return ret;
@@ -61,9 +62,29 @@ fn test_movement() {
         }).collect();
         //process movement event if there are any
         let mut event_chains: Vec<EventChain> = unwrap_option_list(mov_op_ecs);
-        process_events_from_mapstate(&mut map, event_chains);
+        process_events_from_mapstate(&mut map, event_chains, true);
+
+        // iterate on movement system for each creature
+        map.regions.par_iter_mut().for_each(|x| {
+            x.par_iter_mut().for_each(|y| {
+                let region_loc = y.location;
+                y.grid.par_iter_mut().for_each(|xl| {
+                    xl.par_iter_mut().for_each(|yl| {
+                        let position = yl.location;
+                        let location = Location::new(region_loc, position);
+                        if let Some(cit) = yl.creatures.get_par_iter_mut() {
+                            cit.for_each(
+                                |c| {
+                                    movement_system_iterate(current_frame, c, location);
+                                }
+                            );
+                        }
+                    })
+                })
+            })
+        });
     }
-    // make sure creature location changes to what it shud be
+    // TODONEXT: make sure creature location changes to what it shud be
 
 }
 

@@ -36,6 +36,7 @@ impl IndexMut<Vu2> for RegionGrid {
 #[derive(Debug)]
 #[derive(Default, Clone)]
 pub struct RegionCreationStruct {
+    pub location: Vu2,
     pub map_size: Vu2,
     pub xlen: usize,
     pub ylen: usize,
@@ -54,6 +55,7 @@ impl RegionCreationStruct {
         no_creatures: Vec<Vu2>,
     ) -> Self {
         RegionCreationStruct {
+            location:Vu2::new(0,0), // should be set by MapState::new
             map_size: Vu2::new(0,0),
             xlen,
             ylen,
@@ -82,6 +84,7 @@ impl MapState {
             for y in 0..rstructs[0].len() {
                 let loc = Vu2::new(x,y);
                 rstructs[loc.x][loc.y].map_size = Vu2::new(xlen, ylen);
+                rstructs[loc.x][loc.y].location = loc;
                 if rstructs[loc.x][loc.y].xlen > 0 && rstructs[loc.x][loc.y].ylen > 0 {
                     for n in loc.get_valid_neighbors(xlen, ylen) {
                         match n {
@@ -179,7 +182,7 @@ impl MapState {
         // will get weird cause if u change the viable entrance/exits of regions it would mean needing to change the
         // between region map as well.
         // Need to also teach AI how to like "break" things to create shorter path?
-        let mut ret = Location::new(Vu2::new(0,0), Vu2::new(0,0));
+        let mut ret = Location::new(Vu2::new(0,0), Vu2::new(start.position.x+1,start.position.y));
         // if start.region == goal.region {
         //     let mut current_loc = start.position;
         //     while current_loc != goal.position {
@@ -570,6 +573,7 @@ impl IndexMut<Vu2> for MapLocationGrid {
 #[derive(Debug)]
 #[derive(Default)]
 pub struct MapRegion {
+    pub location: Vu2,
     pub exists: bool,
     pub grid: MapLocationGrid,
     pub last_frame_changed: u128, // if nav system last updated before this frame, update it
@@ -617,7 +621,7 @@ impl fmt::Display for MapRegion {
     }
 }
 impl MapRegion {
-    pub fn new(map_size: Vu2, xlen: usize, ylen: usize, current_frame: u128, no_creatures: &Vec<Vu2>, has_left_neighbor: bool, has_right_neighbor: bool, has_up_neighbor: bool, has_down_neighbor: bool) -> Self {
+    pub fn new(location: Vu2, map_size: Vu2, xlen: usize, ylen: usize, current_frame: u128, no_creatures: &Vec<Vu2>, has_left_neighbor: bool, has_right_neighbor: bool, has_up_neighbor: bool, has_down_neighbor: bool) -> Self {
         let mut grid: Vec<Vec<MapLocation>> = Vec::new();
         if xlen > 0 && ylen > 0 {
             for x in 0..xlen {
@@ -741,6 +745,7 @@ impl MapRegion {
         }
 
         let mut ret = MapRegion {
+            location,
             exists: xlen > 0 && ylen > 0,
             grid,
             last_frame_changed: current_frame,
@@ -758,7 +763,7 @@ impl MapRegion {
         ret
     }
     pub fn new_struct(rstruct: RegionCreationStruct) -> Self {
-        MapRegion::new(rstruct.map_size, rstruct.xlen, rstruct.ylen, rstruct.current_frame, &rstruct.no_creatures, rstruct.has_left_neighbor, rstruct.has_right_neighbor, rstruct.has_up_neighbor, rstruct.has_down_neighbor)
+        MapRegion::new(rstruct.location, rstruct.map_size, rstruct.xlen, rstruct.ylen, rstruct.current_frame, &rstruct.no_creatures, rstruct.has_left_neighbor, rstruct.has_right_neighbor, rstruct.has_up_neighbor, rstruct.has_down_neighbor)
     }
 
     pub fn get_exit_points_string(&self) -> String {
@@ -815,6 +820,7 @@ impl MapRegion {
             grid.push(new_col);
         }
         MapRegion {
+            location: src.location,
             exists: src.exists,
             grid,
             last_frame_changed: src.last_frame_changed,
@@ -1306,8 +1312,11 @@ impl CreatureList {
     }
 
     pub fn drain_specific_creature(&mut self, id: UID, current_frame: u128) -> CreatureState {
-        let to_rm = self.creatures.as_ref().unwrap().iter().position(|c: &CreatureState| {
-            c.components.id_component.id() != id
+        println!("Looking for creature id: {}", id);
+        let cref = self.creatures.as_ref().unwrap();
+        println!("Creatures: {:#?}", cref);
+        let to_rm = cref.iter().position(|c: &CreatureState| {
+            c.components.id_component.id() == id
         }).unwrap();
         let rmed = self.creatures.as_mut().unwrap().remove(to_rm);
         if let Some(_) = rmed.components.block_space_component {
