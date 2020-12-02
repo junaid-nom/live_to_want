@@ -29,15 +29,17 @@ fn test_movement() {
     println!("0,0-1,1 id: {}", map.regions[0][0].grid[1][1].id_component_creatures.id());
     //create command to move
     //generate event chain init movement
+    let dst_region = Vu2::new(2,1);
+    let dst_position = Vu2::new(3,3);
     let move_chain: Vec<EventChain> = map.regions[0][0].grid[1][1].creatures.get_par_iter().unwrap().map(|c| {
-        CreatureCommand::MoveTo("test_move", c, Location::new(Vu2::new(2,1), Vu2::new(3,3)), 0).to_event_chain().unwrap()
+        CreatureCommand::MoveTo("test_move", c, Location::new(dst_region, dst_position), 0).to_event_chain().unwrap()
     }).collect();
     
     //process init EC
     process_events_from_mapstate(&mut map, move_chain, false);
 
     //in loop:
-    for frame_add in 0..4 {
+    for frame_add in 0..40 {
         map.frame_count+=1;
         let current_frame = map.frame_count;
         println!("Starting frame: {}", map.frame_count);
@@ -85,6 +87,7 @@ fn test_movement() {
         });
     }
     // TODONEXT: make sure creature location changes to what it shud be
-
+    // also make sure movement is stopped
+    println!("creatures at target: {:#?}", map.regions[dst_region].grid[dst_position].creatures);
 }
 

@@ -49,6 +49,14 @@ impl Neighbor {
             Neighbor::Up(v) => {*v}
         }
     }
+    pub fn opposite(&self) -> Neighbor {
+        match &self {
+            Neighbor::Left(v) => {Neighbor::Right(*v)}
+            Neighbor::Right(v) => {Neighbor::Left(*v)}
+            Neighbor::Down(v) => {Neighbor::Up(*v)}
+            Neighbor::Up(v) => {Neighbor::Down(*v)}
+        }
+    }
 }
 
 #[derive(Debug)]

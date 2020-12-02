@@ -92,6 +92,7 @@ pub fn movement_system_move(m: &MapState, c: &CreatureState) -> Option<EventChai
     if let Some(movement) = c.components.movement_component.as_ref() {
         if movement.moving && movement.frame_ready_to_move <= m.frame_count {
             let next_move = m.navigate_to(&c.get_location(), &movement.destination);
+            println!("moving from: {:?} to {:?}", c.get_location(), next_move);
             let src = m.location_to_map_location(&c.get_location()).id_component_creatures.id();
             let dest = m.location_to_map_location(&next_move).id_component_creatures.id();
             println!("creating movement src id: {} , creature loc: {:?} dst loc: {:?} dst id: {}", src, c.get_location(), next_move, dest);
