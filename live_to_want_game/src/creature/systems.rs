@@ -118,16 +118,15 @@ pub fn movement_system_move(m: &MapState, c: &CreatureState) -> Option<EventChai
 }
 
 pub fn movement_system_iterate(current_frame: u128, c: &mut CreatureState, current_location: Location) {
+    // actually update there position!
+    // TODO maybe only needs to change after movement system changed position, so can put inside the if above for speed?
+    c.components.region_component.region = current_location.region;
+    c.components.location_component.location = current_location.position;
     if let Some(movement) = c.components.movement_component.as_mut() {
         if movement.moving && movement.frame_ready_to_move <= current_frame {
             let dst_reached =  c.components.location_component.location == movement.destination.position &&
             c.components.region_component.region == movement.destination.region;
             movement.check_ready_and_reset_move(current_frame, dst_reached);
-            
         }
     }
-    // actually update there position!
-    // TODO maybe only needs to change after movement system changed position, so can put inside the if above for speed?
-    c.components.region_component.region = current_location.region;
-    c.components.location_component.location = current_location.position;
 }
