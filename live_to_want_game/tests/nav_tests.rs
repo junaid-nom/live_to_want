@@ -213,15 +213,15 @@ fn nav_test_region_map_hypothetical_blocks() {
     let upv = Vu2::new(3,4 );
     let middlev = Vu2::new(3,2);
     println!("leftv: {:?}", leftv);
-    println!("{}", r.get_distance_strings(&leftv).join("\n"));
+    println!("{}", r.get_distance_strings(&leftv));
     println!("rightv: {:?}", rightv);
-    println!("{}", r.get_distance_strings(&rightv).join("\n"));
+    println!("{}", r.get_distance_strings(&rightv));
     println!("downv: {:?}", downv);
-    println!("{}", r.get_distance_strings(&downv).join("\n"));
+    println!("{}", r.get_distance_strings(&downv));
     println!("upv: {:?}", upv);
-    println!("{}", r.get_distance_strings(&upv).join("\n"));
+    println!("{}", r.get_distance_strings(&upv));
     println!("middlev: {:?}", middlev);
-    println!("{}", r.get_distance_strings(&middlev).join("\n"));
+    println!("{}", r.get_distance_strings(&middlev));
     
     println!("Printing whole region");
     println!("{}", r);
@@ -316,15 +316,15 @@ fn nav_test_invalid_regions_1() {
     let upv = Vu2::new(xlen/2,ylen-1 );
     let middlev = Vu2::new(xlen/2,ylen/2);
     println!("leftv: {:?}", leftv);
-    println!("{}", r.get_distance_strings(&leftv).join("\n"));
+    println!("{}", r.get_distance_strings(&leftv));
     println!("rightv: {:?}", rightv);
-    println!("{}", r.get_distance_strings(&rightv).join("\n"));
+    println!("{}", r.get_distance_strings(&rightv));
     println!("downv: {:?}", downv);
-    println!("{}", r.get_distance_strings(&downv).join("\n"));
+    println!("{}", r.get_distance_strings(&downv));
     println!("upv: {:?}", upv);
-    println!("{}", r.get_distance_strings(&upv).join("\n"));
+    println!("{}", r.get_distance_strings(&upv));
     println!("middlev: {:?}", middlev);
-    println!("{}", r.get_distance_strings(&middlev).join("\n"));
+    println!("{}", r.get_distance_strings(&middlev));
     
     println!("Printing whole region");
     println!("{}", r);
@@ -346,15 +346,15 @@ fn nav_test_invalid_regions_2() {
     let upv = Vu2::new(xlen/2,ylen-1 );
     let middlev = Vu2::new(xlen/2,ylen/2);
     println!("leftv: {:?}", leftv);
-    println!("{}", r.get_distance_strings(&leftv).join("\n"));
+    println!("{}", r.get_distance_strings(&leftv));
     println!("rightv: {:?}", rightv);
-    println!("{}", r.get_distance_strings(&rightv).join("\n"));
+    println!("{}", r.get_distance_strings(&rightv));
     println!("downv: {:?}", downv);
-    println!("{}", r.get_distance_strings(&downv).join("\n"));
+    println!("{}", r.get_distance_strings(&downv));
     println!("upv: {:?}", upv);
-    println!("{}", r.get_distance_strings(&upv).join("\n"));
+    println!("{}", r.get_distance_strings(&upv));
     println!("middlev: {:?}", middlev);
-    println!("{}", r.get_distance_strings(&middlev).join("\n"));
+    println!("{}", r.get_distance_strings(&middlev));
     
     println!("Printing whole region");
     println!("{}", r);
@@ -377,15 +377,15 @@ fn nav_test_invalid_regions_3() {
     let upv = Vu2::new(xlen/2,ylen-1 );
     let middlev = Vu2::new(xlen/2,ylen/2);
     println!("leftv: {:?}", leftv);
-    println!("{}", r.get_distance_strings(&leftv).join("\n"));
+    println!("{}", r.get_distance_strings(&leftv));
     println!("rightv: {:?}", rightv);
-    println!("{}", r.get_distance_strings(&rightv).join("\n"));
+    println!("{}", r.get_distance_strings(&rightv));
     println!("downv: {:?}", downv);
-    println!("{}", r.get_distance_strings(&downv).join("\n"));
+    println!("{}", r.get_distance_strings(&downv));
     println!("upv: {:?}", upv);
-    println!("{}", r.get_distance_strings(&upv).join("\n"));
+    println!("{}", r.get_distance_strings(&upv));
     println!("middlev: {:?}", middlev);
-    println!("{}", r.get_distance_strings(&middlev).join("\n"));
+    println!("{}", r.get_distance_strings(&middlev));
     
     println!("Printing whole region");
     println!("{}", r);
@@ -408,15 +408,15 @@ fn nav_test_invalid_regions_4() {
     let upv = Vu2::new(xlen/2,ylen-1 );
     let middlev = Vu2::new(xlen/2,ylen/2);
     println!("leftv: {:?}", leftv);
-    println!("{}", r.get_distance_strings(&leftv).join("\n"));
+    println!("{}", r.get_distance_strings(&leftv));
     println!("rightv: {:?}", rightv);
-    println!("{}", r.get_distance_strings(&rightv).join("\n"));
+    println!("{}", r.get_distance_strings(&rightv));
     println!("downv: {:?}", downv);
-    println!("{}", r.get_distance_strings(&downv).join("\n"));
+    println!("{}", r.get_distance_strings(&downv));
     println!("upv: {:?}", upv);
-    println!("{}", r.get_distance_strings(&upv).join("\n"));
+    println!("{}", r.get_distance_strings(&upv));
     println!("middlev: {:?}", middlev);
-    println!("{}", r.get_distance_strings(&middlev).join("\n"));
+    println!("{}", r.get_distance_strings(&middlev));
     
     println!("Printing whole region");
     println!("{}", r);
@@ -439,15 +439,15 @@ fn nav_test_invalid_regions_5() {
     let upv = Vu2::new(xlen/2,ylen-1 );
     let middlev = Vu2::new(xlen/2,ylen/2);
     println!("leftv: {:?}", leftv);
-    println!("{}", r.get_distance_strings(&leftv).join("\n"));
+    println!("{}", r.get_distance_strings(&leftv));
     println!("rightv: {:?}", rightv);
-    println!("{}", r.get_distance_strings(&rightv).join("\n"));
+    println!("{}", r.get_distance_strings(&rightv));
     println!("downv: {:?}", downv);
-    println!("{}", r.get_distance_strings(&downv).join("\n"));
+    println!("{}", r.get_distance_strings(&downv));
     println!("upv: {:?}", upv);
-    println!("{}", r.get_distance_strings(&upv).join("\n"));
+    println!("{}", r.get_distance_strings(&upv));
     println!("middlev: {:?}", middlev);
-    println!("{}", r.get_distance_strings(&middlev).join("\n"));
+    println!("{}", r.get_distance_strings(&middlev));
     
     println!("Printing whole region");
     println!("{}", r);

@@ -196,25 +196,49 @@ impl MapState {
             // if inbetween regions first figure out what edge should go toward by figuring out next region.
             let mut next:Option<Neighbor> = None;
             let mut min_dist: Option<u32> = None;
+            let mut exit_locs: Option<Vec<Vu2>> = None;
+            let mut closest_exit: Option<Vu2> = None;
+            let mut closest_exit_idx: Option<usize> = None;
             // get neighbors. check which neighbor has the lowest distance
-            for n in start.region.get_valid_neighbors(self.regions.len(), self.regions[0].len()) {
-                let nloc = n.get();
-                if self.regions[nloc].exists {
-                    if let RegionSetDistances::Set(rd) = &self.regions[nloc].region_distances[goal.region] {
-                        let dist = rd.get_min_dist().unwrap();
-                        match min_dist {
-                            Some(md) => {
-                                // TODO: Currently this doesnt look at how far away the region is from current location
-                                // so in the future For more accurate pathfinding need to add distance to the edge for that region
-                                if dist < md {
-                                    next = Some(n);
+            for nbr_region in start.region.get_valid_neighbors(self.regions.len(), self.regions[0].len()) {
+                let nbr_region_vu2 = nbr_region.get();
+                if self.regions[nbr_region_vu2].exists {
+                    if let RegionSetDistances::Set(rd) = &self.regions[nbr_region_vu2].region_distances[goal.region] {
+                        // get the distances from the edge we will appear on in the next region, to the other edges
+                        let distance_to_edges = match nbr_region {
+                            Neighbor::Left(_) => {&self.regions[nbr_region_vu2].distances_from_right}
+                            Neighbor::Right(_) => {&self.regions[nbr_region_vu2].distances_from_left}
+                            Neighbor::Down(_) => {&self.regions[nbr_region_vu2].distances_from_up}
+                            Neighbor::Up(_) => {&self.regions[nbr_region_vu2].distances_from_down}
+                        };
+                        if let InnerExitRegionDistance::Set(exit_dists) = distance_to_edges {
+                            let exit_locs_checking = self.get_neighbor_edge_locs(&start.region, &nbr_region,start_r_xlen,start_r_ylen);
+                            let (closest_exit_checking,closest_exit_dist,closest_exit_idx_checking) = 
+                                self.get_lowest_distance_to_points_in_region(start.position, start.region, &exit_locs_checking);
+                            // add the distance from the edge we will appear on in the neighbor region to the exits in that region
+                            // also add the distance from current position to nearest exit point to enter the neighbor region
+                            let dist = rd.add_distances(&exit_dists).get_min_dist().unwrap() + closest_exit_dist.unwrap();
+                            // need to get the distance from the edge will enter from and the distance to the min-edge first!
+                            match min_dist {
+                                Some(md) => {
+                                    if dist < md {
+                                        next = Some(nbr_region);
+                                        min_dist = Some(dist);
+                                        exit_locs = Some(exit_locs_checking);
+                                        closest_exit = closest_exit_checking;
+                                        closest_exit_idx = closest_exit_idx_checking;
+                                    }
+                                }
+                                None => {
+                                    next = Some(nbr_region);
                                     min_dist = Some(dist);
+                                    exit_locs = Some(exit_locs_checking);
+                                    closest_exit = closest_exit_checking;
+                                    closest_exit_idx = closest_exit_idx_checking;
                                 }
                             }
-                            None => {
-                                next = Some(n);
-                                min_dist = Some(dist);
-                            }
+                        } else {
+                            panic!("Unset region inner exit distances!");
                         }
                     } else {
                         panic!("Trying to navigate with unset between region distances!");
@@ -223,8 +247,6 @@ impl MapState {
             }
             let next_region_neigbor = next.unwrap();
             let next_region = next_region_neigbor.get();
-            // figure out which exit points to the next region
-            let exit_locs = self.get_neighbor_edge_locs(&start.region, &next_region_neigbor,start_r_xlen,start_r_ylen);
 
             // let valid_is_exits:Vec<ExitPoint> = 
             //     match next_region_neigbor {
@@ -234,31 +256,6 @@ impl MapState {
             //         Neighbor::Up(_) => {vec![ExitPoint::Down, ExitPoint::LeftDown, ExitPoint::RightDown]}
             //     };
 
-            // then figure out which exit point is closest
-            let mut closest_exit = None;
-            let mut closest_exit_dist = None;
-            let mut closest_exit_idx = None;
-            for exit_idx in 0..exit_locs.len() {
-                let exit = exit_locs[exit_idx];
-                if let LocSetDistance::Set(dist_to_exit) = &self.regions[start.region].grid[start.position].point_distances[exit] {
-                    match closest_exit_dist.as_ref() {
-                        Some(d) => {
-                            if dist_to_exit < *d {
-                                closest_exit_dist = Some(dist_to_exit);
-                                closest_exit = Some(exit);
-                                closest_exit_idx = Some(exit_idx);
-                            }
-                        }
-                        None => {
-                            closest_exit_dist = Some(dist_to_exit);
-                            closest_exit = Some(exit);
-                            closest_exit_idx = Some(exit_idx);
-                        }
-                    }
-                } else {
-                    panic!("Unset inner distances for a region");
-                }
-            }
             let closest_exit = closest_exit.unwrap();
 
             // if already on the exit point, return relative exit point in the next closest region
@@ -267,6 +264,7 @@ impl MapState {
                 let next_r_ylen = self.regions[next_region].grid[0].len();
                 let next_region_exits = self.get_neighbor_edge_locs(&next_region, &next_region_neigbor.opposite(), next_r_xlen, next_r_ylen);
                 let closest_exit_idx = closest_exit_idx.unwrap();
+                let exit_locs = exit_locs.unwrap();
                 let next_exit_idx = ((closest_exit_idx as f32 / exit_locs.len() as f32) * next_region_exits.len() as f32) as usize;
                 return Location::new(next_region, next_region_exits[next_exit_idx]);
             } else {
@@ -276,6 +274,34 @@ impl MapState {
             }
         }
         // Need to also teach AI how to like "break" things to create shorter path?
+    }
+
+    pub fn get_lowest_distance_to_points_in_region(&self,start_postion: Vu2, region: Vu2, locs: &Vec<Vu2>) -> (Option<Vu2>, Option<u32>, Option<usize>) {
+        let mut closest_exit = None;
+        let mut closest_exit_dist = None;
+        let mut closest_exit_idx = None;
+        for exit_idx in 0..locs.len() {
+            let exit = locs[exit_idx];
+            if let LocSetDistance::Set(dist_to_exit) = &self.regions[region].grid[start_postion].point_distances[exit] {
+                match closest_exit_dist.as_ref() {
+                    Some(d) => {
+                        if (*dist_to_exit) < (*d) {
+                            closest_exit_dist = Some(*dist_to_exit);
+                            closest_exit = Some(exit);
+                            closest_exit_idx = Some(exit_idx);
+                        }
+                    }
+                    None => {
+                        closest_exit_dist = Some(*dist_to_exit);
+                        closest_exit = Some(exit);
+                        closest_exit_idx = Some(exit_idx);
+                    }
+                }
+            } else {
+                panic!("Unset inner distances for a region");
+            }
+        }
+        (closest_exit,closest_exit_dist,closest_exit_idx)
     }
 
     pub fn get_next_neighbor_in_region(&self, region: Vu2, start_pos: Vu2, goal_pos:Vu2, xlen:usize, ylen:usize) -> Option<Vu2> {
@@ -626,6 +652,23 @@ impl RegionDistances {
         check_min(self.up);
         check_min(self.down);
         ret
+    }
+
+    pub fn add_distances(&self, other: &RegionDistances) -> RegionDistances {
+        RegionDistances {
+            left: if self.left.is_some() && other.left.is_some() {
+                Some(self.left.unwrap() + other.left.unwrap())
+            } else {None},
+            right: if self.right.is_some() && other.right.is_some() {
+                Some(self.right.unwrap() + other.right.unwrap())
+            } else {None},
+            up: if self.up.is_some() && other.up.is_some() {
+                Some(self.up.unwrap() + other.up.unwrap())
+            } else {None},
+            down: if self.down.is_some() && other.down.is_some() {
+                Some(self.down.unwrap() + other.down.unwrap())
+            } else {None},
+        }
     }
 }
 impl fmt::Display for RegionDistances {
@@ -997,7 +1040,7 @@ impl MapRegion {
         }
     }
 
-    pub fn get_distance_strings(&self, end_point: &Vu2) -> Vec<String> {
+    pub fn get_distance_strings(&self, end_point: &Vu2) -> String {
         let mut lines = Vec::new();
         let xx = end_point.x as usize;
         let yy = end_point.y as usize;
@@ -1013,7 +1056,7 @@ impl MapRegion {
             }
             lines.insert(0, f_string);
         }
-        lines
+        lines.join("\n")
     }
 
     pub fn display_distances(&self) -> String {
@@ -1555,6 +1598,10 @@ impl CreatureList {
         }
         self.check_and_update_blocked(current_frame);
         return ret;
+    }
+
+    pub fn get_creature_by_index(&self, index:usize) -> &CreatureState {
+        &self.creatures.as_ref().unwrap()[index]
     }
 
     pub fn drain_no_health(&mut self, current_frame: u128) -> Vec<CreatureState> {
