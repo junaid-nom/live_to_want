@@ -33,6 +33,19 @@ impl IndexMut<Vu2> for RegionGrid {
     }
 }
 
+impl Index<Location> for RegionGrid {
+    type Output = MapLocation;
+
+    fn index(&self, index: Location) -> &Self::Output {
+        &self[index.region.x][index.region.y].grid[index.position.x][index.position.y]
+    }
+}
+impl IndexMut<Location> for RegionGrid {
+    fn index_mut(&mut self, index: Location) -> &mut Self::Output {
+        &mut self[index.region.x][index.region.y].grid[index.position.x][index.position.y]
+    }
+}
+
 #[derive(Debug)]
 #[derive(Default, Clone)]
 pub struct RegionCreationStruct {
@@ -1474,6 +1487,13 @@ impl CreatureList {
         self.last_frame_changed
     }
 
+    pub fn get_length(&self) -> Option<usize> {
+        match &self.creatures {
+            Some(c) => {Some(c.len())}
+            None => {None}
+        }
+    }
+
     fn update_blocked(&mut self, new: bool, current_frame: u128) {
         if self.blocked != new { 
             self.blocked = new;
@@ -1610,12 +1630,12 @@ impl CreatureList {
         fn is_dead(c: &CreatureState) -> bool {
             if let Some(h) = c.components.health_component.as_ref() {
                 if h.health <= 0 {
-                    false
-                } else {
                     true
+                } else {
+                    false
                 }
             } else {
-                true
+                false
             }
         }
         let mut ret = Vec::new();

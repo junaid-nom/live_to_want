@@ -71,7 +71,7 @@ pub fn game() {
     // also can do "slow" mode with a wait
 }
 
-fn run_frame(mut game_state: GameState, root: &GoalNode) -> GameState {
+pub fn run_frame(mut game_state: GameState, root: &GoalNode) -> GameState {
     let mut m = game_state.map_state;
     {
         m.frame_count += 1;
@@ -285,7 +285,11 @@ fn run_frame(mut game_state: GameState, root: &GoalNode) -> GameState {
         x.par_iter_mut().flat_map(|y| {
             y.grid.par_iter_mut().flat_map(|xl| {
                 xl.par_iter_mut().flat_map(|yl| {
-                    yl.creatures.drain_no_health(current_frame)
+                    if yl.creatures.holds_creatures() {
+                        yl.creatures.drain_no_health(current_frame)
+                    } else {
+                        vec![]
+                    }
                 })
             })
         })

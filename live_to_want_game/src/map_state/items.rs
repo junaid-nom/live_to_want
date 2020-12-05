@@ -20,6 +20,13 @@ pub struct Item {
     pub item_type: ItemType,
     pub quantity: u32,
 }
+impl Item {
+    pub fn new(item_type: ItemType, quantity:u32) -> Self {
+        Item {
+            item_type, quantity
+        }
+    }
+}
 
 
 #[derive(Debug)]
