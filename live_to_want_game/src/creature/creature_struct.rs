@@ -67,6 +67,7 @@ impl CreatureState {
             block_space_component: c.components.block_space_component.clone(),
             movement_component: c.components.movement_component.clone(),
             budding_component: c.components.budding_component.clone(),
+            death_items_component: c.components.death_items_component.clone(),
         };
 
         CreatureState {

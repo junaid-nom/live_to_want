@@ -162,12 +162,11 @@ fn run_frame(mut game_state: GameState, root: &GoalNode) -> GameState {
     // XOX
     // OXO  Here the sides are all open but you can't traverse. Many examples of this.
     // XOX
-    // TODOREAL: Need to make it so any location that would lead to blocking exits is blocked not just exits.
+    // Need to make it so any location that would lead to blocking exits is blocked not just exits.
 
-    // TODO: update nav map based on spawns for regions that spawn ones that block
+    // update nav map based on spawns for regions that spawn ones that block
     // basically just need to update the last frame changed for each region
     // then run some "update nav system" that checks every region and sees which ones have a last_frame_updated < last_frame(in MapRegion)
-
 
     // How the fuck do I know which regions need to be updated? Maybe make creatures private, and add function like "add_creature"?
     let changed_regions: Vec<Option<Vector2>> = m.regions.par_iter_mut().enumerate().flat_map(|(xidx, x)| {
@@ -194,13 +193,36 @@ fn run_frame(mut game_state: GameState, root: &GoalNode) -> GameState {
         row
     }).collect();
     let changed_regions: Vec<Vector2> = changed_regions.into_par_iter().filter_map(|opt| opt).collect();
-    // TODONEXT:
+
     // each region should have already been updated above.
     // now update the entire map's between region nav if we had any updated regions (TODO: Optimize this? Maybe don't need to update every single region but ones that update paths significantly?).
     // TODO: The map update isn't parallelized at all could be a bottleneck? If so this could also only be run every X frame. because its just inter-region nav which can be inaccurate a little since no region path can actually be blocked fully.
     if changed_regions.len() > 0 {
         m.update_nav();
     }
+
+    // Can run immutable systems that rely on reading entire mapstate and need entire creature-list targets here
+    let mov_op_ecs: Vec<Option<EventChain>> = m.regions.par_iter().flat_map(|x| {
+        x.par_iter().flat_map(|y| {
+            y.grid.par_iter().flat_map(|xl| {
+                xl.par_iter().flat_map(|yl| {
+                    if let Some(cit) = yl.creatures.get_par_iter() {
+                        let ret: Vec<Option<EventChain>> = cit.map(
+                            |c| {
+                                movement_system_move(&m, c)
+                            }
+                        ).collect();
+                        return ret;
+                    } else {
+                        Vec::new()
+                    }
+                })
+            })
+        })
+    }).collect();
+    let mut event_chains: Vec<EventChain> = unwrap_option_list(mov_op_ecs);
+    process_events_from_mapstate(&mut m, event_chains, true);
+
 
     // Can run MUTABLE multiple systems here so far:
     // Starvation system
@@ -225,27 +247,6 @@ fn run_frame(mut game_state: GameState, root: &GoalNode) -> GameState {
         })
     });
 
-    // Can run immutable systems that rely on reading entire mapstate and need entire creature-list targets here
-    let mov_op_ecs: Vec<Option<EventChain>> = m.regions.par_iter().flat_map(|x| {
-        x.par_iter().flat_map(|y| {
-            y.grid.par_iter().flat_map(|xl| {
-                xl.par_iter().flat_map(|yl| {
-                    if let Some(cit) = yl.creatures.get_par_iter() {
-                        let ret: Vec<Option<EventChain>> = cit.map(
-                            |c| {
-                                movement_system_move(&m, c)
-                            }
-                        ).collect();
-                        return ret;
-                    } else {
-                        Vec::new()
-                    }
-                })
-            })
-        })
-    }).collect();
-    let mut event_chains: Vec<EventChain> = unwrap_option_list(mov_op_ecs);
-    process_events_from_mapstate(&mut m, event_chains, true);
 
     // TODO: Send out current map state to users via websocket
     // TODO: Then wait for them to respond if doing by-frame, or a timer
@@ -280,16 +281,46 @@ fn run_frame(mut game_state: GameState, root: &GoalNode) -> GameState {
     // TODO: Update nav system if blockers died
     // TODO: also have a death list or something for creatures that dont have health but still died prob just go through the linearly?
     // TODO: Add some kind of death_rattle event chain system, will need to do things like add items to ground etc
-    m.regions.par_iter_mut().for_each(|x| {
-        x.par_iter_mut().for_each(|y| {
-            y.grid.par_iter_mut().for_each(|xl| {
-                xl.par_iter_mut().for_each(|yl| {
-                    let drained = yl.creatures.drain_no_health(current_frame);
-                    // TODO: Do stuff with drained creatures. Probably make some events related to death rattle (drop inventory etc)
+    let no_hp_list:Vec<CreatureState> = m.regions.par_iter_mut().flat_map(|x| {
+        x.par_iter_mut().flat_map(|y| {
+            y.grid.par_iter_mut().flat_map(|xl| {
+                xl.par_iter_mut().flat_map(|yl| {
+                    yl.creatures.drain_no_health(current_frame)
                 })
             })
         })
-    });
+    }).collect();
+    dead_list.extend(no_hp_list);
+
+    // TODONEXT: Do stuff with the drained creatures.
+    // put items the creature has to the locations they died.
+    // put items if they have death_items component type thing
+    let dead_events: Vec<Option<EventChain>> = dead_list.into_par_iter().flat_map(|dead| {
+        //get items to drop from dead_items
+        let mut items = match dead.components.death_items_component {
+            Some(dead_items) => {dead_items.items_to_drop}
+            None => {vec![]}
+        };
+        // get items to drop that are in inventory
+        items.extend(dead.inventory);
+
+        let target = m.regions[dead.components.region_component.region].grid[dead.components.location_component.location].id_component_items.id();
+
+        // create event to add items
+        let events: Vec<Event> = items.into_par_iter().map(|item| {
+            Event {
+                event_type: EventType::AddItem(item.quantity, item.item_type),
+                get_requirements: Box::new(|_,_| true),
+                on_fail: None,
+                target,
+            }
+        }).collect();
+        // Can do other death stuff here like explosion when die etc
+        vec![Some(EventChain {
+            events
+        })]
+    }).collect();
+    process_events_from_mapstate(&mut m, unwrap_option_list(dead_events), true);
 
     GameState {
         map_state: m,

@@ -1,4 +1,4 @@
-use crate::{utils::{UID, get_id, Vector2, Vu2}, map_state::Location};
+use crate::{Item, map_state::Location, utils::{UID, get_id, Vector2, Vu2}};
 
 use super::CreatureState;
 
@@ -26,6 +26,7 @@ pub struct ComponentMap {
     pub block_space_component: Option<BlockSpaceComponent>,
     pub movement_component: Option<MovementComponent>,
     pub budding_component: Option<BuddingComponent>,
+    pub death_items_component: Option<DeathItemsComponent>,
 }
 
 #[derive(Debug)]
@@ -202,6 +203,18 @@ pub struct StarvationComponent {
     pub metabolism: usize,
 }
 impl Component for StarvationComponent {
+    fn get_visible() -> bool {
+        true
+    }
+}
+
+
+#[derive(Debug)]
+#[derive(Hash, PartialEq, Eq, Clone)]
+pub struct DeathItemsComponent {
+    pub items_to_drop: Vec<Item>,
+}
+impl Component for DeathItemsComponent {
     fn get_visible() -> bool {
         true
     }
