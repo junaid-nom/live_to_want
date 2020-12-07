@@ -125,7 +125,7 @@ pub fn run_frame(mut game_state: GameState, root: &GoalNode) -> GameState {
     // probably better off for now just going through linearly
     let mut dead_list = Vec::new();
 
-    //TODONEXT: foreach blocked USE map_state.find_closest_non_blocked to find closest non blocked loc
+    // foreach blocked USE map_state.find_closest_non_blocked to find closest non blocked loc
     // if there are creatures in that unblocked location add them to blocked_nonblockers
     // then add the blocked creature to that loc
     blocked_blockers.into_iter().for_each(|c| {
@@ -277,6 +277,16 @@ pub fn run_frame(mut game_state: GameState, root: &GoalNode) -> GameState {
     let mut event_chains = unwrap_option_list(op_ecs);
     process_events_from_mapstate(&mut m, event_chains, false);
 
+    // TODONEXT:
+    // For every creature, if its in combat, have them do stuff to each other.
+    // For all creatures: Increment frame count meter thing.
+    // Then if any have enough, have them pick a move with AI. Or do a previously chosen move.
+    // Move might either activate right away or need more frames.
+    // Will need to do this in parallel PER CREATURELIST not per creature because will need to mutate creatures one at at time. Sort list by creature's battle speed?
+    // If HP reaches 0 for one of them, set them both to no longer in combat.
+    // if Escaped status effect active, set them both to no longer in combat, and set the other to stunned on movement component
+    // TODO: Gonna be a lot of effort to convert this to party-based. So should do that right after finishing basic wolf-deer demo.
+
     // Death system
     // TODO: Update nav system if blockers died
     // TODO: also have a death list or something for creatures that dont have health but still died prob just go through the linearly?
@@ -296,7 +306,7 @@ pub fn run_frame(mut game_state: GameState, root: &GoalNode) -> GameState {
     }).collect();
     dead_list.extend(no_hp_list);
 
-    // TODONEXT: Do stuff with the drained creatures.
+    // Do stuff with the drained creatures.
     // put items the creature has to the locations they died.
     // put items if they have death_items component type thing
     let dead_events: Vec<Option<EventChain>> = dead_list.into_par_iter().flat_map(|dead| {

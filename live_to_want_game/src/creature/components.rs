@@ -27,6 +27,7 @@ pub struct ComponentMap {
     pub movement_component: Option<MovementComponent>,
     pub budding_component: Option<BuddingComponent>,
     pub death_items_component: Option<DeathItemsComponent>,
+    pub battle_component: Option<BattleComponent>,
 }
 
 #[derive(Debug)]
@@ -215,6 +216,46 @@ pub struct DeathItemsComponent {
     pub items_to_drop: Vec<Item>,
 }
 impl Component for DeathItemsComponent {
+    fn get_visible() -> bool {
+        true
+    }
+}
+
+
+#[derive(Debug)]
+#[derive(Hash, PartialEq, Eq, Clone)]
+pub enum StatusEffect {
+    NoEscape(u32),
+    AtRange(u32),//if a character has this on, any melee attack takes longer to do
+}
+
+#[derive(Debug)]
+#[derive(Hash, PartialEq, Eq, Clone)]
+pub enum CombatAI {
+    Random,
+    Simulator(u32),
+}
+
+#[derive(Debug)]
+#[derive(Hash, PartialEq, Eq, Clone)]
+pub enum BattleSkill {
+    BiteLeg,
+    BiteNeck,
+    RunAway,
+}// TODO: Make a struct called "BattleSkillAttributes" that store stuff like if an attack is melee or not
+// TODO: Will eventually have item-skills. battleskills available when equiping certain items such a sword or gun etc.
+
+#[derive(Debug)]
+#[derive(Hash, PartialEq, Eq, Clone)]
+pub struct BattleComponent {
+    pub battle_skills: Vec<Item>,
+    pub in_battle_with:Option<u128>,
+    pub status_effects: Vec<StatusEffect>,
+    // TODO: Add a GoalNode where if in combat, return None command.
+    // todo put battle only stats here:
+
+}
+impl Component for BattleComponent {
     fn get_visible() -> bool {
         true
     }

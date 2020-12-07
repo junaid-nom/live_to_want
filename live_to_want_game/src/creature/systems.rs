@@ -9,52 +9,56 @@ pub fn budding_system(m: &MapState, c: &CreatureState) -> Option<EventChain> {
     // If so, find a random nearby open spot. that is not blocked
     // make an event chain of first placing the creature on that space. (create unit)
     // then next event resets the counters for the creatures budding component
-    if let Some(bud) = c.components.budding_component.as_ref() {
-        if bud.frame_ready_to_reproduce <= m.frame_count {
-            // find open spot first
-            let mut open_spots = Vec::new();
-            let location = c.components.location_component.location;
-            let region = c.components.region_component.region;
-            let map_region = &m.regions[region.x as usize][region.y as usize];
-            let blocker = c.components.block_space_component.is_some();
-            for n in location.get_valid_neighbors(map_region.grid.len(), map_region.grid[0].len()) {
-                if !map_region.grid[n.get()].get_if_blocked(blocker) {
-                    open_spots.push(n.get());
+    if !c.get_if_in_combat() {
+        if let Some(bud) = c.components.budding_component.as_ref() {
+            if bud.frame_ready_to_reproduce <= m.frame_count {
+                // find open spot first
+                let mut open_spots = Vec::new();
+                let location = c.components.location_component.location;
+                let region = c.components.region_component.region;
+                let map_region = &m.regions[region.x as usize][region.y as usize];
+                let blocker = c.components.block_space_component.is_some();
+                for n in location.get_valid_neighbors(map_region.grid.len(), map_region.grid[0].len()) {
+                    if !map_region.grid[n.get()].get_if_blocked(blocker) {
+                        open_spots.push(n.get());
+                    }
                 }
-            }
-    
-            let spots = open_spots.len();
-            if spots > 0 {
-                let mut rng = rand::thread_rng();
-                let chosen = rng.gen_range(0, spots);
-                let loc = open_spots[chosen];
-                let new_creature = CreatureState::copy(bud.seed_creature.as_ref(), loc);
-                let create_event = Event {
-                    event_type: EventType::AddCreature(new_creature, m.frame_count),
-                    target: map_region.grid[loc.x as usize][loc.y as usize].id_component_creatures.id(),
-                    on_fail: None,
-                    get_requirements: Box::new(|_,_| true),
-                };
-                let bud_iterate_event = Event {
-                    event_type: EventType::IterateBudding(),
-                    target: c.components.id_component.id(),
-                    on_fail: None,
-                    get_requirements: Box::new(|_,_| true),
-                };
-                Some(EventChain{
-                    events: vec![create_event, bud_iterate_event],
-                })
+        
+                let spots = open_spots.len();
+                if spots > 0 {
+                    let mut rng = rand::thread_rng();
+                    let chosen = rng.gen_range(0, spots);
+                    let loc = open_spots[chosen];
+                    let new_creature = CreatureState::copy(bud.seed_creature.as_ref(), loc);
+                    let create_event = Event {
+                        event_type: EventType::AddCreature(new_creature, m.frame_count),
+                        target: map_region.grid[loc.x as usize][loc.y as usize].id_component_creatures.id(),
+                        on_fail: None,
+                        get_requirements: Box::new(|_,_| true),
+                    };
+                    let bud_iterate_event = Event {
+                        event_type: EventType::IterateBudding(),
+                        target: c.components.id_component.id(),
+                        on_fail: None,
+                        get_requirements: Box::new(|_,_| true),
+                    };
+                    Some(EventChain{
+                        events: vec![create_event, bud_iterate_event],
+                    })
+                } else {
+                    // Reset budding so it doesnt try again every frame, but next time it would reproduce
+                    let event = Event {
+                        event_type: EventType::IterateBudding(),
+                        target: c.components.id_component.id(),
+                        on_fail: None,
+                        get_requirements: Box::new(|_,_| true),
+                    };
+                    Some(EventChain{
+                        events: vec![event],
+                    })
+                }
             } else {
-                // Reset budding so it doesnt try again every frame, but next time it would reproduce
-                let event = Event {
-                    event_type: EventType::IterateBudding(),
-                    target: c.components.id_component.id(),
-                    on_fail: None,
-                    get_requirements: Box::new(|_,_| true),
-                };
-                Some(EventChain{
-                    events: vec![event],
-                })
+                None
             }
         } else {
             None
@@ -62,8 +66,6 @@ pub fn budding_system(m: &MapState, c: &CreatureState) -> Option<EventChain> {
     } else {
         None
     }
-    
-
     // Then later in the main loop, run a function that looks at all spots and checks for
     // more than 1 blocker. if that's the case, remove all the "excess" units and put them in a new list, (their location should mark where they previously were).
     // one list for blockers one for not.
@@ -93,31 +95,34 @@ pub fn starvation_system(c: &mut CreatureState) {
 
 
 pub fn movement_system_move(m: &MapState, c: &CreatureState) -> Option<EventChain> {
-    if let Some(movement) = c.components.movement_component.as_ref() {
-        if movement.moving && movement.frame_ready_to_move <= m.frame_count {
-            let next_move = m.navigate_to(&c.get_location(), &movement.destination);
-            println!("moving from: {:?} to {:?}", c.get_location(), next_move);
-            let src = m.location_to_map_location(&c.get_location()).id_component_creatures.id();
-            let dest = m.location_to_map_location(&next_move).id_component_creatures.id();
-            println!("creating movement src id: {} , creature loc: {:?} dst loc: {:?} dst id: {}", src, c.get_location(), next_move, dest);
-            let rm_event = Event {
-                event_type: EventType::RemoveCreature(c.components.id_component.id(), 
-                    Some(dest), m.frame_count),
-                get_requirements: Box::new(|_,_| true),
-                on_fail: None,
-                target: src,
-            };
-            // let iter_move = Event {
-            //     event_type: EventType::IterateMovement(m.frame_count),
-            //     get_requirements: Box::new(|_,_| true),
-            //     on_fail: None,
-            //     target: c.components.id_component.id(),
-            // };
-            return Some(EventChain {
-                events: vec![rm_event],
-            });
+    if !c.get_if_in_combat() {
+        if let Some(movement) = c.components.movement_component.as_ref() {
+            if movement.moving && movement.frame_ready_to_move <= m.frame_count {
+                let next_move = m.navigate_to(&c.get_location(), &movement.destination);
+                println!("moving from: {:?} to {:?}", c.get_location(), next_move);
+                let src = m.location_to_map_location(&c.get_location()).id_component_creatures.id();
+                let dest = m.location_to_map_location(&next_move).id_component_creatures.id();
+                println!("creating movement src id: {} , creature loc: {:?} dst loc: {:?} dst id: {}", src, c.get_location(), next_move, dest);
+                let rm_event = Event {
+                    event_type: EventType::RemoveCreature(c.components.id_component.id(), 
+                        Some(dest), m.frame_count),
+                    get_requirements: Box::new(|_,_| true),
+                    on_fail: None,
+                    target: src,
+                };
+                // let iter_move = Event {
+                //     event_type: EventType::IterateMovement(m.frame_count),
+                //     get_requirements: Box::new(|_,_| true),
+                //     on_fail: None,
+                //     target: c.components.id_component.id(),
+                // };
+                return Some(EventChain {
+                    events: vec![rm_event],
+                });
+            }
         }
     }
+    
     None
 }
 
@@ -126,7 +131,12 @@ pub fn movement_system_iterate(current_frame: u128, c: &mut CreatureState, curre
     // TODO maybe only needs to change after movement system changed position, so can put inside the if above for speed?
     c.components.region_component.region = current_location.region;
     c.components.location_component.location = current_location.position;
+    let in_combat = c.get_if_in_combat();
     if let Some(movement) = c.components.movement_component.as_mut() {
+        // reset moving if in combat
+        if in_combat {
+            movement.moving = false;
+        }
         if movement.moving && movement.frame_ready_to_move <= current_frame {
             let dst_reached =  c.components.location_component.location == movement.destination.position &&
             c.components.region_component.region == movement.destination.region;

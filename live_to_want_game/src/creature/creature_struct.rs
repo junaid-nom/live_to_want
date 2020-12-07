@@ -68,6 +68,7 @@ impl CreatureState {
             movement_component: c.components.movement_component.clone(),
             budding_component: c.components.budding_component.clone(),
             death_items_component: c.components.death_items_component.clone(),
+            battle_component:  c.components.battle_component.clone(),
         };
 
         CreatureState {
@@ -79,6 +80,13 @@ impl CreatureState {
 
     pub fn get_location(&self) -> Location {
         Location::new(self.components.region_component.region, self.components.location_component.location)
+    }
+
+    pub fn get_if_in_combat(&self) -> bool {
+        match &self.components.battle_component {
+            Some(b) => {b.in_battle_with.is_some()}
+            None => {false}
+        }
     }
 }
 impl Default for CreatureState {
