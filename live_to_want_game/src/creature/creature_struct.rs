@@ -84,7 +84,7 @@ impl CreatureState {
 
     pub fn get_if_in_combat(&self) -> bool {
         match &self.components.battle_component {
-            Some(b) => {b.in_battle_with.is_some()}
+            Some(b) => {b.in_battle.is_some()}
             None => {false}
         }
     }

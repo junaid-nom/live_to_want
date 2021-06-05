@@ -53,7 +53,11 @@ impl CreatureCommand<'_> {
                 });
             }
             CreatureCommand::Chase(_, _, _) => {}
-            CreatureCommand::Attack(_, _, _) => {}
+            CreatureCommand::Attack(_, attacker, victim) => {
+                // TODONEXT: Create two events that set in battle and battle started = false. make new battle u128.
+                // Make a new Battle class as well based on the creature states (turned into BattleInfo)
+                // And a AddBattle event that will add a battle to a list of battles on mapState
+            }
             CreatureCommand::TakeItem(_, src, dst, item) => {
                 // TODO: check if dst has enough space, though maybe just have "cant move" if your inv full
                 // check if src has that item, if it doesnt, take as many as possible

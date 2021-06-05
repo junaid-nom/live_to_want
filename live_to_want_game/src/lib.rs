@@ -156,7 +156,7 @@ pub fn run_frame(mut game_state: GameState, root: &GoalNode) -> GameState {
             dead_list.push(c);
         }
     });
-    // if none for either of the above just kill them(add to death list?)
+    // if no open spots to push creatures to for either of the above just kill them(add to death list?)
     // DECISION: Make it so just cannot have creatures that block exits ever. so region map will never change. FUCK BUT THIS DONT WORK!
     // Can have Below:
     // XOX
@@ -224,6 +224,28 @@ pub fn run_frame(mut game_state: GameState, root: &GoalNode) -> GameState {
     process_events_from_mapstate(&mut m, event_chains, true);
 
 
+    // TODONEXT:
+    // Attack creature command will produce EventChain that will set creatures to battle and have a new target BattleList.
+    // The last BattleList event will add the Battle to the list of Battles.
+    // Battle is new datatype that will have 2 BattlerInfo for the creatures battling.
+    // Each battle is updated once per frame. Does whatever.
+    // Battle.update returns Option<BattleResults>.
+    // BattleResults List is then created (and maybe dict that points to it for quick ref?). Read only.
+    // Then in the mutable system iteration do a:
+    // If creature_id in BattleResults list -> call leave_battle_system that takes in an immutable ref to the battle. and updates the creature based on it.
+    // may update HP, items, etc.
+    // Old disregard:
+    // For every creature, if its in combat, have them do stuff to each other.
+    // For all creatures: Increment frame count meter thing.
+    // Then if any have enough, have them pick a move with AI. Or do a previously chosen move.
+    // Move might either activate right away or need more frames.
+    // Will need to do this in parallel PER CREATURELIST not per creature because will need to mutate creatures one at at time. Sort list by creature's battle speed?
+    // If HP reaches 0 for one of them, set them both to no longer in combat.
+    // if Escaped status effect active, set them both to no longer in combat, and set the other to stunned on movement component
+    // Gonna be a lot of effort to convert this to party-based. So should do that right after finishing basic wolf-deer demo.
+
+    
+
     // Can run MUTABLE multiple systems here so far:
     // Starvation system
     // nav system
@@ -276,16 +298,6 @@ pub fn run_frame(mut game_state: GameState, root: &GoalNode) -> GameState {
     }).collect();
     let mut event_chains = unwrap_option_list(op_ecs);
     process_events_from_mapstate(&mut m, event_chains, false);
-
-    // TODONEXT:
-    // For every creature, if its in combat, have them do stuff to each other.
-    // For all creatures: Increment frame count meter thing.
-    // Then if any have enough, have them pick a move with AI. Or do a previously chosen move.
-    // Move might either activate right away or need more frames.
-    // Will need to do this in parallel PER CREATURELIST not per creature because will need to mutate creatures one at at time. Sort list by creature's battle speed?
-    // If HP reaches 0 for one of them, set them both to no longer in combat.
-    // if Escaped status effect active, set them both to no longer in combat, and set the other to stunned on movement component
-    // TODO: Gonna be a lot of effort to convert this to party-based. So should do that right after finishing basic wolf-deer demo.
 
     // Death system
     // TODO: Update nav system if blockers died

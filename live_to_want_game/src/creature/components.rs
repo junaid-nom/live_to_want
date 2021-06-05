@@ -248,11 +248,12 @@ pub enum BattleSkill {
 #[derive(Debug)]
 #[derive(Hash, PartialEq, Eq, Clone)]
 pub struct BattleComponent {
-    pub battle_skills: Vec<Item>,
-    pub in_battle_with:Option<u128>,
-    pub status_effects: Vec<StatusEffect>,
+    //pub battle_skills: Vec<Item>,
+    pub in_battle:Option<u128>,
+    pub battle_started:bool, // if not started, need to create a new battle.
+    //pub status_effects: Vec<StatusEffect>,
     // TODO: Add a GoalNode where if in combat, return None command.
-    // todo put battle only stats here:
+    // todo put battle only stats here? No instead generate battle specific stuff from a creaturestate that is housed in a battle object
 
 }
 impl Component for BattleComponent {
