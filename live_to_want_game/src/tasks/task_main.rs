@@ -47,8 +47,7 @@ impl EventChain {
                 None
             }
         } else {
-            let mut ec = self;
-            ec.events.remove(0).on_fail // TODONEXT: IS THIS A BUG? Shouldn't it return e.onfail, this will return the NEXT elements on_fail wtf? I should get multi_thread tests working to find out!
+            e.on_fail // TODONEXT: Should it return e.onfail? I should get multi_thread tests working to find out!
         }
     }
 }
