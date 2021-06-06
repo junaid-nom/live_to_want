@@ -104,7 +104,6 @@ fn test_rayon() {
 
     let mut eve = EventTarget::LocationItemTarget(&mut v, 1);
     let evc = vec![EventChain {
-        index: 0,
         events: Vec::new(),
     }]; // doesnt work
     //evc.into_par_iter().map(|x| x);
@@ -122,26 +121,34 @@ fn test_chain_multithread() {
     let x: Vec<u32> = (0..100).collect();
     let y: i32 = x.into_par_iter().map(|_| {
         // make a mapstate with some deer
-        let mut region = MapRegion{
-            grid:Vec::new(),
-            last_frame_changed: 0,
-        };
-        for x in 0..10 {
-            let mut xList  = Vec::new();
-            for y in 0..10 {
-                let loc = MapLocation{
-                    id_component_items: IDComponent::new(),
-                    id_component_creatures: IDComponent::new(),
-                    location: Vu2{x, y},
-                    creatures: CreatureList::new(true, 0),
-                    items: Vec::new(),
-                    is_exit: false,
-                };
-                xList.push(loc);
-            }
-            region.grid.push(xList);
-        }
-    
+        let openr = RegionCreationStruct::new(5,5, 0, vec![]);
+        let rgrid = vec![
+            vec![openr.clone()],
+        ];
+        //create map
+        let mut map = MapState::new(rgrid, 0);
+        //let mut region = MapRegion::new(Vu2::new(0, 0), Vu2::new(1,1),10,10, 0, vec![],false,false,false,false );
+        // MapRegion{
+        //     grid:Vec::new(),
+        //     last_frame_changed: 0,
+        // };
+        // for x in 0..10 {
+        //     let mut xList  = Vec::new();
+        //     for y in 0..10 {
+        //         let loc = MapLocation{
+        //             id_component_items: IDComponent::new(),
+        //             id_component_creatures: IDComponent::new(),
+        //             location: Vu2{x, y},
+        //             creatures: CreatureList::new(true, 0),
+        //             items: Vec::new(),
+        //             is_exit: false,
+        //         };
+        //         xList.push(loc);
+        //     }
+        //     region.grid.push(xList);
+        // }
+        let  region: &mut MapRegion = &mut map.regions[0][0];
+
         let mut deer1 = CreatureState{
             components: ComponentMap::default(),
             inventory: Vec::new(),
@@ -204,7 +211,6 @@ fn test_chain_multithread() {
             target: deer1_id,
         };
         let event_fail1 = EventChain {
-            index: 0,
             events: vec!(pickup_fail),
         };
         let pickup_fail2 = Event {
@@ -214,7 +220,6 @@ fn test_chain_multithread() {
             target: deer2_id,
         };
         let event_fail2 = EventChain {
-            index: 0,
             events: vec!(pickup_fail2),
         };
         let remove1=  Event {
@@ -275,11 +280,9 @@ fn test_chain_multithread() {
         };
     
         let deer_chain1 = EventChain {
-            index: 0,
             events: vec![pickup1, remove1],
         };
         let deer_chain2 = EventChain {
-            index: 0,
             events: vec![pickup2, remove2],
         };
     

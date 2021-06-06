@@ -838,12 +838,12 @@ impl fmt::Display for MapRegion {
     }
 }
 impl MapRegion {
-    pub fn new(location: Vu2, map_size: Vu2, xlen: usize, ylen: usize, current_frame: u128, no_creatures: &Vec<Vu2>, has_left_neighbor: bool, has_right_neighbor: bool, has_up_neighbor: bool, has_down_neighbor: bool) -> Self {
+    pub fn new(location: Vu2, map_state_size: Vu2, region_xlen: usize, region_ylen: usize, current_frame: u128, no_creatures: &Vec<Vu2>, has_left_neighbor: bool, has_right_neighbor: bool, has_up_neighbor: bool, has_down_neighbor: bool) -> Self {
         let mut grid: Vec<Vec<MapLocation>> = Vec::new();
-        if xlen > 0 && ylen > 0 {
-            for x in 0..xlen {
+        if region_xlen > 0 && region_ylen > 0 {
+            for x in 0..region_xlen {
                 let mut row = Vec::new();
-                for y in 0..ylen {
+                for y in 0..region_ylen {
                     let mut is_exit = ExitPoint::None;
                     let mut is_unblocked_exit = true;
                     if x == 0 {
@@ -856,7 +856,7 @@ impl MapRegion {
                             }
                             is_exit = ExitPoint::LeftDown;
                         }
-                        else if y == ylen - 1 {
+                        else if y == region_ylen - 1 {
                             if !has_up_neighbor {
                                 is_unblocked_exit = false;
                             }
@@ -866,7 +866,7 @@ impl MapRegion {
                             is_exit = ExitPoint::Left;
                         }
                     }
-                    else if x == xlen - 1 {
+                    else if x == region_xlen - 1 {
                         if !has_right_neighbor {
                             is_unblocked_exit = false;
                         }
@@ -876,7 +876,7 @@ impl MapRegion {
                             }
                             is_exit = ExitPoint::RightDown;
                         }
-                        else if y == ylen - 1 {
+                        else if y == region_ylen - 1 {
                             if !has_up_neighbor {
                                 is_unblocked_exit = false;
                             }
@@ -892,13 +892,13 @@ impl MapRegion {
                         }
                         is_exit = ExitPoint::Down;
                     }
-                    else if y == ylen - 1 {
+                    else if y == region_ylen - 1 {
                         if !has_up_neighbor {
                             is_unblocked_exit = false;
                         }
                         is_exit = ExitPoint::Up;
                     }
-                    row.push(MapLocation::new(Vu2::new(x, y), is_exit, is_unblocked_exit, current_frame, xlen, ylen));
+                    row.push(MapLocation::new(Vu2::new(x, y), is_exit, is_unblocked_exit, current_frame, region_xlen, region_ylen));
                 }
                 grid.push(row);
             }
@@ -947,13 +947,13 @@ impl MapRegion {
             let mut to_check_right = Vec::new();
             let mut to_check_up = Vec::new();
             let mut to_check_down = Vec::new();
-            for y in 0..ylen {
+            for y in 0..region_ylen {
                 to_check_left.push(Vu2::new(0, y));
-                to_check_right.push(Vu2::new(xlen - 1, y));
+                to_check_right.push(Vu2::new(region_xlen - 1, y));
             }
-            for x in 0..xlen {
+            for x in 0..region_xlen {
                 to_check_down.push(Vu2::new(x, 0));
-                to_check_up.push(Vu2::new(x, ylen - 1));
+                to_check_up.push(Vu2::new(x, region_ylen - 1));
             }
             hole_counter(to_check_left, has_left_neighbor);
             hole_counter(to_check_right, has_right_neighbor);
@@ -963,10 +963,10 @@ impl MapRegion {
 
         let mut ret = MapRegion {
             location,
-            exists: xlen > 0 && ylen > 0,
+            exists: region_xlen > 0 && region_ylen > 0,
             grid,
             last_frame_changed: current_frame,
-            region_distances: get_2d_vec(map_size.x, map_size.y),
+            region_distances: get_2d_vec(map_state_size.x, map_state_size.y),
             distances_from_left: InnerExitRegionDistance::Unset,
             distances_from_right: InnerExitRegionDistance::Unset,
             distances_from_up: InnerExitRegionDistance::Unset,

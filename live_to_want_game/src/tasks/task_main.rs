@@ -47,7 +47,7 @@ impl EventChain {
                 None
             }
         } else {
-            e.on_fail // TODONEXT: Should it return e.onfail? I should get multi_thread tests working to find out!
+            e.on_fail
         }
     }
 }
