@@ -356,6 +356,12 @@ pub fn process_events_from_mapstate(
         })
         .collect();
 
+    if !creature_list_targets {
+        all_creature_targets.push(
+            EventTarget::BattleListTarget(&mut m.battle_list)
+        );
+    }
+
     let mut next = process_events(&mut all_creature_targets, event_chains);
     while next.len() > 0 {
         next = process_events(&mut all_creature_targets, next);
