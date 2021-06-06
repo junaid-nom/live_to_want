@@ -77,6 +77,7 @@ pub fn run_frame(mut game_state: GameState, root: &GoalNode) -> GameState {
         m.frame_count += 1;
     }
     let current_frame = m.frame_count;
+    let battle_list_id = m.battle_list.id;
 
     // TODO: Run spawn systems first, and spawn new creatures
     let spawn_events: Vec<Option<EventChain>> = m.regions.par_iter().flat_map(|x| {
@@ -223,29 +224,6 @@ pub fn run_frame(mut game_state: GameState, root: &GoalNode) -> GameState {
     let mut event_chains: Vec<EventChain> = unwrap_option_list(mov_op_ecs);
     process_events_from_mapstate(&mut m, event_chains, true);
 
-
-    // TODONEXT:
-    // Attack creature command will produce EventChain that will set creatures to battle and have a new target BattleList.
-    // The last BattleList event will add the Battle to the list of Battles.
-    // Battle is new datatype that will have 2 BattlerInfo for the creatures battling.
-    // Each battle is updated once per frame. Does whatever.
-    // Battle.update returns Option<BattleResults>.
-    // BattleResults List is then created (and maybe dict that points to it for quick ref?). Read only.
-    // Then in the mutable system iteration do a:
-    // If creature_id in BattleResults list -> call leave_battle_system that takes in an immutable ref to the battle. and updates the creature based on it.
-    // may update HP, items, etc.
-    // Old disregard:
-    // For every creature, if its in combat, have them do stuff to each other.
-    // For all creatures: Increment frame count meter thing.
-    // Then if any have enough, have them pick a move with AI. Or do a previously chosen move.
-    // Move might either activate right away or need more frames.
-    // Will need to do this in parallel PER CREATURELIST not per creature because will need to mutate creatures one at at time. Sort list by creature's battle speed?
-    // If HP reaches 0 for one of them, set them both to no longer in combat.
-    // if Escaped status effect active, set them both to no longer in combat, and set the other to stunned on movement component
-    // Gonna be a lot of effort to convert this to party-based. So should do that right after finishing basic wolf-deer demo.
-
-    
-
     // Can run MUTABLE multiple systems here so far:
     // Starvation system
     // nav system
@@ -275,7 +253,7 @@ pub fn run_frame(mut game_state: GameState, root: &GoalNode) -> GameState {
     // TODO: Actually probably move the websocket stuff and the ai stuff to the beginning of this function?
 
     // want to move THEN AFTER do ai stuff so ai can react to the movement
-    let op_ecs: Vec<Option<EventChain>> = m.regions.par_iter().flat_map(|x| {
+    let mut op_ecs: Vec<Option<EventChain>> = m.regions.par_iter().flat_map(|x| {
         x.par_iter().flat_map(|y| {
             y.grid.par_iter().flat_map(|xl| {
                 xl.par_iter().flat_map(|yl| {
@@ -296,6 +274,33 @@ pub fn run_frame(mut game_state: GameState, root: &GoalNode) -> GameState {
             })
         })
     }).collect();
+
+    // TODONEXT:
+    // Attack creature command will produce EventChain that will set creatures to battle and have a new target BattleList.
+    // The last BattleList event will add the Battle to the list of Battles.
+    // Battle is new datatype that will have 2 BattlerInfo for the creatures battling.
+    // Each battle is updated once per frame. Does whatever.
+    // Battle.update returns Option<BattleResults>.
+    // BattleResults List is then created (and maybe dict that points to it for quick ref?). Read only.
+    // Then in the mutable system iteration do a:
+    // If creature_id in BattleResults list -> call leave_battle_system that takes in an immutable ref to the battle. and updates the creature based on it.
+    // may update HP, items, etc.
+    // Old disregard:
+    // For every creature, if its in combat, have them do stuff to each other.
+    // For all creatures: Increment frame count meter thing.
+    // Then if any have enough, have them pick a move with AI. Or do a previously chosen move.
+    // Move might either activate right away or need more frames.
+    // Will need to do this in parallel PER CREATURELIST not per creature because will need to mutate creatures one at at time. Sort list by creature's battle speed?
+    // If HP reaches 0 for one of them, set them both to no longer in combat.
+    // if Escaped status effect active, set them both to no longer in combat, and set the other to stunned on movement component
+    // Gonna be a lot of effort to convert this to party-based. So should do that right after finishing basic wolf-deer demo.
+
+    // BATTLE SYSTEM RUNS HERE so that can process their events at same time as other stuff so faster
+    let mut battle_effects: Vec<Option<EventChain>> = m.battle_list.battles.par_iter_mut().map( |battle| {
+        battle.update()
+    }).collect();
+    op_ecs.append(&mut battle_effects);
+
     let mut event_chains = unwrap_option_list(op_ecs);
     process_events_from_mapstate(&mut m, event_chains, false);
 

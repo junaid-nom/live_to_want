@@ -1,14 +1,23 @@
-use rand::Rng;
+use rand::{Rng, prelude::SliceRandom};
 
-use crate::{CreatureState, Location, Vu2, map_state::MapState, tasks::Event, tasks::EventChain, tasks::EventType};
+use crate::{BattleFrame, CreatureState, Item, Location, UID, Vu2, get_id, map_state::MapState, tasks::Event, tasks::EventChain, tasks::EventType};
 
 #[derive(Debug, Clone, Copy)]
 #[derive(PartialEq, Hash, Eq)]
 pub enum Attacks {
-    SimpleDamage(i32)
+    SimpleDamage(BattleFrame, i32), // frames to execute, damage should be positive val
+    DoNothing()
+}
+impl Attacks {
+    fn get_attack_frame_speed(&self) -> BattleFrame {
+        match &self {
+            Attacks::SimpleDamage(frames, _) => *frames,
+            Attacks::DoNothing() => 0,
+        }
+    }
 }
 impl Default for Attacks {
-    fn default() -> Self { Attacks::SimpleDamage(1) }
+    fn default() -> Self { Attacks::SimpleDamage(3, 1) }
 }
 
 #[derive(Debug)]
@@ -17,8 +26,11 @@ pub struct BattleInfo {
     pub health: i32,
     pub max_health: i32,
     pub attacks: Vec<Attacks>,
-    pub creature_id: u64,
+    pub creature_id: UID,
     pub creature_location: Location,
+    pub last_attack_frame: BattleFrame,
+    pub current_attack: Attacks,
+    pub items: Vec<Item>,
 }
 impl BattleInfo {
     pub fn new(c: &CreatureState) -> Self {
@@ -32,22 +44,148 @@ impl BattleInfo {
             attacks: vec![Attacks::default()],
             creature_id: id_c,
             creature_location: loc,
+            last_attack_frame: 0,
+            current_attack: Attacks::DoNothing(),
+            items: c.inventory.clone()
         }
     }
 }
 
+#[derive(Debug)]
+#[derive(Default, Hash, PartialEq, Eq, Clone)]
+// TODO KINDA: Make this an interface so you can swap out different battle systems entirely lol?
 pub struct Battle {
     pub fighter1: BattleInfo,
     pub fighter2: BattleInfo,
-    pub frame_started: u128
+    // Battle uses its own frame. This way you can for example, don't increase frame until human player sends command. or increase frame after X seconds. or run throuh an entire battle in a single map state frame. detached from map state frame change.
+    pub frame: BattleFrame, 
+    pub id: UID,
+    pub battle_list_id: UID,
 }
 impl Battle {
-    pub fn new(c1: &CreatureState, c2: &CreatureState, current_frame: u128) -> Self {
+    pub fn new(c1: &CreatureState, c2: &CreatureState, battle_list_id: UID) -> Self {
         Battle {
             fighter1: BattleInfo::new(c1),
             fighter2: BattleInfo::new(c2),
-            frame_started: current_frame,
+            frame: 0,
+            id: get_id(),
+            battle_list_id
         }
+    }
+    pub fn update(&mut self) -> Option<EventChain> {
+        self.frame += 1;
+        let frame = self.frame;
+        let mut fighters = vec![&mut self.fighter1, &mut self.fighter2];
+        // go through battle infos, check if ready to cast. return attack tuple (attack, target_index)
+        let attack_tuples: Vec<Option<(Attacks, usize, usize)>> = fighters.iter().enumerate().map(
+            |(index, fighter)| {
+                if fighter.current_attack.get_attack_frame_speed() + fighter.last_attack_frame <= frame {
+                    let attack = fighter.current_attack;
+                    let my_index = index;
+                    let enemy_index = (index + 1) % 2;
+                    Some((attack, my_index, enemy_index))
+                } else {
+                    None
+                }
+            }
+        ).collect();
+
+        let mut rng = rand::thread_rng();
+        attack_tuples.into_iter().for_each(|tuple| {
+            match tuple {
+                Some((attack, attacker, victim )) => {
+                    match attack {
+                        Attacks::SimpleDamage(_, dmg) => fighters[victim].health -= dmg,
+                        Attacks::DoNothing() => {},
+                    }
+                    // set next attack as well. for now just pick random attack in attacks
+                    // TODONEXT base it on some async stuff.
+                    fighters[attacker].last_attack_frame = frame;
+                    fighters[attacker].current_attack = *fighters[attacker].attacks.choose(&mut rng).unwrap();
+                },
+                None => {},
+            }
+        });
+
+        // check if either fighter dead, then create EventChain for results
+        let victor = if fighters[0].health <= 0 && fighters[1].health <= 0 {
+            2 // both lose
+        } else if fighters[0].health <= 0 {
+            1
+        } else if fighters[1].health <= 0 {
+            0
+        } else {
+            -1
+        };
+
+        // event chain should move items then set HPs 
+        // also should remove from combat, and remove battle from battle list
+        if victor >= 0 {
+            let mut end_combat = vec![
+                Event::make_basic(EventType::LeaveBattle(), fighters[0].creature_id),
+                Event::make_basic(EventType::LeaveBattle(), fighters[1].creature_id),
+                Event::make_basic(EventType::RemoveBattle(self.id), self.battle_list_id)
+            ];
+
+            let mut single_winner = |winner: usize, loser: usize| {
+                let set_winner_hp = Event::make_basic(EventType::SetHealth(fighters[winner].health), fighters[winner].creature_id);
+                let set_loser_hp = Event::make_basic(EventType::SetHealth(fighters[loser].health), fighters[loser].creature_id);
+                let mut move_items: Vec<Event> = fighters[loser].items.iter().flat_map(|item| {
+                    let mut events = vec![];
+                    events.push(Event::make_basic(EventType::RemoveItem(item.quantity, item.item_type), fighters[loser].creature_id));
+                    events.push(Event::make_basic(EventType::AddItem(item.quantity, item.item_type), fighters[winner].creature_id));
+                    events
+                }).collect();
+                move_items.push(set_winner_hp);
+                move_items.push(set_loser_hp);
+                move_items.append(&mut end_combat);
+                EventChain {
+                    events: move_items
+                }
+            };
+
+            match victor {
+                0 => {
+                    // fighter index 0 won
+                    Some(single_winner(0, 1))
+                },
+                1 => {
+                    // fighter index 1 won
+                    Some(single_winner(1, 0))
+                },
+                2 => {
+                    // both dead
+                    end_combat.push(Event::make_basic(EventType::SetHealth(fighters[0].health), fighters[0].creature_id));
+                    end_combat.push(Event::make_basic(EventType::SetHealth(fighters[1].health), fighters[1].creature_id));
+                    Some(EventChain {
+                        events: end_combat
+                    })
+                },
+                _ => panic!("match with invalid victor?")
+            }
+        } else {
+            None
+        }
+
+        //TODONEXT: Need to actually make this async. So basically, have some async thread that runs AI/gets human input.
+        // then those commands get fed into battles.
+        // probably make map_state only update once every X frames per second. if player is in a battle maybe at a slower speed?
+        // so basically actually make async user input work...
+        // should feel like MMO combat basically. kinda turn based but with real time.
     }
 }
 
+#[derive(Debug)]
+#[derive(Default, Hash, PartialEq, Eq, Clone)]
+pub struct BattleList {
+    pub battles: Vec<Battle>,
+    pub id: UID
+}
+impl BattleList {
+    pub fn new() -> Self {
+        BattleList {
+            battles: vec![],
+            id: get_id()
+        }
+    }
+}

@@ -1,4 +1,4 @@
-use crate::{creature::CreatureState, tasks::Event, tasks::EventChain, tasks::EventTarget, tasks::EventType, Location, utils::UID, utils::Vu2};
+use crate::{Battle, Location, creature::CreatureState, tasks::Event, tasks::EventChain, tasks::EventTarget, tasks::EventType, utils::UID, utils::Vu2};
 
 use super::MapLocation;
 
@@ -34,14 +34,14 @@ pub enum CreatureCommand<'b>{
     // str here is for debugging purposes and is usually just the name of the node
     MoveTo(&'static str, &'b CreatureState, Location, u128), // Assume this sets the destination not instantly move to
     Chase(&'static str, &'b CreatureState, &'b CreatureState),
-    Attack(&'static str, &'b CreatureState, &'b CreatureState),
+    Attack(&'static str, &'b CreatureState, &'b CreatureState, UID),
     TakeItem(&'static str, InventoryHolder<'b>, InventoryHolder<'b>, Item),
 }
 impl CreatureCommand<'_> {
     pub fn to_event_chain(&self) -> Option<EventChain> {
         match self {
             CreatureCommand::MoveTo(_, c, destination, current_frame) => {
-                // TODONEXT: initialize movement component to new destination
+                // initialize movement component to new destination
                 let init_move = Event {
                     event_type: EventType::InitializeMovement(*current_frame, *destination),
                     on_fail: None,
@@ -53,10 +53,59 @@ impl CreatureCommand<'_> {
                 });
             }
             CreatureCommand::Chase(_, _, _) => {}
-            CreatureCommand::Attack(_, attacker, victim) => {
-                // TODONEXT: Create two events that set in battle and battle started = false. make new battle u128.
-                // Make a new Battle class as well based on the creature states (turned into BattleInfo)
-                // And a AddBattle event that will add a battle to a list of battles on mapState
+            CreatureCommand::Attack(_, attacker, victim, battle_list_id) => {
+                // Create two events that set in battle and battle started = false for the creatures.
+                // And a AddBattle event that will add a battle to a list of battles on mapState.
+                let battle = Battle::new(attacker,victim, *battle_list_id);
+                let add_p1 = Event {
+                    event_type: EventType::EnterBattle(battle.id),
+                    get_requirements: Box::new(|e, _| {
+                        match e {
+                            EventTarget::CreatureTarget(c) => {
+                                return !c.get_if_in_combat()
+                            }
+                            _ => {
+                                panic!("Got eventtarget that isnt for items")
+                            }
+                        }
+                    }),
+                    on_fail: None,
+                    target: attacker.components.id_component.id()
+                };
+                let remove_p1_when_fail = Event {
+                    event_type: EventType::LeaveBattle(),
+                    get_requirements: Box::new(|_,_| true),
+                    on_fail: None,
+                    target: attacker.components.id_component.id()
+                };
+
+                let add_p2 = Event {
+                    event_type: EventType::EnterBattle(battle.id),
+                    get_requirements: Box::new(|e, _| {
+                        match e {
+                            EventTarget::CreatureTarget(c) => {
+                                return !c.get_if_in_combat()
+                            }
+                            _ => {
+                                panic!("Got eventtarget that isnt for items")
+                            }
+                        }
+                    }),
+                    on_fail: Some(EventChain{
+                        events: vec![remove_p1_when_fail]
+                    }),
+                    target: victim.components.id_component.id()
+                };
+                let start_battle = Event {
+                    event_type: EventType::AddBattle(battle),
+                    get_requirements: Box::new(|_,_| true),
+                    on_fail: None,
+                    target: *battle_list_id,
+                };
+                
+                return Some(EventChain {
+                    events: vec![add_p1, add_p2, start_battle]
+                });
             }
             CreatureCommand::TakeItem(_, src, dst, item) => {
                 // TODO: check if dst has enough space, though maybe just have "cant move" if your inv full

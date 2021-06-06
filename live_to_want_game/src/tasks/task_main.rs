@@ -1,9 +1,6 @@
 use fmt::Debug;
 
-use crate::{
-    creature::CreatureState, map_state::Item, map_state::ItemType, map_state::MapState, utils::UID,
-    CreatureList, Location,
-};
+use crate::{Battle, BattleList, CreatureList, Location, creature::CreatureState, map_state::Item, map_state::ItemType, map_state::MapState, utils::UID};
 use core::fmt;
 use std::collections::HashMap;
 extern crate rayon;
@@ -60,16 +57,18 @@ pub enum EventTarget<'a> {
     LocationItemTarget(&'a mut Vec<Item>, UID),
     LocationCreaturesTarget(&'a mut CreatureList, UID),
     CreatureTarget(&'a mut CreatureState),
+    BattleListTarget(&'a mut BattleList),
 }
 impl EventTarget<'_> {
-    fn get_id(&self) -> UID {
-        match &self {
-            EventTarget::LocationItemTarget(_, id) => *id,
-            EventTarget::LocationCreaturesTarget(_, id) => *id,
-            EventTarget::CreatureTarget(c) => c.components.id_component.id(),
-            // TODONEXT: Add new EventTarget BattleList
-        }
-    }
+    // this function is unused?
+    // fn get_id(&self) -> UID {
+    //     match &self {
+    //         EventTarget::LocationItemTarget(_, id) => *id,
+    //         EventTarget::LocationCreaturesTarget(_, id) => *id,
+    //         EventTarget::CreatureTarget(c) => c.components.id_component.id(),
+    //         EventTarget::BattleListTarget(_, id) => *id,
+    //     }
+    // }
 }
 
 pub struct Event {
@@ -79,6 +78,15 @@ pub struct Event {
     pub target: UID,
 }
 impl Event {
+    pub fn make_basic(event_type: EventType, target: UID) -> Self {
+        Event {
+            event_type,
+            get_requirements: Box::new(|_, _| true),
+            on_fail: None,
+            target,
+        }
+    }
+
     pub fn mutate(self, effected: &mut EventTarget) -> Option<Event> {
         match self.event_type {
             EventType::RemoveCreature(id, next_op, current_frame) => match effected {
@@ -227,7 +235,8 @@ impl Event {
             },
             EventType::EnterBattle(battle_id) => match effected {
                 EventTarget::CreatureTarget(c) => {
-                    // TODONEXT: Set in_battle
+                    let bc = c.components.battle_component.as_mut().unwrap();
+                    bc.add_in_battle(battle_id);
                     return None
                 },
                 _ => {
@@ -237,11 +246,43 @@ impl Event {
             EventType::LeaveBattle() => match effected {
                 EventTarget::CreatureTarget(c) => {
                     let battlec = c.components.battle_component.as_mut().unwrap();
-                    //TODONEXT: Set in_battle to none
+                    battlec.leave_in_battle();
                     return None
                 },
                 _ => {
                     panic!("Got leave battle for wrong target");
+                }
+            },
+            EventType::AddBattle(battle) => match effected {
+                EventTarget::BattleListTarget(bl) => {
+                    bl.battles.push(battle);
+                    return None
+                },
+                _ => {
+                    panic!("Got add battle for wrong target");
+                }
+            },
+            EventType::SetHealth(new_hp) => {
+                match effected {
+                    EventTarget::CreatureTarget(c) => {
+                        let health_c = c.components.health_component.as_mut().unwrap();
+                        health_c.health = new_hp;
+                        return None
+                    },
+                    _ => {
+                        panic!("Got leave battle for wrong target");
+                    }
+                }
+            },
+            EventType::RemoveBattle(battle_id) => {
+                match effected {
+                    EventTarget::BattleListTarget(bl) => {
+                        bl.battles.retain(|battle| battle.id != battle_id);
+                        return None
+                    },
+                    _ => {
+                        panic!("Got add battle for wrong target");
+                    }
                 }
             },
         }
@@ -262,12 +303,14 @@ pub enum EventType {
     AddCreature(CreatureState, u128),
     RemoveItem(u32, ItemType),
     AddItem(u32, ItemType),
+    SetHealth(i32),
     IterateBudding(),
     //IterateMovement(u128),
     InitializeMovement(u128, Location),
-    EnterBattle(u128),
+    EnterBattle(UID),
     LeaveBattle(), // Mostly for canceling battle events in case of conflict
-    // TODONEXT: make AddBattle event.
+    AddBattle(Battle),
+    RemoveBattle(UID),
 }
 
 pub fn process_events_from_mapstate(
@@ -331,6 +374,7 @@ pub fn process_events<'a, 'b>(
                 EventTarget::LocationItemTarget(_, id) => *id,
                 EventTarget::CreatureTarget(c) => c.components.id_component.id(),
                 EventTarget::LocationCreaturesTarget(_, id) => *id,
+                EventTarget::BattleListTarget(bl) => bl.id,
             };
             //println!("Adding id: {}", id);
             uid_map.insert(id, t);

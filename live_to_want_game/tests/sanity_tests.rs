@@ -214,3 +214,7 @@ fn test_usize() {
     assert_eq!(x, 0);
 }
 
+#[test]
+fn test_mod() {
+    assert_eq!(2 % 2, 0);
+}

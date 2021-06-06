@@ -157,7 +157,6 @@ pub struct MovementComponent {
 }
 impl MovementComponent {
     pub fn set_new_destination(&mut self, dst:Location, current_frame: u128) {
-        //TODONEXT 
         // if already moving right now, and its to the same place allow it.
         if self.moving {
             // fuck it, if your moving keep your frame_ready_to_move
@@ -249,12 +248,19 @@ pub enum BattleSkill {
 #[derive(Hash, PartialEq, Eq, Clone)]
 pub struct BattleComponent {
     //pub battle_skills: Vec<Item>,
-    pub in_battle:Option<u128>,
-    pub battle_started:bool, // if not started, need to create a new battle.
+    pub in_battle:Option<UID>,
     //pub status_effects: Vec<StatusEffect>,
     // TODO: Add a GoalNode where if in combat, return None command.
     // todo put battle only stats here? No instead generate battle specific stuff from a creaturestate that is housed in a battle object
 
+}
+impl BattleComponent {
+    pub fn add_in_battle(&mut self, battle_id: UID) {
+        self.in_battle = Some(battle_id);
+    }
+    pub fn leave_in_battle(&mut self) {
+        self.in_battle = None;
+    }
 }
 impl Component for BattleComponent {
     fn get_visible() -> bool {

@@ -148,4 +148,5 @@ pub fn make_string_at_most_length(mut s: String, target_len: usize) -> String{
 pub static COUNTER: AtomicU64 = AtomicU64::new(1); // TODO: Upgrade to a 128 bit one when it comes out of nightly build
 pub fn get_id() -> u64 { COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed) }
 pub type UID = u64;
+pub type BattleFrame = u64;
 

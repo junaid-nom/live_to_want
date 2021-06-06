@@ -1,6 +1,6 @@
 use std::{fmt, ops::Index, ops::IndexMut, sync::Arc, vec::Drain, sync::Mutex};
 
-use crate::{Neighbor, UID, Vu2, creature::CreatureState, creature::IDComponent, get_2d_vec, make_string_at_least_length, utils::Vector2, make_string_at_most_length};
+use crate::{BattleList, Neighbor, UID, Vu2, creature::CreatureState, creature::IDComponent, get_2d_vec, make_string_at_least_length, make_string_at_most_length, utils::Vector2};
 use rand::prelude::*;
 extern crate rayon;
 use rayon::prelude::*;
@@ -87,6 +87,7 @@ impl RegionCreationStruct {
 pub struct MapState {
     pub regions: RegionGrid,
     pub frame_count: u128,
+    pub battle_list: BattleList
 }
 impl MapState {
     pub fn new(mut rstructs: Vec<Vec<RegionCreationStruct>>, current_frame: u128) -> Self {
@@ -129,7 +130,8 @@ impl MapState {
         }
         let mut ret = MapState {
             regions: rgrid,
-            frame_count: current_frame
+            frame_count: current_frame,
+            battle_list: BattleList::new()
         };
         ret.update_nav();
         ret
@@ -191,7 +193,7 @@ impl MapState {
             println!("Warning start and goal the same for {:#?}", start);
             return *start;
         }
-        // TODONEXT: Make this work with new nav system. For both inner region and extra region navigation!
+        // Make this work with new nav system. For both inner region and extra region navigation!
         let start_r_xlen= self.regions[start.region].grid.len();
         let start_r_ylen= self.regions[start.region].grid[0].len();
         if start.region == goal.region {

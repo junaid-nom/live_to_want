@@ -86,7 +86,7 @@ fn test_movement_normal() {
             })
         });
     }
-    // TODONEXT: make sure creature location changes to what it shud be
+    // make sure creature location changes to what it shud be
     // also make sure movement is stopped
     println!("creatures at target: {:#?}", map.regions[dst_region].grid[dst_position].creatures);
     let creature = map.regions[dst_region].grid[dst_position].creatures.get_creature_by_index(0);
@@ -178,7 +178,7 @@ fn test_movement_closer_region() {
             })
         });
     }
-    // TODONEXT: make sure creature location changes to what it shud be
+    //  make sure creature location changes to what it shud be
     // also make sure movement is stopped
     println!("creatures at target: {:#?}", map.regions[1][0].grid[0][2].creatures);
     let creature = map.regions[1][0].grid[0][2].creatures.get_creature_by_index(0);
@@ -270,7 +270,7 @@ fn test_movement_fat_region() {
             })
         });
     }
-    // TODONEXT: make sure creature location changes to what it shud be
+    // make sure creature location changes to what it shud be
     // also make sure movement is stopped
     println!("creatures at target: {:#?}", map.regions[dst_region].grid[dst_position].creatures);
     let creature = map.regions[dst_region].grid[dst_position].creatures.get_creature_by_index(0);
