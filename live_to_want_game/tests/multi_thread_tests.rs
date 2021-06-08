@@ -295,7 +295,7 @@ fn test_chain_multithread_items() {
 // TODONEXT: create a map. have three deer. have two deer at the same time declare attack on the same victim deer.
 // check to make sure that only one battle occurs. only 2 units in battle at a time.
 // then also check to make sure the battle actually finishes with the expected result: one deer dead, the other with the first deers items
-fn test_chain_multithread_battle() {
+fn test_chain_multithread_battle<'a>() {
     // Below is bs copy pasted... needs to be redone
     let x: Vec<u32> = (0..100).collect();
     let y: i32 = x.into_par_iter().map(|_| {
@@ -325,146 +325,49 @@ fn test_chain_multithread_battle() {
         deer2.components.location_component = LocationComponent {
             location: Vu2{x: 1, y: 1}
         };
+
+        let mut deer3 = CreatureState{
+            components: ComponentMap::default(),
+            inventory: Vec::new(),
+            memory: CreatureMemory::default(),
+        };
+        deer3.components.location_component = LocationComponent {
+            location: Vu2{x: 1, y: 1}
+        };
+        deer3.inventory.push(Item{
+            item_type: ItemType::Berry,
+            quantity: 1,
+        });
+        
         let deer1_id = deer1.components.id_component.id();
         let deer2_id = deer2.components.id_component.id();
+        let deer3_id = deer3.components.id_component.id();
         region.grid[1][1].creatures.add_creature(
             deer1, 0
         );
         region.grid[1][1].creatures.add_creature(
             deer2, 0
         );
-        region.grid[1][1].items.push(Item{
-            item_type: ItemType::Berry,
-            quantity: 1,
-        });
-        let berry_id = region.grid[1][1].id_component_items.id();
-
-        let loc = &mut region.grid[1][1];
-        let mut iter_mut = loc.creatures.get_iter_mut().unwrap();
-        let d1_ref = iter_mut.next().unwrap();
-        let d2_ref = iter_mut.next().unwrap();
-        let loc_ref = &mut loc.items;
-
-        // let d1_ref = &mut region.grid[1][1].creatures[0];
-        // let d2_ref = &mut region.grid[1][1].creatures[1];
-        // let loc_ref = &mut region.grid[1][1].items;
+        region.grid[1][1].creatures.add_creature(
+            deer3, 0
+        );
         
-        // make some event chain examples
-        // pick up item -> remove item (if fail remove item again) (note, in rl would do reverse)
-        let pickup1 = Event {
-            event_type: EventType::AddItem(1, ItemType::Berry),
-            get_requirements: Box::new(|_, _| true),
-            on_fail: None,
-            target: deer1_id,
+        let mut root = GoalNode {
+            get_want_local: Box::new(|_, _| 1),
+            get_effort_local: Box::new(|_, _| 1),
+            children: Vec::new(),
+            name: "root",
+            get_command: Some(Box::new(|m: & MapState, c| CreatureCommand::Attack("attack_deer_1", c, m.find_closest_creature_to_creature(c).unwrap(), m.battle_list.id))),
+            get_requirements_met: Box::new(|_, _| true),
         };
-        let pickup2 = Event {
-            event_type: EventType::AddItem(1, ItemType::Berry),
-            get_requirements: Box::new(|_, _| true),
-            on_fail: None,
-            target: deer2_id,
+
+        let game_state = GameState {
+            map_state:map
         };
-        let pickup_fail = Event {
-            event_type: EventType::RemoveItem(1, ItemType::Berry),
-            get_requirements: Box::new(|_, _| true),
-            on_fail: None,
-            target: deer1_id,
-        };
-        let event_fail1 = EventChain {
-            events: vec!(pickup_fail),
-        };
-        let pickup_fail2 = Event {
-            event_type: EventType::RemoveItem(1, ItemType::Berry),
-            get_requirements: Box::new(|_, _| true),
-            on_fail: None,
-            target: deer2_id,
-        };
-        let event_fail2 = EventChain {
-            events: vec!(pickup_fail2),
-        };
-        let remove1=  Event {
-            event_type: EventType::RemoveItem(1, ItemType::Berry),
-            get_requirements: Box::new(|e, _| {
-                match e {
-                    EventTarget::LocationItemTarget(i, _) => {
-                        for item in i.iter() {
-                            if item.item_type == ItemType::Berry && item.quantity > 0 {
-                                return true
-                            }
-                        }
-                        false
-                    }
-                    EventTarget::CreatureTarget(c) => {
-                        for item in c.inventory.iter() {
-                            if item.item_type == ItemType::Berry && item.quantity > 0 {
-                                return true
-                            }
-                        }
-                        false
-                    }
-                    _ => {
-                        panic!("Got wrong target for remove item ev");
-                    }
-                }
-            }),
-            on_fail: Some(event_fail1),
-            target: berry_id
-        };
-        let remove2=  Event {
-            event_type: EventType::RemoveItem(1, ItemType::Berry),
-            get_requirements: Box::new(|e, _| {
-                match e {
-                    EventTarget::LocationItemTarget(i, _) => {
-                        for item in i.iter() {
-                            if item.item_type == ItemType::Berry && item.quantity > 0 {
-                                return true
-                            }
-                        }
-                        false
-                    }
-                    EventTarget::CreatureTarget(c) => {
-                        for item in c.inventory.iter() {
-                            if item.item_type == ItemType::Berry && item.quantity > 0 {
-                                return true
-                            }
-                        }
-                        false
-                    }
-                    _ => {
-                        panic!("Got wrong target for remove item ev");
-                    }
-                }
-            }),
-            on_fail: Some(event_fail2),
-            target: berry_id
-        };
-    
-        let deer_chain1 = EventChain {
-            events: vec![pickup1, remove1],
-        };
-        let deer_chain2 = EventChain {
-            events: vec![pickup2, remove2],
-        };
-    
-        // for all events, get current target, and make hashtable of Vec for it
-        // transfer the Vec and Targets to a TaskList
-        let event_chains = vec![deer_chain1, deer_chain2];
-        let mut ed1 = EventTarget::CreatureTarget(d1_ref);
-        let mut ed2 = EventTarget::CreatureTarget(d2_ref);
-        let mut eloc = EventTarget::LocationItemTarget(loc_ref, berry_id);
-        let mut targets = vec![ed1, ed2, eloc];
-        //let targets = &mut targets;
+        run_frame(game_state, &root);
+
         
-        let mut next = process_events(&mut targets, event_chains);
-        while next.len() > 0 {
-            next = process_events(&mut targets, next);
-        }
-        assert_eq!(next.len(), 0);
-        assert_eq!(region.grid[1][1].items.len(), 0);
-        let total: u32 = region.grid[1][1].creatures.get_par_iter().unwrap().map(|c| {
-            let ret: u32 = c.inventory.iter().map(|i| i.quantity).sum();
-            ret
-        }).sum();
-        assert_eq!(total, 1);
+        assert_eq!(1, 1);
         1
     }).sum();
     assert_eq!(y, 100);

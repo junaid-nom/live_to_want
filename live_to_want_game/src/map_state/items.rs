@@ -34,7 +34,7 @@ pub enum CreatureCommand<'b>{
     // str here is for debugging purposes and is usually just the name of the node
     MoveTo(&'static str, &'b CreatureState, Location, u128), // Assume this sets the destination not instantly move to
     Chase(&'static str, &'b CreatureState, &'b CreatureState),
-    Attack(&'static str, &'b CreatureState, &'b CreatureState, UID),
+    Attack(&'static str, &'b CreatureState, &'b CreatureState, UID), // attacker, victim, 3rd is battle list uid
     TakeItem(&'static str, InventoryHolder<'b>, InventoryHolder<'b>, Item),
 }
 impl CreatureCommand<'_> {

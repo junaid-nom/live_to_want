@@ -164,6 +164,40 @@ impl MapState {
         None
     }
 
+    // TODO Kinda: could have this take a func from CreatureState->bool for additional things to check for (like not in combat etc)
+    pub fn find_closest_creature_to_creature<'a>(&'a self, src_creature: &'a CreatureState) -> Option<&'a CreatureState> {
+        let loc = src_creature.get_location();
+        let region = &self.regions[loc.region.x as usize][loc.region.y as usize];
+        let mut to_check: Vec<Vu2> = Vec::new();
+        to_check.push(loc.position);
+        let mut idx = 0;
+        while idx < to_check.len() {
+            let checking  = &region.grid[to_check[idx].x as usize][to_check[idx].y as usize];
+            let mut ret = None;
+            if checking.creatures.holds_creatures() {
+                checking.creatures.creatures.as_ref().unwrap().iter().for_each(|c| {
+                    if c.components.id_component.id() != src_creature.components.id_component.id() {
+                        ret = Some(c);
+                    }
+                });
+            }
+            if let Some(ret_c) = ret {
+                return Some(ret_c);
+            } else {
+                // add vector2s to to_check of locations next to this one if they exist
+                // and if they aren't already in the list
+                let neighbors = to_check[idx].get_neighbors_vu2();
+                for n in neighbors {
+                    if self.location_exists_and_holds_creatures(&loc.region, &to_check[idx]) && !to_check.contains(&n) {
+                        to_check.push(n);
+                    }
+                }
+                idx += 1;
+            }
+        }
+        None
+    }
+
     pub fn location_exists_and_holds_creatures(&self, region: &Vu2, position: &Vu2) -> bool {
         if self.regions.len() < region.x as usize && self.regions[region.x as usize].len() < region.y as usize { 
             let r = &self.regions[region.x as usize][region.y as usize].grid;

@@ -17,7 +17,7 @@ pub struct GoalNode<'a> {
     pub get_effort_local: Box<fn(&MapState, &CreatureState) -> u32>,
     pub children: Vec<GoalConnection<'a>>,
     pub name: &'a str,  // just for debugging really
-    pub get_command: Option<Box<for<'f, 'c> fn(&MapState, &'f CreatureState) -> CreatureCommand<'f>>>, // Is None if this node does not lead to a category and is more of a organizing node
+    pub get_command: Option<Box<for<'f, 'c> fn(&'f MapState, &'f CreatureState) -> CreatureCommand<'f>>>, // Is None if this node does not lead to a category and is more of a organizing node
     pub get_requirements_met: Box<fn (&MapState, &CreatureState) -> bool>,
 }
 
@@ -164,7 +164,7 @@ impl GoalCacheNode<'_> {
         }
     }
 
-    pub fn get_final_command<'a, 'b>(goal_node: &'a GoalNode, map_state :&MapState, c_state : &'b CreatureState) -> Option<CreatureCommand<'b>> { 
+    pub fn get_final_command<'a, 'b>(goal_node: &'a GoalNode, map_state :&'b MapState, c_state : &'b CreatureState) -> Option<CreatureCommand<'b>> { 
         let parent = Rc::new(RefCell::new(GoalCacheNode::new(goal_node, map_state, c_state)));
         let existing_caches: Rc<RefCell<HashMap<&str, Rc<RefCell<GoalCacheNode>>>>> = Rc::new(RefCell::new(HashMap::new()));
         GoalCacheNode::setup_children(parent.clone(), map_state, c_state, existing_caches);
