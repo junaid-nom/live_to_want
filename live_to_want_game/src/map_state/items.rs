@@ -1,3 +1,5 @@
+use std::io::stderr;
+
 use crate::{Battle, Location, MAX_ATTACK_DISTANCE, creature::CreatureState, tasks::Event, tasks::EventChain, tasks::EventTarget, tasks::EventType, utils::UID, utils::Vu2};
 
 use super::MapLocation;
@@ -62,10 +64,14 @@ impl CreatureCommand<'_> {
                 match dist {
                     Some(dist) => {
                         if dist > MAX_ATTACK_DISTANCE {
+                            println!("Trying to attack enemy out of range!");
                             return None
                         }
                     },
-                    None => return None,
+                    None => {
+                        println!("Trying to attack enemy not even in same region!");
+                        return None
+                    },
                 }
 
                 // NOTE: MUST order the set in combat events by lowest ID! That way if two enemies fight each other same time
