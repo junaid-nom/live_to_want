@@ -41,6 +41,10 @@ pub enum CreatureCommand<'b>{
 }
 impl CreatureCommand<'_> {
     pub fn to_event_chain(&self) -> Option<EventChain> {
+        // TODO: Need to at some point verify all creature commands are valid probably earlier than here, somewhere when we get input from AI/human players
+        // Especially stuff like "take item"... probably need to have some kind of like "Admin commands" and "Player commands" idk? Because takeItem used by engine probably?
+        // actually take item ISNT used by anything hmm also does that mean its fucking untested lol?
+        // stuff like move_to probably still needs limits at least?
         match self {
             CreatureCommand::MoveTo(_, c, destination, current_frame) => {
                 // initialize movement component to new destination
