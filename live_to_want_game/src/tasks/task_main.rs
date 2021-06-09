@@ -1,6 +1,6 @@
 use fmt::Debug;
 
-use crate::{Battle, BattleList, CreatureList, Location, creature::CreatureState, map_state::Item, map_state::ItemType, map_state::MapState, utils::UID};
+use crate::{Battle, BattleList, CreatureList, Location, battle, creature::CreatureState, map_state::Item, map_state::ItemType, map_state::MapState, utils::UID};
 use core::fmt;
 use std::collections::HashMap;
 extern crate rayon;
@@ -27,6 +27,7 @@ impl TaskList<'_, '_> {
 pub struct EventChain {
     //pub index: usize,
     pub events: Vec<Event>,
+    pub debug_string: String,
 }
 impl EventChain {
     fn process(mut self, effected: &mut EventTarget) -> Option<EventChain> {
@@ -235,6 +236,7 @@ impl Event {
             },
             EventType::EnterBattle(battle_id) => match effected {
                 EventTarget::CreatureTarget(c) => {
+                    println!("{} Entering battle {}", c.get_id(), battle_id);
                     let bc = c.components.battle_component.as_mut().unwrap();
                     bc.add_in_battle(battle_id);
                     return None
@@ -245,7 +247,9 @@ impl Event {
             },
             EventType::LeaveBattle() => match effected {
                 EventTarget::CreatureTarget(c) => {
+                    let id = c.get_id();
                     let battlec = c.components.battle_component.as_mut().unwrap();
+                    println!("{} leaving battle {}", id, battlec.in_battle.unwrap());
                     battlec.leave_in_battle();
                     return None
                 },
@@ -255,6 +259,7 @@ impl Event {
             },
             EventType::AddBattle(battle) => match effected {
                 EventTarget::BattleListTarget(bl) => {
+                    println!("creating battle {}", bl.id);
                     bl.battles.push(battle);
                     return None
                 },
@@ -388,7 +393,6 @@ pub fn process_events<'a, 'b>(
     }
     for ec in event_chains.into_iter() {
         let key = ec.events[0].target;
-        println!("looking at target: {}", key);
         match tasks_map.get_mut(&key) {
             Some(tl) => {
                 tl.tasks.push(ec);

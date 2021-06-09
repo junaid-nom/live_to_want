@@ -165,6 +165,16 @@ pub fn run_frame(mut game_state: GameState, root: &GoalNode) -> GameState {
     // XOX
     // Need to make it so any location that would lead to blocking exits is blocked not just exits.
 
+
+    // !! ! ! ! ! !
+ // !! ! ! ! ! !
+         // !! ! ! ! ! !
+    // TODONEXT: The stuff involving blockers and non blocker stuff is likely broken!!! the find_closest_non_blocked function DID NOT WORK AT ALL before!
+ // !! ! ! ! ! !
+ // !! ! ! ! ! !
+         // !! ! ! ! ! !
+
+
     // update nav map based on spawns for regions that spawn ones that block
     // basically just need to update the last frame changed for each region
     // then run some "update nav system" that checks every region and sees which ones have a last_frame_updated < last_frame(in MapRegion)
@@ -347,9 +357,15 @@ pub fn run_frame(mut game_state: GameState, root: &GoalNode) -> GameState {
             }
         }).collect();
         // Can do other death stuff here like explosion when die etc
-        vec![Some(EventChain {
-            events
-        })]
+        if events.len() > 0 {
+            vec![Some(EventChain {
+                events,
+                debug_string: format!("Dead {}", target)
+            })]
+        } else {
+            vec![]
+        }
+        
     }).collect();
     process_events_from_mapstate(&mut m, unwrap_option_list(dead_events), true);
 

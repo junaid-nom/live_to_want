@@ -1,4 +1,4 @@
-use std::{fmt, ops::Index, ops::IndexMut, sync::Arc, vec::Drain, sync::Mutex};
+use std::{convert::TryInto, fmt, ops::Index, ops::IndexMut, sync::Arc, sync::Mutex, vec::Drain};
 
 use crate::{BattleList, Neighbor, UID, Vu2, creature::CreatureState, creature::IDComponent, get_2d_vec, make_string_at_least_length, make_string_at_most_length, utils::Vector2};
 use rand::prelude::*;
@@ -69,7 +69,7 @@ impl RegionCreationStruct {
     ) -> Self {
         RegionCreationStruct {
             location:Vu2::new(0,0), // should be set by MapState::new
-            map_size: Vu2::new(0,0),
+            map_size: Vu2::new(0,0), // should be set by MapState::new
             xlen,
             ylen,
             current_frame,
@@ -149,7 +149,7 @@ impl MapState {
                 // and if they aren't already in the list
                 let neighbors = to_check[idx].get_neighbors_vu2();
                 for n in neighbors {
-                    if self.location_exists_and_holds_creatures(&loc.region, &to_check[idx]) && !to_check.contains(&n) {
+                    if self.location_exists_and_holds_creatures(&loc.region, &n) && !to_check.contains(&n) {
                         to_check.push(n);
                     }
                 }
@@ -176,8 +176,10 @@ impl MapState {
             let mut ret = None;
             if checking.creatures.holds_creatures() {
                 checking.creatures.creatures.as_ref().unwrap().iter().for_each(|c| {
-                    if c.components.id_component.id() != src_creature.components.id_component.id() {
-                        ret = Some(c);
+                    if let None = ret {
+                        if c.components.id_component.id() != src_creature.components.id_component.id() {
+                            ret = Some(c);
+                        }
                     }
                 });
             }
@@ -188,7 +190,7 @@ impl MapState {
                 // and if they aren't already in the list
                 let neighbors = to_check[idx].get_neighbors_vu2();
                 for n in neighbors {
-                    if self.location_exists_and_holds_creatures(&loc.region, &to_check[idx]) && !to_check.contains(&n) {
+                    if self.location_exists_and_holds_creatures(&loc.region, &n) && !to_check.contains(&n) {
                         to_check.push(n);
                     }
                 }
@@ -199,9 +201,9 @@ impl MapState {
     }
 
     pub fn location_exists_and_holds_creatures(&self, region: &Vu2, position: &Vu2) -> bool {
-        if self.regions.len() < region.x as usize && self.regions[region.x as usize].len() < region.y as usize { 
+        if self.regions.len() > region.x as usize && self.regions[region.x as usize].len() > region.y as usize { 
             let r = &self.regions[region.x as usize][region.y as usize].grid;
-            if r.len() < position.x as usize && r[position.x as usize].len() < position.y as usize {
+            if r.len() > position.x as usize && r[position.x as usize].len() > position.y as usize {
                 return r[position.x as usize][position.y as usize].creatures.holds_creatures()
             }
         }
@@ -449,6 +451,99 @@ impl MapState {
         lines.join("\n")
     }
 
+    pub fn get_creature_list(&self) -> Vec<&CreatureState> {
+        let mut ret = vec![];
+        let xlen = self.regions.len();
+        let ylen = self.regions[0].len();
+        for yr in 0..ylen {
+            for xr in 0..xlen {
+                let mr = &self.regions[xr][yr];
+                let xlen = mr.grid.len();
+                let ylen = mr.grid[0].len();
+                for y in 0..ylen {
+                    for x in 0..xlen {
+                        if mr.grid[x][y].creatures.holds_creatures() {
+                            let creatures = mr.grid[x][y].creatures.creatures.as_ref().unwrap();
+                            if creatures.len() > 0 {
+                                creatures.iter().for_each(|c| {
+                                    ret.push(c);
+                                });
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        ret
+    }
+
+    pub fn get_ground_item_list(&self) -> Vec<(&Item, Location)> {
+        let mut ret = vec![];
+        let xlen = self.regions.len();
+        let ylen = self.regions[0].len();
+        for yr in 0..ylen {
+            for xr in 0..xlen {
+                let mr = &self.regions[xr][yr];
+                let xlen = mr.grid.len();
+                let ylen = mr.grid[0].len();
+                for y in 0..ylen {
+                    for x in 0..xlen {
+                        mr.grid[x][y].items.iter().for_each(|c| {
+                            ret.push((c, Location::new(Vu2::new(xr, yr), Vu2::new(x, y))));
+                        });
+                    }
+                }
+            }
+        }
+        ret
+    }
+
+    pub fn get_creature_item_list(&self) -> Vec<(&Item, UID)> {
+        let creatures = self.get_creature_list();
+        
+        creatures.iter().flat_map(|c| {
+            let cid = c.get_id();
+            c.inventory.iter().map(move |i| {
+                (i, cid)
+            })
+        }).collect()
+    }
+
+    pub fn get_creature_strings(&self) -> String {
+        let mut f_string = String::new();
+        f_string = format!("{} Frame: {}\n", f_string, self.frame_count);
+        let xlen = self.regions.len();
+        let ylen = self.regions[0].len();
+        for yr in 0..ylen {
+            for xr in 0..xlen {
+                let mr = &self.regions[xr][yr];
+                let xlen = mr.grid.len();
+                let ylen = mr.grid[0].len();
+                for y in 0..ylen {
+                    for x in 0..xlen {
+                        if mr.grid[x][y].creatures.holds_creatures() {
+                            let creatures = mr.grid[x][y].creatures.creatures.as_ref().unwrap();
+                            if creatures.len() > 0 {
+                                f_string = format!("{}\n{} {} - {} {}:", f_string, xr, yr, x, y);
+                                creatures.iter().for_each(|c| {
+                                    f_string = format!("{}\n{}", f_string, c);
+                                });
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        f_string = format!("{}\n Battles", f_string);
+        self.battle_list.battles.iter().for_each(|b| {
+            
+            f_string = format!("{}\n battle: {} f:{}\np1: HP:{} Move:{} TurnTill:{}\np2 HP:{} Move:{} TurnTill:{}", f_string, b.id, b.frame, 
+            b.fighter1.health, b.fighter1.current_attack, b.fighter1.last_attack_frame + b.fighter1.current_attack.get_attack_frame_speed() - b.frame,
+            b.fighter2.health, b.fighter2.current_attack, b.fighter2.last_attack_frame + b.fighter2.current_attack.get_attack_frame_speed() - b.frame);
+        });
+        f_string
+    }
+
     pub fn update_nav(&mut self) {
         // Regions should already be updated if they changed before calling this.
 
@@ -615,6 +710,15 @@ impl Location{
         Location{
             region: Vu2::new(0,0),
             position: Vu2::new(0,0)
+        }
+    }
+    pub fn distance_in_region(&self, other: &Location) -> Option<usize> {
+        if other.region != self.region {
+            return None;
+        } else {
+            let mut dist = (other.position.x as i32 - self.position.x as i32).abs();
+            dist += (other.position.y as i32 - self.position.y as i32).abs();
+            Some(dist.try_into().unwrap())
         }
     }
 }
@@ -1556,6 +1660,8 @@ impl CreatureList {
         if let Some(_) = c.components.block_space_component {
             self.update_blocked(true, current_frame);
         }
+        println!("trying to add c {:?} creatures is.. {:?}", c.get_location(), self.creatures);
+        // NOTE: the edges of a region may be blocked because it doesn't have a neighbor region!
         &self.creatures.as_mut().unwrap().push(c);
     }
 

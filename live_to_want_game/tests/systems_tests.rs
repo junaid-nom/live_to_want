@@ -58,3 +58,5 @@ fn run_frames_test_starvation_and_death() {
         },
     ], gs.map_state.regions[start_loc].items);
 }
+
+// TODONEXT: The budding system is likely broken/untested! Especially The part involving blockers and non blocker stuff! 

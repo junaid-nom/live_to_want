@@ -1,6 +1,6 @@
 use std::fmt::Formatter;
 
-use crate::{Location, map_state::Item, RegionComponent, utils::Vector2, utils::Vu2};
+use crate::{Location, RegionComponent, UID, map_state::Item, utils::Vector2, utils::Vu2};
 
 use super::{ComponentMap, IDComponent, LocationComponent, HealthComponent, NameComponent, StarvationComponent, REPRODUCE_STARTING_CALORIES};
 
@@ -88,6 +88,10 @@ impl CreatureState {
             None => {false}
         }
     }
+
+    pub fn get_id(&self) -> UID {
+        self.components.id_component.id()
+    }
 }
 impl Default for CreatureState {
     fn default() -> Self {
@@ -100,9 +104,22 @@ impl Default for CreatureState {
 }
 impl std::fmt::Display for CreatureState {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), std::fmt::Error> {
-        let mut f_string = String::new();
+        let mut f_string;
+        if let Some(hc) = self.components.health_component.as_ref() {
+            f_string = format!("{} | hp: {}/{}", self.components.id_component.id(), hc.health, hc.max_health);
+        } else {
+            f_string = format!("{} | hp -/-", self.components.id_component.id());
+        }
+
+        if let Some(bc) = self.components.battle_component.as_ref() {
+            f_string = format!("{} | Combat: {}", f_string, bc.in_battle.as_ref().unwrap_or(&0));
+        } else {
+            f_string = format!(" Combat: N/A");
+        }
+
+        f_string = format!("{} | items ", f_string);
         for item in &self.inventory {
-            f_string = format!("{},{}",f_string, item.quantity);
+            f_string = format!("{}, {:?}-{}",f_string, item.item_type, item.quantity);
         }
         write!(f, "{}", f_string)
     }

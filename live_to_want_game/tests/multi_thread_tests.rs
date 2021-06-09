@@ -105,6 +105,7 @@ fn test_rayon() {
     let mut eve = EventTarget::LocationItemTarget(&mut v, 1);
     let evc = vec![EventChain {
         events: Vec::new(),
+        debug_string: "f1".to_string()
     }]; // doesnt work
     //evc.into_par_iter().map(|x| x);
 
@@ -192,6 +193,7 @@ fn test_chain_multithread_items() {
         };
         let event_fail1 = EventChain {
             events: vec!(pickup_fail),
+            debug_string: "pickup fail 1".to_string()
         };
         let pickup_fail2 = Event {
             event_type: EventType::RemoveItem(1, ItemType::Berry),
@@ -201,6 +203,7 @@ fn test_chain_multithread_items() {
         };
         let event_fail2 = EventChain {
             events: vec!(pickup_fail2),
+            debug_string: "pickup fail 2".to_string()
         };
         let remove1=  Event {
             event_type: EventType::RemoveItem(1, ItemType::Berry),
@@ -261,9 +264,11 @@ fn test_chain_multithread_items() {
     
         let deer_chain1 = EventChain {
             events: vec![pickup1, remove1],
+            debug_string: "deer chain 1".to_string()
         };
         let deer_chain2 = EventChain {
             events: vec![pickup2, remove2],
+            debug_string: "deer chain 2".to_string()
         };
     
         // for all events, get current target, and make hashtable of Vec for it
@@ -292,85 +297,257 @@ fn test_chain_multithread_items() {
 }
 
 #[test]
-// TODONEXT: create a map. have three deer. have two deer at the same time declare attack on the same victim deer.
+// create a map. have three deer. have two deer at the same time declare attack on the same victim deer.
 // check to make sure that only one battle occurs. only 2 units in battle at a time.
 // then also check to make sure the battle actually finishes with the expected result: one deer dead, the other with the first deers items
 fn test_chain_multithread_battle<'a>() {
-    // Below is bs copy pasted... needs to be redone
-    let x: Vec<u32> = (0..100).collect();
-    let y: i32 = x.into_par_iter().map(|_| {
-        // make a mapstate with some deer
-        let openr = RegionCreationStruct::new(5,5, 0, vec![]);
-        let rgrid = vec![
-            vec![openr.clone()],
-        ];
-        //create map
-        let mut map = MapState::new(rgrid, 0);
-        let  region: &mut MapRegion = &mut map.regions[0][0];
+    //let x: Vec<u32> = (0..100).collect();
+    //let y: i32 = x.into_par_iter().map(|_| {}).sum();
+    //assert_eq!(y, 100);
 
-        let mut deer1 = CreatureState{
-            components: ComponentMap::default(),
-            inventory: Vec::new(),
-            memory: CreatureMemory::default(),
-        };
-        deer1.components.location_component = LocationComponent {
-            location: Vu2{x: 1, y: 1}
-        };
+    // make a mapstate with some deer
+    let openr = RegionCreationStruct::new(5,5, 0, vec![]);
+    let rgrid = vec![
+        vec![openr.clone()],
+    ];
+    //create map
+    let mut map = MapState::new(rgrid, 0);
+    let  region: &mut MapRegion = &mut map.regions[0][0];
+
+    let mut deer1 = CreatureState{
+        components: ComponentMap::default(),
+        inventory: Vec::new(),
+        memory: CreatureMemory::default(),
+    };
+    deer1.components.region_component = RegionComponent {
+        region: Vu2{x: 0, y: 0},
+    };
+    deer1.components.location_component = LocationComponent {
+        location: Vu2{x: 1, y: 1}
+    };
+    deer1.components.health_component = Some(HealthComponent {
+        health:  10,
+        max_health: 10,
+    });
+    deer1.components.battle_component = Some(BattleComponent {
+        in_battle: None,
+    });
+    deer1.inventory.push(Item{
+        item_type: ItemType::Berry,
+        quantity: 1,
+    });
+
+    let mut deer2 =CreatureState{
+        components: ComponentMap::default(),
+        inventory: Vec::new(),
+        memory: CreatureMemory::default(),
+    };
+    deer2.components.region_component = RegionComponent {
+        region: Vu2{x: 0, y: 0},
+    };
+    deer2.components.location_component = LocationComponent {
+        location: Vu2{x: 1, y: 2}
+    };
+    deer2.components.health_component = Some(HealthComponent {
+        health:  19,
+        max_health: 19,
+    });
+    deer2.components.battle_component = Some(BattleComponent {
+        in_battle: None,
+    });
+
+    let mut deer3 = CreatureState{
+        components: ComponentMap::default(),
+        inventory: Vec::new(),
+        memory: CreatureMemory::default(),
+    };
+    deer3.components.region_component = RegionComponent {
+        region: Vu2{x: 0, y: 0},
+    };
+    deer3.components.location_component = LocationComponent {
+        location: Vu2{x: 2, y: 1}
+    };
+    deer3.components.health_component = Some(HealthComponent {
+        health:  10,
+        max_health: 10,
+    });
+    deer3.components.battle_component = Some(BattleComponent {
+        in_battle: None,
+    });
     
-        let mut deer2 =CreatureState{
-            components: ComponentMap::default(),
-            inventory: Vec::new(),
-            memory: CreatureMemory::default(),
-        };
-        deer2.components.location_component = LocationComponent {
-            location: Vu2{x: 1, y: 1}
-        };
+    let deer1_id = deer1.components.id_component.id();
+    let deer2_id = deer2.components.id_component.id();
+    let deer3_id = deer3.components.id_component.id();
+    region.grid[deer1.components.location_component.location].creatures.add_creature(
+        deer1, 0
+    );
+    region.grid[deer2.components.location_component.location].creatures.add_creature(
+        deer2, 0
+    );
+    region.grid[deer3.components.location_component.location].creatures.add_creature(
+        deer3, 0
+    );
+    
+    let attack = GoalNode {
+        get_want_local: Box::new(|_, _| 10),
+        get_effort_local: Box::new(|_, _| 1),
+        children: Vec::new(),
+        name: "attack",
+        get_command: Some(Box::new(|m: & MapState, c| CreatureCommand::Attack("attack_deer_1", c, m.find_closest_creature_to_creature(c).unwrap(), m.battle_list.id))),
+        get_requirements_met: Box::new(|m, c| m.find_closest_creature_to_creature(c).is_some()),
+    };
+    //let root = GoalNode::generate_single_node_graph(attack);
 
-        let mut deer3 = CreatureState{
-            components: ComponentMap::default(),
-            inventory: Vec::new(),
-            memory: CreatureMemory::default(),
-        };
-        deer3.components.location_component = LocationComponent {
-            location: Vu2{x: 1, y: 1}
-        };
-        deer3.inventory.push(Item{
-            item_type: ItemType::Berry,
-            quantity: 1,
-        });
-        
-        let deer1_id = deer1.components.id_component.id();
-        let deer2_id = deer2.components.id_component.id();
-        let deer3_id = deer3.components.id_component.id();
-        region.grid[1][1].creatures.add_creature(
-            deer1, 0
-        );
-        region.grid[1][1].creatures.add_creature(
-            deer2, 0
-        );
-        region.grid[1][1].creatures.add_creature(
-            deer3, 0
-        );
-        
-        let mut root = GoalNode {
-            get_want_local: Box::new(|_, _| 1),
-            get_effort_local: Box::new(|_, _| 1),
-            children: Vec::new(),
-            name: "root",
-            get_command: Some(Box::new(|m: & MapState, c| CreatureCommand::Attack("attack_deer_1", c, m.find_closest_creature_to_creature(c).unwrap(), m.battle_list.id))),
-            get_requirements_met: Box::new(|_, _| true),
-        };
+    let mut game_state = GameState {
+        map_state:map
+    };
+    assert_eq!(game_state.map_state.get_creature_list().len(), 3);
+    assert_eq!(game_state.map_state.get_ground_item_list().len(), 0);
+    assert_eq!(game_state.map_state.get_creature_item_list().len(), 1);
+    assert_eq!(game_state.map_state.get_creature_item_list()[0].1, deer1_id);
 
-        let game_state = GameState {
-            map_state:map
-        };
-        run_frame(game_state, &root);
+    for _ in 0..32 {
+        game_state = run_frame(game_state, &attack);
+        println!("creatures: {}", game_state.map_state.get_creature_strings());
+    }
 
-        
-        assert_eq!(1, 1);
-        1
-    }).sum();
-    assert_eq!(y, 100);
+    assert_eq!(game_state.map_state.get_creature_list().len(), 2);
+    assert_eq!(game_state.map_state.get_ground_item_list().len(), 0);
+    assert_eq!(game_state.map_state.get_creature_item_list()[0].1, deer2_id);
+
+    println!("BEGIN PHASE 2!");
+
+    for _ in 0..29 {
+        game_state = run_frame(game_state, &attack);
+        println!("creatures: {}", game_state.map_state.get_creature_strings());
+    }
+
+    assert_eq!(game_state.map_state.get_creature_list().len(), 1);
+    assert_eq!(game_state.map_state.get_creature_list()[0].components.health_component.as_ref().unwrap().health, 1);
+    assert_eq!(game_state.map_state.get_ground_item_list().len(), 0);
+    assert_eq!(game_state.map_state.get_creature_item_list()[0].1, deer3_id);
+
+    // make sure don't crash if no creatures to fight.
+    for _ in 0..3 {
+        game_state = run_frame(game_state, &attack);
+        println!("creatures: {}", game_state.map_state.get_creature_strings());
+    }
+}
+
+#[test]
+// create a map. have three deer. have two deer at the same time declare attack on the same victim deer.
+// check to make sure that only one battle occurs. only 2 units in battle at a time.
+// then also check to make sure the battle actually finishes with the expected result: one deer dead, the other with the first deers items
+fn test_max_dist_battle<'a>() {
+    //let x: Vec<u32> = (0..100).collect();
+    //let y: i32 = x.into_par_iter().map(|_| {}).sum();
+    //assert_eq!(y, 100);
+
+    // make a mapstate with some deer
+    let openr = RegionCreationStruct::new(5,6, 0, vec![]);
+    let rgrid = vec![
+        vec![openr.clone()],
+    ];
+    //create map
+    let mut map = MapState::new(rgrid, 0);
+    let  region: &mut MapRegion = &mut map.regions[0][0];
+    
+    
+    println!("Region size = {} {}", region.grid.len(),region.grid[0].len());
+    let mut deer1 = CreatureState{
+        components: ComponentMap::default(),
+        inventory: Vec::new(),
+        memory: CreatureMemory::default(),
+    };
+    deer1.components.location_component = LocationComponent {
+        location: Vu2{x: 2, y: 1}
+    };
+    deer1.components.health_component = Some(HealthComponent {
+        health:  10,
+        max_health: 10,
+    });
+    deer1.components.battle_component = Some(BattleComponent {
+        in_battle: None,
+    });
+    deer1.inventory.push(Item{
+        item_type: ItemType::Berry,
+        quantity: 1,
+    });
+
+    let mut deer2 =CreatureState{
+        components: ComponentMap::default(),
+        inventory: Vec::new(),
+        memory: CreatureMemory::default(),
+    };
+    deer2.components.location_component = LocationComponent {
+        location: Vu2{x: 1, y: 3}
+    };
+    deer2.components.health_component = Some(HealthComponent {
+        health:  19,
+        max_health: 19,
+    });
+    deer2.components.battle_component = Some(BattleComponent {
+        in_battle: None,
+    });
+
+    let mut deer3 = CreatureState{
+        components: ComponentMap::default(),
+        inventory: Vec::new(),
+        memory: CreatureMemory::default(),
+    };
+    deer3.components.location_component = LocationComponent {
+        location: Vu2{x: 3, y: 4}
+    };
+    deer3.components.health_component = Some(HealthComponent {
+        health:  10,
+        max_health: 10,
+    });
+    deer3.components.battle_component = Some(BattleComponent {
+        in_battle: None,
+    });
+    
+    let deer1_id = deer1.components.id_component.id();
+    let deer2_id = deer2.components.id_component.id();
+    let deer3_id = deer3.components.id_component.id();
+    region.grid[deer1.components.location_component.location].creatures.add_creature(
+        deer1, 0
+    );
+    region.grid[deer2.components.location_component.location].creatures.add_creature(
+        deer2, 0
+    );
+    region.grid[deer3.components.location_component.location].creatures.add_creature(
+        deer3, 0
+    );
+    
+    let attack = GoalNode {
+        get_want_local: Box::new(|_, _| 10),
+        get_effort_local: Box::new(|_, _| 1),
+        children: Vec::new(),
+        name: "attack",
+        get_command: Some(Box::new(|m: & MapState, c| CreatureCommand::Attack("attack_deer_1", c, m.find_closest_creature_to_creature(c).unwrap(), m.battle_list.id))),
+        get_requirements_met: Box::new(|m, c| m.find_closest_creature_to_creature(c).is_some()),
+    };
+    //let root = GoalNode::generate_single_node_graph(attack);
+
+    let mut game_state = GameState {
+        map_state:map
+    };
+    assert_eq!(game_state.map_state.get_creature_list().len(), 3);
+    assert_eq!(game_state.map_state.get_ground_item_list().len(), 0);
+    assert_eq!(game_state.map_state.get_creature_item_list().len(), 1);
+    assert_eq!(game_state.map_state.get_creature_item_list()[0].1, deer1_id);
+
+    // Creatures should be too far away to attack each other!
+    for _ in 0..65 {
+        game_state = run_frame(game_state, &attack);
+        println!("creatures: {}", game_state.map_state.get_creature_strings());
+    }
+
+    // basically nothing happens
+    assert_eq!(game_state.map_state.get_creature_list().len(), 3);
+    assert_eq!(game_state.map_state.get_ground_item_list().len(), 0);
+    assert_eq!(game_state.map_state.get_creature_item_list().len(), 1);
+    assert_eq!(game_state.map_state.get_creature_item_list()[0].1, deer1_id);
 }
 
 

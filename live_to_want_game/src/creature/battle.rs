@@ -1,3 +1,5 @@
+use std::fmt::Display;
+
 use rand::{Rng, prelude::SliceRandom};
 
 use crate::{BattleFrame, CreatureState, Item, Location, UID, Vu2, get_id, map_state::MapState, tasks::Event, tasks::EventChain, tasks::EventType};
@@ -9,7 +11,7 @@ pub enum Attacks {
     DoNothing()
 }
 impl Attacks {
-    fn get_attack_frame_speed(&self) -> BattleFrame {
+    pub fn get_attack_frame_speed(&self) -> BattleFrame {
         match &self {
             Attacks::SimpleDamage(frames, _) => *frames,
             Attacks::DoNothing() => 0,
@@ -18,6 +20,15 @@ impl Attacks {
 }
 impl Default for Attacks {
     fn default() -> Self { Attacks::SimpleDamage(3, 1) }
+}
+impl Display for Attacks {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let f_string = match self {
+            Attacks::SimpleDamage(delay, dmg) => format!("Simple att dmg:{},t:{}", dmg, delay),
+            Attacks::DoNothing() => "Nothing".to_string(),
+        };
+        write!(f, "{}", f_string)
+    }
 }
 
 #[derive(Debug)]
@@ -75,6 +86,7 @@ impl Battle {
     pub fn update(&mut self) -> Option<EventChain> {
         self.frame += 1;
         let frame = self.frame;
+        let battle_id = self.id;
         let mut fighters = vec![&mut self.fighter1, &mut self.fighter2];
         // go through battle infos, check if ready to cast. return attack tuple (attack, target_index)
         let attack_tuples: Vec<Option<(Attacks, usize, usize)>> = fighters.iter().enumerate().map(
@@ -121,6 +133,7 @@ impl Battle {
         // event chain should move items then set HPs 
         // also should remove from combat, and remove battle from battle list
         if victor >= 0 {
+            println!("Battle {} finished! victor: {}", self.id, victor);
             let mut end_combat = vec![
                 Event::make_basic(EventType::LeaveBattle(), fighters[0].creature_id),
                 Event::make_basic(EventType::LeaveBattle(), fighters[1].creature_id),
@@ -139,9 +152,12 @@ impl Battle {
                 move_items.push(set_winner_hp);
                 move_items.push(set_loser_hp);
                 move_items.append(&mut end_combat);
-                EventChain {
-                    events: move_items
-                }
+                let ec = EventChain {
+                    events: move_items,
+                    debug_string: format!("Battle {} Finished", battle_id)
+                };
+                println!("Battle events: {}", ec.events.len());
+                ec
             };
 
             match victor {
@@ -158,7 +174,8 @@ impl Battle {
                     end_combat.push(Event::make_basic(EventType::SetHealth(fighters[0].health), fighters[0].creature_id));
                     end_combat.push(Event::make_basic(EventType::SetHealth(fighters[1].health), fighters[1].creature_id));
                     Some(EventChain {
-                        events: end_combat
+                        events: end_combat,
+                        debug_string: format!("Battle {} Finished both dead", battle_id)
                     })
                 },
                 _ => panic!("match with invalid victor?")

@@ -20,15 +20,32 @@ pub struct GoalNode<'a> {
     pub get_command: Option<Box<for<'f, 'c> fn(&'f MapState, &'f CreatureState) -> CreatureCommand<'f>>>, // Is None if this node does not lead to a category and is more of a organizing node
     pub get_requirements_met: Box<fn (&MapState, &CreatureState) -> bool>,
 }
-
 impl GoalNode<'_> {
+    pub fn generate_single_node_graph(only_node : GoalNode) -> GoalNode {
+        let mut root = GoalNode {
+            get_want_local: Box::new(|_, _| 0),
+            get_effort_local: Box::new(|_, _| 1),
+            children: Vec::new(),
+            name: "root",
+            get_command: None,
+            get_requirements_met: Box::new(|_, _| false),
+        };
+        root.children.push(GoalConnection{
+            child: Arc::new(only_node),
+            is_additive: false,
+            amplifier: 1.0,
+        });
+
+        root
+    }
 }
 
 pub struct GoalConnection<'a> {
     pub child: Arc<GoalNode<'a>>,
-    pub is_additive: bool,
+    pub is_additive: bool, // if its additive, will ADD with its "siblings" otherwise we take the "best" sibling
     pub amplifier: f32,
 }
+
 
 pub struct GoalCacheNode<'a> {
     pub goal: &'a GoalNode<'a>,
@@ -154,13 +171,12 @@ impl GoalCacheNode<'_> {
             }
             
             //let mut goal_cache = goal_cache_c.deref().borrow_mut();
-            println!("{} sum {} best {}", goal_cache.goal.name, sum_motivation, best_motivation);
             if best_motivation < sum_motivation {
                 best_motivation = sum_motivation;
             }
-            println!("{} true best {}", goal_cache.goal.name, best_motivation);
+            //println!("{} true best {}", goal_cache.goal.name, best_motivation);
             goal_cache.motivation_global = Some((best_motivation + goal_cache.want_local as f32) / (goal_cache.effort_local as f32));
-            println!("{} final {}", goal_cache.goal.name, goal_cache.motivation_global.as_ref().unwrap());
+            //println!("{} final {}", goal_cache.goal.name, goal_cache.motivation_global.as_ref().unwrap());
         }
     }
 
@@ -222,10 +238,17 @@ impl GoalCacheNode<'_> {
             visited+=1;
         }
 
+        
+
         match best_node {
             Some(n) => {
                 match &n.clone().deref().borrow().goal.get_command {
-                    Some(f) => Some(f(map_state, c_state)),
+                    
+
+                    Some(f) => {
+                        let cmd = f(map_state, c_state);
+                        Some(cmd)
+                    },
                     None => None,
                 }
                 // Some((n.deref().borrow().goal.get_command).unwrap())

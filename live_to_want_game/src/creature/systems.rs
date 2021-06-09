@@ -44,6 +44,7 @@ pub fn budding_system(m: &MapState, c: &CreatureState) -> Option<EventChain> {
                     };
                     Some(EventChain{
                         events: vec![create_event, bud_iterate_event],
+                        debug_string: format!("Budding {}", c.components.id_component.id())
                     })
                 } else {
                     // Reset budding so it doesnt try again every frame, but next time it would reproduce
@@ -55,6 +56,7 @@ pub fn budding_system(m: &MapState, c: &CreatureState) -> Option<EventChain> {
                     };
                     Some(EventChain{
                         events: vec![event],
+                        debug_string: format!("Reset Budding {}", c.components.id_component.id())
                     })
                 }
             } else {
@@ -118,6 +120,7 @@ pub fn movement_system_move(m: &MapState, c: &CreatureState) -> Option<EventChai
                 // };
                 return Some(EventChain {
                     events: vec![rm_event],
+                    debug_string: format!("Moving {}", c.components.id_component.id())
                 });
             }
         }

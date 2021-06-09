@@ -3,6 +3,10 @@ use std::sync::Arc;
 use live_to_want_game::*;
 // PRETTY SURE GoalNode is fucked and needs Rc in connections to work
 // because if u return a GoalNode the connected other GoalNodes go out of scope
+
+// TODO: I should remake GoalNodes to have every GoalNode be in a single list
+// Then the links are just "ids" that are the indexs into the list
+// then don't need any references or anything way simpler to use ids.
 fn generate_basic_graph() -> GoalNode<'static> {
     let mut root = GoalNode {
         get_want_local: Box::new(|_, _| 0),

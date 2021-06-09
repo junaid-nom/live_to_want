@@ -1,4 +1,4 @@
-use crate::{Battle, Location, creature::CreatureState, tasks::Event, tasks::EventChain, tasks::EventTarget, tasks::EventType, utils::UID, utils::Vu2};
+use crate::{Battle, Location, MAX_ATTACK_DISTANCE, creature::CreatureState, tasks::Event, tasks::EventChain, tasks::EventTarget, tasks::EventType, utils::UID, utils::Vu2};
 
 use super::MapLocation;
 
@@ -49,13 +49,38 @@ impl CreatureCommand<'_> {
                     target: c.components.id_component.id(),
                 };
                 return Some(EventChain{
-                    events: vec![init_move]
+                    events: vec![init_move],
+                    debug_string: format!("Move to {:?} for {}", destination, c.components.id_component.id())
                 });
             }
             CreatureCommand::Chase(_, _, _) => {}
             CreatureCommand::Attack(_, attacker, victim, battle_list_id) => {
                 // Create two events that set in battle and battle started = false for the creatures.
                 // And a AddBattle event that will add a battle to a list of battles on mapState.
+
+                let dist = attacker.get_location().distance_in_region(&victim.get_location());
+                match dist {
+                    Some(dist) => {
+                        if dist > MAX_ATTACK_DISTANCE {
+                            return None
+                        }
+                    },
+                    None => return None,
+                }
+
+                // NOTE: MUST order the set in combat events by lowest ID! That way if two enemies fight each other same time
+                // it'll work. otherwise u get deadlock
+                let attacker_is_lower = attacker.get_id() < victim.get_id();
+                let lower_id = if attacker_is_lower {
+                    attacker
+                } else {
+                    victim
+                };
+                let higher_id = if attacker_is_lower {
+                    victim
+                } else {
+                    attacker
+                };
                 let battle = Battle::new(attacker,victim, *battle_list_id);
                 let add_p1 = Event {
                     event_type: EventType::EnterBattle(battle.id),
@@ -70,13 +95,14 @@ impl CreatureCommand<'_> {
                         }
                     }),
                     on_fail: None,
-                    target: attacker.components.id_component.id()
+                    target: lower_id.components.id_component.id()
                 };
+                
                 let remove_p1_when_fail = Event {
                     event_type: EventType::LeaveBattle(),
                     get_requirements: Box::new(|_,_| true),
                     on_fail: None,
-                    target: attacker.components.id_component.id()
+                    target: lower_id.components.id_component.id()
                 };
 
                 let add_p2 = Event {
@@ -92,9 +118,10 @@ impl CreatureCommand<'_> {
                         }
                     }),
                     on_fail: Some(EventChain{
-                        events: vec![remove_p1_when_fail]
+                        events: vec![remove_p1_when_fail],
+                        debug_string: format!("Fail attack from {} to {}", attacker.components.id_component.id(), victim.components.id_component.id())
                     }),
-                    target: victim.components.id_component.id()
+                    target: higher_id.components.id_component.id()
                 };
                 let start_battle = Event {
                     event_type: EventType::AddBattle(battle),
@@ -102,9 +129,9 @@ impl CreatureCommand<'_> {
                     on_fail: None,
                     target: *battle_list_id,
                 };
-                
                 return Some(EventChain {
-                    events: vec![add_p1, add_p2, start_battle]
+                    events: vec![add_p1, add_p2, start_battle],
+                    debug_string: format!("attack from {} to {}", attacker.components.id_component.id(), victim.components.id_component.id())
                 });
             }
             CreatureCommand::TakeItem(_, src, dst, item) => {
@@ -163,6 +190,7 @@ impl CreatureCommand<'_> {
                 };
                 return Some(EventChain{
                     events: vec![remove, add],
+                    debug_string: format!("Take item {:?} for {}", final_item, get_id_from_inventory(dst))
                 })
             }
         }
