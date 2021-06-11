@@ -36,7 +36,7 @@ fn test_movement_normal() {
     }).collect();
     
     //process init EC
-    process_events_from_mapstate(&mut map, move_chain, false);
+    process_events_from_mapstate(&mut map, move_chain);
 
     //in loop:
     for frame_add in 0..38 {
@@ -64,7 +64,7 @@ fn test_movement_normal() {
         }).collect();
         //process movement event if there are any
         let mut event_chains: Vec<EventChain> = unwrap_option_list(mov_op_ecs);
-        process_events_from_mapstate(&mut map, event_chains, true);
+        process_events_from_mapstate(&mut map, event_chains);
 
         // iterate on movement system for each creature
         map.regions.par_iter_mut().for_each(|x| {
@@ -128,7 +128,7 @@ fn test_movement_closer_region() {
     }).collect();
     
     //process init EC
-    process_events_from_mapstate(&mut map, move_chain, false);
+    process_events_from_mapstate(&mut map, move_chain);
 
     //in loop:
     for frame_add in 0..8 {
@@ -156,7 +156,7 @@ fn test_movement_closer_region() {
         }).collect();
         //process movement event if there are any
         let mut event_chains: Vec<EventChain> = unwrap_option_list(mov_op_ecs);
-        process_events_from_mapstate(&mut map, event_chains, true);
+        process_events_from_mapstate(&mut map, event_chains);
 
         // iterate on movement system for each creature
         map.regions.par_iter_mut().for_each(|x| {
@@ -220,7 +220,7 @@ fn test_movement_fat_region() {
     }).collect();
     
     //process init EC
-    process_events_from_mapstate(&mut map, move_chain, false);
+    process_events_from_mapstate(&mut map, move_chain);
 
     //in loop:
     for frame_add in 0..40 {
@@ -248,7 +248,7 @@ fn test_movement_fat_region() {
         }).collect();
         //process movement event if there are any
         let mut event_chains: Vec<EventChain> = unwrap_option_list(mov_op_ecs);
-        process_events_from_mapstate(&mut map, event_chains, true);
+        process_events_from_mapstate(&mut map, event_chains);
 
         // iterate on movement system for each creature
         map.regions.par_iter_mut().for_each(|x| {

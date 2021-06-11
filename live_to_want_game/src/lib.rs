@@ -80,12 +80,12 @@ pub fn run_frame(mut game_state: GameState, root: &GoalNode) -> GameState {
     let battle_list_id = m.battle_list.id;
 
     // Run spawn systems first, and spawn new creatures
-    let spawn_events: Vec<Option<EventChain>> = m.regions.par_iter().flat_map(|x| {
+    let spawn_events: Vec<EventChain> = m.regions.par_iter().flat_map(|x| {
         x.par_iter().flat_map(|y| {
             y.grid.par_iter().flat_map(|xl| {
                 xl.par_iter().flat_map(|yl| {
                     if let Some(par_iter) = yl.creatures.get_par_iter() {
-                        let ret: Vec<Option<EventChain>> = par_iter.map(
+                        let ret: Vec<EventChain> = par_iter.flat_map(
                             |c| {
                                 budding_system(&m, c)
                             }
@@ -98,9 +98,8 @@ pub fn run_frame(mut game_state: GameState, root: &GoalNode) -> GameState {
             })
         })
     }).collect();
-    let mut event_chains: Vec<EventChain> = unwrap_option_list(spawn_events);
 
-    process_events_from_mapstate(&mut m, event_chains, false);
+    process_events_from_mapstate(&mut m, spawn_events);
 
     // TODO: Deal with blockers that spawned
     // first vec is BLOCKERS second vec is NON BLOCKERS
@@ -232,7 +231,7 @@ pub fn run_frame(mut game_state: GameState, root: &GoalNode) -> GameState {
         })
     }).collect();
     let mut event_chains: Vec<EventChain> = unwrap_option_list(mov_op_ecs);
-    process_events_from_mapstate(&mut m, event_chains, true);
+    process_events_from_mapstate(&mut m, event_chains);
 
     // Can run MUTABLE multiple systems here so far:
     // Starvation system
@@ -302,7 +301,7 @@ pub fn run_frame(mut game_state: GameState, root: &GoalNode) -> GameState {
     op_ecs.append(&mut battle_effects);
 
     let mut event_chains = unwrap_option_list(op_ecs);
-    process_events_from_mapstate(&mut m, event_chains, false);
+    process_events_from_mapstate(&mut m, event_chains);
 
     // Death system
     // TODO: Update nav system if blockers died
@@ -350,14 +349,16 @@ pub fn run_frame(mut game_state: GameState, root: &GoalNode) -> GameState {
         if events.len() > 0 {
             vec![Some(EventChain {
                 events,
-                debug_string: format!("Dead {}", target)
+                debug_string: format!("Dead {}", target),
+                creature_list_targets: true,
+
             })]
         } else {
             vec![]
         }
         
     }).collect();
-    process_events_from_mapstate(&mut m, unwrap_option_list(dead_events), true);
+    process_events_from_mapstate(&mut m, unwrap_option_list(dead_events));
 
     GameState {
         map_state: m,

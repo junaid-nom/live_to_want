@@ -105,7 +105,8 @@ fn test_rayon() {
     let mut eve = EventTarget::LocationItemTarget(&mut v, 1);
     let evc = vec![EventChain {
         events: Vec::new(),
-        debug_string: "f1".to_string()
+        debug_string: "f1".to_string(),
+        creature_list_targets: false,
     }]; // doesnt work
     //evc.into_par_iter().map(|x| x);
 
@@ -193,7 +194,8 @@ fn test_chain_multithread_items() {
         };
         let event_fail1 = EventChain {
             events: vec!(pickup_fail),
-            debug_string: "pickup fail 1".to_string()
+            debug_string: "pickup fail 1".to_string(),
+            creature_list_targets: false
         };
         let pickup_fail2 = Event {
             event_type: EventType::RemoveItem(1, ItemType::Berry),
@@ -203,7 +205,8 @@ fn test_chain_multithread_items() {
         };
         let event_fail2 = EventChain {
             events: vec!(pickup_fail2),
-            debug_string: "pickup fail 2".to_string()
+            debug_string: "pickup fail 2".to_string(),
+            creature_list_targets: false
         };
         let remove1=  Event {
             event_type: EventType::RemoveItem(1, ItemType::Berry),
@@ -264,11 +267,13 @@ fn test_chain_multithread_items() {
     
         let deer_chain1 = EventChain {
             events: vec![pickup1, remove1],
-            debug_string: "deer chain 1".to_string()
+            debug_string: "deer chain 1".to_string(),
+            creature_list_targets: false
         };
         let deer_chain2 = EventChain {
             events: vec![pickup2, remove2],
-            debug_string: "deer chain 2".to_string()
+            debug_string: "deer chain 2".to_string(),
+            creature_list_targets: false
         };
     
         // for all events, get current target, and make hashtable of Vec for it

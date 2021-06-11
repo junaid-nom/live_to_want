@@ -154,7 +154,8 @@ impl Battle {
                 move_items.append(&mut end_combat);
                 let ec = EventChain {
                     events: move_items,
-                    debug_string: format!("Battle {} Finished", battle_id)
+                    debug_string: format!("Battle {} Finished", battle_id),
+                    creature_list_targets: false,
                 };
                 println!("Battle events: {}", ec.events.len());
                 ec
@@ -175,7 +176,8 @@ impl Battle {
                     end_combat.push(Event::make_basic(EventType::SetHealth(fighters[1].health), fighters[1].creature_id));
                     Some(EventChain {
                         events: end_combat,
-                        debug_string: format!("Battle {} Finished both dead", battle_id)
+                        debug_string: format!("Battle {} Finished both dead", battle_id),
+                        creature_list_targets: false,
                     })
                 },
                 _ => panic!("match with invalid victor?")

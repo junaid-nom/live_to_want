@@ -5,7 +5,7 @@ use crate::{Vu2, map_state::MapState, tasks::Event, tasks::EventChain, tasks::Ev
 use super::{CreatureState, STARVING_SLOW_METABOLISM_FACTOR};
 
 // TODONEXT: This won't work because some of the events will target creature_list and some won't! Need to split them up.
-pub fn budding_system(m: &MapState, c: &CreatureState) -> Option<EventChain> {
+pub fn budding_system(m: &MapState, c: &CreatureState) -> Vec<EventChain> {
     // first check if its the frame to reproduce.
     // If so, find a random nearby open spot. that is not blocked
     // make an event chain of first placing the creature on that space. (create unit)
@@ -22,56 +22,53 @@ pub fn budding_system(m: &MapState, c: &CreatureState) -> Option<EventChain> {
                 let soil = c.components.soil_component.map_or(None, |s| Some(s.soil_layer));
                 // Also this will spawn creatures over and over on the same spots if they are not blocking
                 for n in location.get_valid_neighbors(map_region.grid.len(), map_region.grid[0].len()) {
-                    if !map_region.grid[n.get()].get_if_creature_open_and_soil_open(blocker, soil) {
+                    if map_region.grid[n.get()].get_if_creature_open_and_soil_open(blocker, soil) {
                         open_spots.push(n.get());
                     }
                 }
         
                 let spots = open_spots.len();
+                // Reset budding so it doesnt try again every frame, but next time it would reproduce
+                let bud_iterate = Event {
+                    event_type: EventType::IterateBudding(),
+                    target: c.components.id_component.id(),
+                    on_fail: None,
+                    get_requirements: Box::new(|_,_| true),
+                };
+                let mut event_chains = vec![EventChain{
+                    events: vec![bud_iterate],
+                    debug_string: format!("Reset Budding {}", c.components.id_component.id()),
+                    creature_list_targets: false,
+                }];
+                
                 if spots > 0 {
                     let mut rng = rand::thread_rng();
                     let chosen = rng.gen_range(0, spots);
                     let loc = open_spots[chosen];
                     let mut new_creature = CreatureState::clone_to_new_location(c, loc);
                     new_creature.components = new_creature.components.copy_from_other(&bud.seed_creature_differences);
-                    
+                    let target_location = map_region.grid[loc.x as usize][loc.y as usize].id_component_creatures.id();
                     let create_event = Event {
                         event_type: EventType::AddCreature(new_creature, m.frame_count),
-                        target: map_region.grid[loc.x as usize][loc.y as usize].id_component_creatures.id(),
+                        target: target_location,
                         on_fail: None,
                         get_requirements: Box::new(|_,_| true),
                     };
-                    let bud_iterate_event = Event {
-                        event_type: EventType::IterateBudding(),
-                        target: c.components.id_component.id(),
-                        on_fail: None,
-                        get_requirements: Box::new(|_,_| true),
-                    };
-                    Some(EventChain{
-                        events: vec![create_event, bud_iterate_event],
-                        debug_string: format!("Budding {}", c.components.id_component.id())
-                    })
-                } else {
-                    // Reset budding so it doesnt try again every frame, but next time it would reproduce
-                    let event = Event {
-                        event_type: EventType::IterateBudding(),
-                        target: c.components.id_component.id(),
-                        on_fail: None,
-                        get_requirements: Box::new(|_,_| true),
-                    };
-                    Some(EventChain{
-                        events: vec![event],
-                        debug_string: format!("Reset Budding {}", c.components.id_component.id())
-                    })
+                    event_chains.push(EventChain{
+                        events: vec![create_event],
+                        debug_string: format!("Bud {} to creature list {} loc {:?}", c.components.id_component.id(), target_location, loc),
+                        creature_list_targets: true,
+                    });
                 }
+                event_chains
             } else {
-                None
+                vec![]
             }
         } else {
-            None
+            vec![]
         }
     } else {
-        None
+        vec![]
     }
     // Then later in the main loop, run a function that looks at all spots and checks for
     // more than 1 blocker. if that's the case, remove all the "excess" units and put them in a new list, (their location should mark where they previously were).
@@ -125,7 +122,8 @@ pub fn movement_system_move(m: &MapState, c: &CreatureState) -> Option<EventChai
                 // };
                 return Some(EventChain {
                     events: vec![rm_event],
-                    debug_string: format!("Moving {}", c.components.id_component.id())
+                    debug_string: format!("Moving {}", c.components.id_component.id()),
+                    creature_list_targets: true
                 });
             }
         }

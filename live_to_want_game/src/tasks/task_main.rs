@@ -28,6 +28,7 @@ pub struct EventChain {
     //pub index: usize,
     pub events: Vec<Event>,
     pub debug_string: String,
+    pub creature_list_targets:bool,
 }
 impl EventChain {
     fn process(mut self, effected: &mut EventTarget) -> Option<EventChain> {
@@ -318,7 +319,23 @@ pub enum EventType {
     RemoveBattle(UID),
 }
 
-pub fn process_events_from_mapstate(
+pub fn process_events_from_mapstate(m: &mut MapState, event_chains: Vec<EventChain>) {
+    // split up the event chains into one with and one without creature_list targets
+    let (creature_list_chains, regular_chains): (Vec<EventChain>, Vec<EventChain>)  = event_chains.into_iter().partition(|ec| ec.creature_list_targets);
+
+    process_events_from_mapstate_helper(
+        m,
+        regular_chains,
+        false
+    );
+    process_events_from_mapstate_helper(
+        m,
+        creature_list_chains,
+        true
+    );
+}
+
+fn process_events_from_mapstate_helper(
     m: &mut MapState,
     event_chains: Vec<EventChain>,
     creature_list_targets: bool,
@@ -399,7 +416,6 @@ pub fn process_events<'a, 'b>(
                 tl.tasks.push(ec);
             }
             None => {
-                println!("TARGETING {:?}", key);
                 let m = uid_map.remove(&key).unwrap();
                 let tl = TaskList {
                     target: m,

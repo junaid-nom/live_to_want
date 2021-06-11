@@ -56,7 +56,8 @@ impl CreatureCommand<'_> {
                 };
                 return Some(EventChain{
                     events: vec![init_move],
-                    debug_string: format!("Move to {:?} for {}", destination, c.components.id_component.id())
+                    debug_string: format!("Move to {:?} for {}", destination, c.components.id_component.id()),
+                    creature_list_targets: true,
                 });
             }
             CreatureCommand::Chase(_, _, _) => {}
@@ -129,7 +130,8 @@ impl CreatureCommand<'_> {
                     }),
                     on_fail: Some(EventChain{
                         events: vec![remove_p1_when_fail],
-                        debug_string: format!("Fail attack from {} to {}", attacker.components.id_component.id(), victim.components.id_component.id())
+                        debug_string: format!("Fail attack from {} to {}", attacker.components.id_component.id(), victim.components.id_component.id()),
+                        creature_list_targets: false,
                     }),
                     target: higher_id.components.id_component.id()
                 };
@@ -141,7 +143,8 @@ impl CreatureCommand<'_> {
                 };
                 return Some(EventChain {
                     events: vec![add_p1, add_p2, start_battle],
-                    debug_string: format!("attack from {} to {}", attacker.components.id_component.id(), victim.components.id_component.id())
+                    debug_string: format!("attack from {} to {}", attacker.components.id_component.id(), victim.components.id_component.id()),
+                    creature_list_targets: false,
                 });
             }
             CreatureCommand::TakeItem(_, src, dst, item) => {
@@ -200,7 +203,8 @@ impl CreatureCommand<'_> {
                 };
                 return Some(EventChain{
                     events: vec![remove, add],
-                    debug_string: format!("Take item {:?} for {}", final_item, get_id_from_inventory(dst))
+                    debug_string: format!("Take item {:?} for {}", final_item, get_id_from_inventory(dst)),
+                    creature_list_targets: false,
                 })
             }
         }
