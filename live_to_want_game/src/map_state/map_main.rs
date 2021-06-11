@@ -1,6 +1,6 @@
 use std::{convert::TryInto, fmt, ops::Index, ops::IndexMut, sync::Arc, sync::Mutex, vec::Drain};
 
-use crate::{BattleList, Neighbor, UID, Vu2, creature::CreatureState, creature::IDComponent, get_2d_vec, make_string_at_least_length, make_string_at_most_length, utils::Vector2};
+use crate::{BattleList, Neighbor, SoilLayer, UID, Vu2, creature::CreatureState, creature::IDComponent, get_2d_vec, make_string_at_least_length, make_string_at_most_length, utils::Vector2};
 use rand::prelude::*;
 extern crate rayon;
 use rayon::prelude::*;
@@ -511,7 +511,7 @@ impl MapState {
 
     pub fn get_creature_strings(&self) -> String {
         let mut f_string = String::new();
-        f_string = format!("{} Frame: {}\n", f_string, self.frame_count);
+        f_string = format!("\n{} Frame: {}", f_string, self.frame_count);
         let xlen = self.regions.len();
         let ylen = self.regions[0].len();
         for yr in 0..ylen {
@@ -1293,7 +1293,7 @@ impl MapRegion {
             let mut right_exit: Arc<Mutex<Option<Vu2>>> = Arc::new(Mutex::new(None));
             let mut left_exit: Arc<Mutex<Option<Vu2>>> = Arc::new(Mutex::new(None));
 
-            // TODO Could parallelize this by making each dst return a grid[src] readonly.
+            // Could parallelize this by making each dst return a grid[src] readonly.
             // then after for each MapLocation, set its grid based on grid[src]s (also in parallel)
             // prob not worth it if we have multiple regions usually getting updated a frame, if not might be totally worth!
             let new_grid:Vec<Vec< Vec<Vec<LocSetDistance>> >> = (0..x_len).into_par_iter().map(|x| {
@@ -1588,6 +1588,30 @@ impl MapLocation {
             self.creatures.get_if_blocked()
         }
     }
+
+    pub fn get_if_creature_open_and_soil_open(&self, exits_count_as_blocked: bool, soil_layer: Option<SoilLayer>) -> bool {
+        if self.get_if_blocked(exits_count_as_blocked) {
+            return false;
+        }
+        
+        if soil_layer.is_none() {
+            return true;
+        }
+        else {
+            return !self.creatures.creatures.as_ref().unwrap().iter().any(|c| {
+                if let Some(other_soil) = c.components.soil_component {
+                    if other_soil.soil_layer == soil_layer.unwrap() {
+                        true
+                    } else {
+                        false
+                    }
+                } else {
+                    false
+                }
+            });
+        }
+    }
+
     pub fn reset_point_distances(&mut self) {
         let x_len = self.point_distances.len();
         let y_len = self.point_distances[0].len();
@@ -1684,7 +1708,7 @@ impl CreatureList {
         }).unwrap();
         let rmed = self.creatures.as_mut().unwrap().remove(to_rm);
         if let Some(_) = rmed.components.block_space_component {
-            // TODO: Not sure if this could be inaccurate cause maybe there are 2 blockers there?
+            // TODO Not sure if this could be inaccurate cause maybe there are 2 blockers there? Actually pretty sure 2 blockers not allowed in same tile?
             self.update_blocked(false, current_frame);
         }
         rmed
@@ -1698,7 +1722,7 @@ impl CreatureList {
                 }
             }
         } else {
-            return true;
+            return true; // doesn't hold creatures
         }
         
         return false;

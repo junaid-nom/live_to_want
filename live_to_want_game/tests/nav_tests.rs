@@ -58,7 +58,7 @@ fn nav_test_map_walk_around() {
 
 #[test]
 fn nav_test_map_state_update() {
-    // TODO Call update on map state changing just a little but of stuff each time to make sure it changes
+    // Call update on map state changing just a little but of stuff each time to make sure it changes
     let xlen = 9;
     let ylen = 9;
     let openr = RegionCreationStruct::new(5,5, 0, vec![]);
@@ -266,7 +266,7 @@ fn nav_test_region_map_hypothetical_blocks() {
         assert_eq!(r.grid[xx][yy].point_distances[3][2], LocSetDistance::Blocked);
     }
 
-    // TODO: Make sure the distances to exits are correct
+    // Make sure the distances to exits are correct
     println!("d d {:#?}", r.distances_from_down);
     println!("d u {:#?}", r.distances_from_up);
     println!("d l {:#?}", r.distances_from_left);

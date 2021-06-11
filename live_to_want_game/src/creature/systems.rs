@@ -4,6 +4,7 @@ use crate::{Vu2, map_state::MapState, tasks::Event, tasks::EventChain, tasks::Ev
 
 use super::{CreatureState, STARVING_SLOW_METABOLISM_FACTOR};
 
+// TODONEXT: This won't work because some of the events will target creature_list and some won't! Need to split them up.
 pub fn budding_system(m: &MapState, c: &CreatureState) -> Option<EventChain> {
     // first check if its the frame to reproduce.
     // If so, find a random nearby open spot. that is not blocked
@@ -18,8 +19,10 @@ pub fn budding_system(m: &MapState, c: &CreatureState) -> Option<EventChain> {
                 let region = c.components.region_component.region;
                 let map_region = &m.regions[region.x as usize][region.y as usize];
                 let blocker = c.components.block_space_component.is_some();
+                let soil = c.components.soil_component.map_or(None, |s| Some(s.soil_layer));
+                // Also this will spawn creatures over and over on the same spots if they are not blocking
                 for n in location.get_valid_neighbors(map_region.grid.len(), map_region.grid[0].len()) {
-                    if !map_region.grid[n.get()].get_if_blocked(blocker) {
+                    if !map_region.grid[n.get()].get_if_creature_open_and_soil_open(blocker, soil) {
                         open_spots.push(n.get());
                     }
                 }
@@ -29,7 +32,9 @@ pub fn budding_system(m: &MapState, c: &CreatureState) -> Option<EventChain> {
                     let mut rng = rand::thread_rng();
                     let chosen = rng.gen_range(0, spots);
                     let loc = open_spots[chosen];
-                    let new_creature = CreatureState::copy(bud.seed_creature.as_ref(), loc);
+                    let mut new_creature = CreatureState::clone_to_new_location(c, loc);
+                    new_creature.components = new_creature.components.copy_from_other(&bud.seed_creature_differences);
+                    
                     let create_event = Event {
                         event_type: EventType::AddCreature(new_creature, m.frame_count),
                         target: map_region.grid[loc.x as usize][loc.y as usize].id_component_creatures.id(),

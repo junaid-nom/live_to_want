@@ -39,7 +39,7 @@ impl CreatureState {
     }
 
     // for reproduction via budding mostly
-    pub fn copy(c: &CreatureState, new_loc: Vu2) -> CreatureState {
+    pub fn clone_to_new_location(c: &CreatureState, new_loc: Vu2) -> CreatureState {
         // TODO: make all components implement copy/clone traits so its easy to copy em
         // then use default for inventory and memory
         let cmap = ComponentMap{
@@ -55,20 +55,14 @@ impl CreatureState {
             region_component: c.components.region_component.clone(),
             location_component: LocationComponent {location: new_loc},
             name_component: Some(NameComponent {}),
-            starvation_component: if let Some(s) = c.components.starvation_component.as_ref() {
-                Some(StarvationComponent{
-                    calories: s.metabolism as i32 * REPRODUCE_STARTING_CALORIES,
-                    metabolism: s.metabolism,
-                })
-            } else {
-                None
-            },
+            starvation_component: c.components.starvation_component.clone(),
             creature_type_component: c.components.creature_type_component.clone(),
             block_space_component: c.components.block_space_component.clone(),
             movement_component: c.components.movement_component.clone(),
             budding_component: c.components.budding_component.clone(),
             death_items_component: c.components.death_items_component.clone(),
             battle_component:  c.components.battle_component.clone(),
+            soil_component: c.components.soil_component.clone(),
         };
 
         CreatureState {
@@ -104,17 +98,17 @@ impl Default for CreatureState {
 }
 impl std::fmt::Display for CreatureState {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), std::fmt::Error> {
-        let mut f_string;
+        let mut f_string = format!("ID:{} ", self.components.id_component.id());
         if let Some(hc) = self.components.health_component.as_ref() {
-            f_string = format!("{} | hp: {}/{}", self.components.id_component.id(), hc.health, hc.max_health);
+            f_string = format!("{} | hp: {}/{}", f_string, hc.health, hc.max_health);
         } else {
-            f_string = format!("{} | hp -/-", self.components.id_component.id());
+            f_string = format!("{} | hp -/-", f_string);
         }
 
         if let Some(bc) = self.components.battle_component.as_ref() {
             f_string = format!("{} | Combat: {}", f_string, bc.in_battle.as_ref().unwrap_or(&0));
         } else {
-            f_string = format!(" Combat: N/A");
+            f_string = format!("{} | Combat: N/A", f_string);
         }
 
         f_string = format!("{} | items ", f_string);

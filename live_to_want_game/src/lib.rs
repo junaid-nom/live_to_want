@@ -79,7 +79,7 @@ pub fn run_frame(mut game_state: GameState, root: &GoalNode) -> GameState {
     let current_frame = m.frame_count;
     let battle_list_id = m.battle_list.id;
 
-    // TODO: Run spawn systems first, and spawn new creatures
+    // Run spawn systems first, and spawn new creatures
     let spawn_events: Vec<Option<EventChain>> = m.regions.par_iter().flat_map(|x| {
         x.par_iter().flat_map(|y| {
             y.grid.par_iter().flat_map(|xl| {
@@ -207,7 +207,7 @@ pub fn run_frame(mut game_state: GameState, root: &GoalNode) -> GameState {
 
     // each region should have already been updated above.
     // now update the entire map's between region nav if we had any updated regions (TODO: Optimize this? Maybe don't need to update every single region but ones that update paths significantly?).
-    // TODO: The map update isn't parallelized at all could be a bottleneck? If so this could also only be run every X frame. because its just inter-region nav which can be inaccurate a little since no region path can actually be blocked fully.
+    // TODO: The region nav update isn't parallelized at all could be a bottleneck? If so this could also only be run every X frame. because its just inter-region nav which can be inaccurate a little since no region path can actually be blocked fully.
     if changed_regions.len() > 0 {
         m.update_nav();
     }
@@ -285,7 +285,6 @@ pub fn run_frame(mut game_state: GameState, root: &GoalNode) -> GameState {
         })
     }).collect();
 
-    // TODONEXT:
     // Attack creature command will produce EventChain that will set creatures to battle and have a new target BattleList.
     // The last BattleList event will add the Battle to the list of Battles.
     // Battle is new datatype that will have 2 BattlerInfo for the creatures battling.
@@ -295,15 +294,6 @@ pub fn run_frame(mut game_state: GameState, root: &GoalNode) -> GameState {
     // Then in the mutable system iteration do a:
     // If creature_id in BattleResults list -> call leave_battle_system that takes in an immutable ref to the battle. and updates the creature based on it.
     // may update HP, items, etc.
-    // Old disregard:
-    // For every creature, if its in combat, have them do stuff to each other.
-    // For all creatures: Increment frame count meter thing.
-    // Then if any have enough, have them pick a move with AI. Or do a previously chosen move.
-    // Move might either activate right away or need more frames.
-    // Will need to do this in parallel PER CREATURELIST not per creature because will need to mutate creatures one at at time. Sort list by creature's battle speed?
-    // If HP reaches 0 for one of them, set them both to no longer in combat.
-    // if Escaped status effect active, set them both to no longer in combat, and set the other to stunned on movement component
-    // Gonna be a lot of effort to convert this to party-based. So should do that right after finishing basic wolf-deer demo.
 
     // BATTLE SYSTEM RUNS HERE so that can process their events at same time as other stuff so faster
     let mut battle_effects: Vec<Option<EventChain>> = m.battle_list.battles.par_iter_mut().map( |battle| {
@@ -316,8 +306,7 @@ pub fn run_frame(mut game_state: GameState, root: &GoalNode) -> GameState {
 
     // Death system
     // TODO: Update nav system if blockers died
-    // TODO: also have a death list or something for creatures that dont have health but still died prob just go through the linearly?
-    // TODO: Add some kind of death_rattle event chain system, will need to do things like add items to ground etc
+    // TODO: also have a death list or something for creatures that dont have health but still died prob just go through them linearly?
     let no_hp_list:Vec<CreatureState> = m.regions.par_iter_mut().flat_map(|x| {
         x.par_iter_mut().flat_map(|y| {
             y.grid.par_iter_mut().flat_map(|xl| {
@@ -336,6 +325,7 @@ pub fn run_frame(mut game_state: GameState, root: &GoalNode) -> GameState {
     // Do stuff with the drained creatures.
     // put items the creature has to the locations they died.
     // put items if they have death_items component type thing
+    // death rattles done are here?
     let dead_events: Vec<Option<EventChain>> = dead_list.into_par_iter().flat_map(|dead| {
         //get items to drop from dead_items
         let mut items = match dead.components.death_items_component {

@@ -62,7 +62,6 @@ impl Neighbor {
 #[derive(Debug)]
 #[derive(Default)]
 #[derive(Copy, Clone, Hash, PartialEq, Eq)]
-// TODO: Convert to usize. need to do checked_add/checked_sub everywhere
 pub struct Vu2 {
     pub x: usize,
     pub y: usize,
@@ -147,7 +146,7 @@ pub fn make_string_at_most_length(mut s: String, target_len: usize) -> String{
 
 pub static COUNTER: AtomicU64 = AtomicU64::new(1); // TODO: Upgrade to a 128 bit one when it comes out of nightly build
 pub static MAX_ATTACK_DISTANCE: usize = 2;
-pub fn get_id() -> u64 { COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed) }
+pub fn get_id() -> u64 { COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed) } // TODO: Upgrade to a 128 bit one when it comes out of nightly build
 pub type UID = u64;
 pub type BattleFrame = u64;
 

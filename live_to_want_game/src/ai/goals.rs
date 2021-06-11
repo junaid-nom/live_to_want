@@ -21,22 +21,15 @@ pub struct GoalNode<'a> {
     pub get_requirements_met: Box<fn (&MapState, &CreatureState) -> bool>,
 }
 impl GoalNode<'_> {
-    pub fn generate_single_node_graph(only_node : GoalNode) -> GoalNode {
-        let mut root = GoalNode {
+    pub fn generate_single_node_graph() -> GoalNode<'static> {
+         GoalNode {
             get_want_local: Box::new(|_, _| 0),
             get_effort_local: Box::new(|_, _| 1),
             children: Vec::new(),
             name: "root",
             get_command: None,
             get_requirements_met: Box::new(|_, _| false),
-        };
-        root.children.push(GoalConnection{
-            child: Arc::new(only_node),
-            is_additive: false,
-            amplifier: 1.0,
-        });
-
-        root
+        }
     }
 }
 
