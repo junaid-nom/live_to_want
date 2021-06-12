@@ -59,9 +59,14 @@ fn run_frames_test_starvation_and_death() {
     ], gs.map_state.regions[start_loc].items);
 }
 
-// TODONEXT: The budding system is likely broken/untested! Especially The part involving blockers and non blocker stuff! 
 #[test]
 fn test_chain_budding_system_one_of_each_soil<'a>() {
+    let soil1 = SoilLayer::Bush;
+    let soil2 = SoilLayer::Flower;
+    let soil3 = SoilLayer::Bush;
+    assert_eq!(soil1, soil3);
+    assert_ne!(soil1, soil2);
+
     // make a mapstate with some budders
     let openr = RegionCreationStruct::new(10,10, 0, vec![]);
     let rgrid = vec![
@@ -167,27 +172,34 @@ fn test_chain_budding_system_one_of_each_soil<'a>() {
     assert_eq!(game_state.map_state.get_ground_item_list().len(), 0);
     assert_eq!(game_state.map_state.get_creature_item_list().len(), 1);
 
-    for _ in 0..1 {
+    println!("{}", game_state.map_state.get_creature_map_strings(Vu2::new(0,0)));
+
+    for _ in 0..3 {
         game_state = run_frame(game_state, &nothing);
-        println!("\ncreatures:{}", game_state.map_state.get_creature_strings());
+        //println!("\ncreatures:{}", game_state.map_state.get_creature_strings());
     }
 
-    assert_eq!(game_state.map_state.get_creature_list().len(), 3);
+    assert_eq!(game_state.map_state.get_creature_list().len(), 6);
     assert_eq!(game_state.map_state.get_ground_item_list().len(), 0);
+    assert_eq!(game_state.map_state.get_creature_item_list().len(), 1);
 
-    // println!("BEGIN PHASE 2!");
+    println!("{}", game_state.map_state.get_creature_map_strings(Vu2::new(0,0)));
 
-    for _ in 0..1 {
+    for _ in 0..60 {
         game_state = run_frame(game_state, &nothing);
-        println!("\ncreatures:{}", game_state.map_state.get_creature_strings());
     }
+    
+    println!("{}", game_state.map_state.get_creature_map_strings(Vu2::new(0,0)));
 
-    assert_eq!(game_state.map_state.get_creature_list().len(), 3);
-    assert_eq!(game_state.map_state.get_creature_list()[0].components.health_component.as_ref().unwrap().health, 1);
+    // basically make sure all map points have exactly 3 creatures
+    assert_eq!(game_state.map_state.get_creature_list().len(), 8*8*3);
     assert_eq!(game_state.map_state.get_ground_item_list().len(), 0);
-
-    for _ in 0..1 {
-        game_state = run_frame(game_state, &nothing);
-        println!("\ncreatures:{}", game_state.map_state.get_creature_strings());
-    }
+    assert_eq!(game_state.map_state.get_creature_item_list().len(), 1);
+    assert_eq!(game_state.map_state.regions[0][0].grid[4][5].creatures.get_length(), Some(3));
+    assert_eq!(game_state.map_state.regions[0][0].grid[5][4].creatures.get_length(), Some(3));
+    assert_eq!(game_state.map_state.regions[0][0].grid[1][1].creatures.get_length(), Some(3));
 }
+
+// TODONEXT: Do budding but with blockers and make sure shit doesn't go crazy
+// Put some budding blockers. Also some deer. Watch the deer be moved around because of the trees
+// Might be easiest to test by having a narrow region only 1 open wide

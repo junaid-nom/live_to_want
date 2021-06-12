@@ -1,6 +1,6 @@
 use std::{convert::TryInto, fmt, ops::Index, ops::IndexMut, sync::Arc, sync::Mutex, vec::Drain};
 
-use crate::{BattleList, Neighbor, SoilLayer, UID, Vu2, creature::CreatureState, creature::IDComponent, get_2d_vec, make_string_at_least_length, make_string_at_most_length, utils::Vector2};
+use crate::{BattleList, Neighbor, SoilComponent, SoilLayer, UID, Vu2, creature::CreatureState, creature::IDComponent, get_2d_vec, make_string_at_least_length, make_string_at_most_length, utils::Vector2};
 use rand::prelude::*;
 extern crate rayon;
 use rayon::prelude::*;
@@ -507,6 +507,26 @@ impl MapState {
                 (i, cid)
             })
         }).collect()
+    }
+
+    pub fn get_creature_map_strings(&self, region :Vu2) -> String {
+        let mut lines = Vec::new();
+        let line_space = 5;
+        let region = &self.regions[region];
+        let xlen = region.grid.len();
+        let ylen = region.grid[0].len();
+        for y in 0..ylen {
+            let mut f_string = String::new();
+            for x in 0..xlen {
+                let mloc = &region.grid[x][y];
+                let creature_num = make_string_at_least_length(mloc.creatures.get_length().map_or("-".to_string(), |n| n.to_string()), line_space, ' ');
+                f_string = format!("{}{}", f_string, creature_num);
+                //f_string = format!("{}{}{}_", f_string, ml.location.x, ml.location.y);
+            }
+            lines.insert(0, f_string);
+        }
+
+        format!("{}", lines.join("\n"))
     }
 
     pub fn get_creature_strings(&self) -> String {
@@ -1598,17 +1618,7 @@ impl MapLocation {
             return true;
         }
         else {
-            return !self.creatures.creatures.as_ref().unwrap().iter().any(|c| {
-                if let Some(other_soil) = c.components.soil_component {
-                    if other_soil.soil_layer == soil_layer.unwrap() {
-                        true
-                    } else {
-                        false
-                    }
-                } else {
-                    false
-                }
-            });
+            return self.creatures.get_if_open_and_open_soil(soil_layer);
         }
     }
 
@@ -1684,7 +1694,6 @@ impl CreatureList {
         if let Some(_) = c.components.block_space_component {
             self.update_blocked(true, current_frame);
         }
-        println!("trying to add c {:?} creatures is.. {:?}", c.get_location(), self.creatures);
         // NOTE: the edges of a region may be blocked because it doesn't have a neighbor region!
         &self.creatures.as_mut().unwrap().push(c);
     }
@@ -1727,6 +1736,29 @@ impl CreatureList {
         
         return false;
     }
+
+    pub fn get_if_open_and_open_soil(&self, soil_layer: Option<SoilLayer>) -> bool {
+        if let Some(creatures) = self.creatures.as_ref() {
+            if soil_layer.is_none() || soil_layer.unwrap() == SoilLayer::All {
+                return true;
+            }
+            let ret = !creatures.iter().any(|c| {
+                if let Some(other_soil) = c.components.soil_component {
+                    if other_soil.soil_layer == soil_layer.unwrap() {
+                        true
+                    } else {
+                        false
+                    }
+                } else {
+                    false
+                }
+            });
+            ret
+        } else {
+            return false; // doesn't hold creatures
+        }
+    }
+
     pub fn holds_creatures(&self) -> bool {
         match self.creatures {
             Some(_) => { true }

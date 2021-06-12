@@ -1,6 +1,6 @@
 use rand::Rng;
 
-use crate::{Vu2, map_state::MapState, tasks::Event, tasks::EventChain, tasks::EventType, Location};
+use crate::{EventTarget, Location, Vu2, map_state::MapState, tasks::Event, tasks::EventChain, tasks::EventType};
 
 use super::{CreatureState, STARVING_SLOW_METABOLISM_FACTOR};
 
@@ -26,7 +26,7 @@ pub fn budding_system(m: &MapState, c: &CreatureState) -> Vec<EventChain> {
                         open_spots.push(n.get());
                     }
                 }
-        
+
                 let spots = open_spots.len();
                 // Reset budding so it doesnt try again every frame, but next time it would reproduce
                 let bud_iterate = Event {
@@ -52,7 +52,19 @@ pub fn budding_system(m: &MapState, c: &CreatureState) -> Vec<EventChain> {
                         event_type: EventType::AddCreature(new_creature, m.frame_count),
                         target: target_location,
                         on_fail: None,
-                        get_requirements: Box::new(|_,_| true),
+                        get_requirements: Box::new(|e_target, ev_type| {
+                            if let EventType::AddCreature(c, clist) = ev_type {
+                                match e_target {
+                                    EventTarget::LocationCreaturesTarget(cl, uid) => {
+                                        return cl.get_if_open_and_open_soil(c.components.soil_component.map_or(None, |sc| Some(sc.soil_layer)))
+                                    }
+                                    _ => {
+                                        panic!("Got eventtarget that isnt for add creature")
+                                    }
+                                }
+                            }
+                            false
+                        }),
                     };
                     event_chains.push(EventChain{
                         events: vec![create_event],

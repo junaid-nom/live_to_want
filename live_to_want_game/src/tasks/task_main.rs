@@ -410,7 +410,6 @@ pub fn process_events<'a, 'b>(
     }
     for ec in event_chains.into_iter() {
         let key = ec.events[0].target;
-        println!("EC {}", ec.debug_string);
         match tasks_map.get_mut(&key) {
             Some(tl) => {
                 tl.tasks.push(ec);
