@@ -134,6 +134,7 @@ pub fn run_frame(mut game_state: GameState, root: &GoalNode) -> GameState {
             let map_loc: &mut MapLocation = &mut m.regions[open_loc.region.x as usize][open_loc.region.y as usize]
                 .grid[open_loc.position.x as usize][open_loc.position.y as usize];
             map_loc.creatures.drain_creatures(m.frame_count).into_iter().for_each(|c_to_move| {
+                println!("Moving bumped creature to non blocking blocker {}", c_to_move.get_id());
                 blocked_nonblockers.push(c_to_move);
             });
             
@@ -150,9 +151,11 @@ pub fn run_frame(mut game_state: GameState, root: &GoalNode) -> GameState {
         if let Some(open_loc) = loc {
             let map_loc: &mut MapLocation = &mut m.regions[open_loc.region.x as usize][open_loc.region.y as usize]
                 .grid[open_loc.position.x as usize][open_loc.position.y as usize];
+            println!("Moving bumped creature to loc {} -> {:?}", c.get_id(), open_loc);
             map_loc.creatures.add_creature(c, m.frame_count);
         }
         else {
+            println!("Moving bumped creature to dead {}", c.get_id());
             dead_list.push(c);
         }
     });

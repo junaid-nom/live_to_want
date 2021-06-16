@@ -529,6 +529,26 @@ impl MapState {
         format!("{}", lines.join("\n"))
     }
 
+    pub fn get_creature_map_strings_filtered(&self, region: Vu2, filter: &dyn Fn(&&CreatureState) -> bool) -> String {
+        let mut lines = Vec::new();
+        let line_space = 5;
+        let region = &self.regions[region];
+        let xlen = region.grid.len();
+        let ylen = region.grid[0].len();
+        for y in 0..ylen {
+            let mut f_string = String::new();
+            for x in 0..xlen {
+                let mloc = &region.grid[x][y];
+                let creature_num = make_string_at_least_length(mloc.creatures.get_length_filtered(filter).map_or("-".to_string(), |n| n.to_string()), line_space, ' ');
+                f_string = format!("{}{}", f_string, creature_num);
+                //f_string = format!("{}{}{}_", f_string, ml.location.x, ml.location.y);
+            }
+            lines.insert(0, f_string);
+        }
+
+        format!("{}", lines.join("\n"))
+    }
+
     pub fn get_creature_strings(&self) -> String {
         let mut f_string = String::new();
         f_string = format!("\n{} Frame: {}", f_string, self.frame_count);
@@ -1516,7 +1536,7 @@ impl MapRegion {
         self.last_frame_changed = current_frame;
 
         let end_time = std::time::Instant::now();
-        println!("Total update time: {}", (end_time - start_time).as_millis());
+        println!("Total update region time: {}", (end_time - start_time).as_millis());
         
     }
 }
@@ -1668,6 +1688,15 @@ impl CreatureList {
         }
     }
 
+    pub fn get_length_filtered(&self, filter: &dyn Fn(&&CreatureState) -> bool) -> Option<usize> {
+        match &self.creatures {
+            Some(c) => {
+                Some(c.iter().filter(filter).count())
+            }
+            None => {None}
+        }
+    }
+
     fn update_blocked(&mut self, new: bool, current_frame: u128) {
         if self.blocked != new { 
             self.blocked = new;
@@ -1797,21 +1826,34 @@ impl CreatureList {
                     break;
                 }
             };
+            
             if let Some(first) = first_blocker {
-                for i in 0..creatures.len() {
-                    if i < creatures.len() {
-                        let c = &creatures[i];
-                        if c.components.id_component.id() != first {
-                            if let Some(_) = c.components.block_space_component {
-                                ret.0.push(creatures.remove(i));
-                            } else {
-                                ret.1.push(creatures.remove(i));
-                            }
-                        }
-                    } else {
-                        break;
-                    }
-                }
+                let (to_remove, to_keep): (Vec<CreatureState>, Vec<CreatureState>) = creatures.drain(..).partition(|c| {
+                    c.get_id() != first
+                });
+                creatures.extend(to_keep);
+                assert_eq!(creatures.len(), 1);
+
+                ret = to_remove.into_iter().partition(|c| {
+                    c.components.block_space_component.is_some()
+                });
+
+                // BELOW DOES NOT WORK IN ANY LANGUAGE. NEED TO INDEX BACKWARDS TO DO THIS KIND OF THING!
+                // partition is way better anyway!
+                // for i in 0..creatures.len() {
+                //     if i < creatures.len() {
+                //         let c = &creatures[i];
+                //         if c.components.id_component.id() != first {
+                //             if let Some(_) = c.components.block_space_component {
+                //                 ret.0.push(creatures.remove(i));
+                //             } else {
+                //                 ret.1.push(creatures.remove(i));
+                //             }
+                //         }
+                //     } else {
+                //         break;
+                //     }
+                // }
             }
         }
         self.check_and_update_blocked(current_frame);
