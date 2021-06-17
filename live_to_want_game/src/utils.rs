@@ -1,4 +1,6 @@
 use std::sync::{atomic::AtomicU64};
+use serde::Deserialize;
+use serde::Serialize;
 
 #[derive(Debug)]
 #[derive(Default)]
@@ -61,7 +63,8 @@ impl Neighbor {
 
 #[derive(Debug)]
 #[derive(Default)]
-#[derive(Copy, Clone, Hash, PartialEq, Eq)]
+#[derive(Copy, Clone, Hash, PartialEq, Eq, )]
+#[derive(Deserialize, Serialize)]
 pub struct Vu2 {
     pub x: usize,
     pub y: usize,

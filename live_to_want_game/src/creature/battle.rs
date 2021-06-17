@@ -3,29 +3,31 @@ use std::fmt::Display;
 use rand::{Rng, prelude::SliceRandom};
 
 use crate::{BattleFrame, CreatureState, Item, Location, UID, Vu2, get_id, map_state::MapState, tasks::Event, tasks::EventChain, tasks::EventType};
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Copy)]
 #[derive(PartialEq, Hash, Eq)]
-pub enum Attacks {
+#[derive(Deserialize, Serialize)]
+pub enum Attack {
     SimpleDamage(BattleFrame, i32), // frames to execute, damage should be positive val
     DoNothing()
 }
-impl Attacks {
+impl Attack {
     pub fn get_attack_frame_speed(&self) -> BattleFrame {
         match &self {
-            Attacks::SimpleDamage(frames, _) => *frames,
-            Attacks::DoNothing() => 0,
+            Attack::SimpleDamage(frames, _) => *frames,
+            Attack::DoNothing() => 0,
         }
     }
 }
-impl Default for Attacks {
-    fn default() -> Self { Attacks::SimpleDamage(3, 1) }
+impl Default for Attack {
+    fn default() -> Self { Attack::SimpleDamage(3, 1) }
 }
-impl Display for Attacks {
+impl Display for Attack {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let f_string = match self {
-            Attacks::SimpleDamage(delay, dmg) => format!("Simple att dmg:{},t:{}", dmg, delay),
-            Attacks::DoNothing() => "Nothing".to_string(),
+            Attack::SimpleDamage(delay, dmg) => format!("Simple att dmg:{},t:{}", dmg, delay),
+            Attack::DoNothing() => "Nothing".to_string(),
         };
         write!(f, "{}", f_string)
     }
@@ -33,14 +35,15 @@ impl Display for Attacks {
 
 #[derive(Debug)]
 #[derive(Default, Hash, PartialEq, Eq, Clone)]
+#[derive(Deserialize, Serialize)]
 pub struct BattleInfo {
     pub health: i32,
     pub max_health: i32,
-    pub attacks: Vec<Attacks>,
+    pub attacks: Vec<Attack>,
     pub creature_id: UID,
     pub creature_location: Location,
     pub last_attack_frame: BattleFrame,
-    pub current_attack: Attacks,
+    pub current_attack: Attack,
     pub items: Vec<Item>,
 }
 impl BattleInfo {
@@ -52,11 +55,11 @@ impl BattleInfo {
         BattleInfo {
             health: health_c.health,
             max_health: health_c.max_health,
-            attacks: vec![Attacks::default()],
+            attacks: vec![Attack::default()],
             creature_id: id_c,
             creature_location: loc,
             last_attack_frame: 0,
-            current_attack: Attacks::DoNothing(),
+            current_attack: Attack::DoNothing(),
             items: c.inventory.clone()
         }
     }
@@ -64,6 +67,7 @@ impl BattleInfo {
 
 #[derive(Debug)]
 #[derive(Default, Hash, PartialEq, Eq, Clone)]
+#[derive(Deserialize, Serialize)]
 // TODO KINDA: Make this an interface so you can swap out different battle systems entirely lol?
 pub struct Battle {
     pub fighter1: BattleInfo,
@@ -89,7 +93,7 @@ impl Battle {
         let battle_id = self.id;
         let mut fighters = vec![&mut self.fighter1, &mut self.fighter2];
         // go through battle infos, check if ready to cast. return attack tuple (attack, target_index)
-        let attack_tuples: Vec<Option<(Attacks, usize, usize)>> = fighters.iter().enumerate().map(
+        let attack_tuples: Vec<Option<(Attack, usize, usize)>> = fighters.iter().enumerate().map(
             |(index, fighter)| {
                 if fighter.current_attack.get_attack_frame_speed() + fighter.last_attack_frame <= frame {
                     let attack = fighter.current_attack;
@@ -107,8 +111,8 @@ impl Battle {
             match tuple {
                 Some((attack, attacker, victim )) => {
                     match attack {
-                        Attacks::SimpleDamage(_, dmg) => fighters[victim].health -= dmg,
-                        Attacks::DoNothing() => {},
+                        Attack::SimpleDamage(_, dmg) => fighters[victim].health -= dmg,
+                        Attack::DoNothing() => {},
                     }
                     // set next attack as well. for now just pick random attack in attacks
                     // TODONEXT base it on some async stuff.
@@ -195,7 +199,7 @@ impl Battle {
 }
 
 #[derive(Debug)]
-#[derive(Default, Hash, PartialEq, Eq, Clone)]
+#[derive(Default, Hash, PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub struct BattleList {
     pub battles: Vec<Battle>,
     pub id: UID

@@ -8,12 +8,16 @@ use std::{fmt::{Debug, Formatter}, borrow::Borrow};
 use std::sync::{Arc, atomic::AtomicU64};
 use core::fmt;
 use rand::prelude::*;
+use serde::{Deserialize, Serialize};
 
 extern crate rayon;
 use rayon::prelude::*;
 
 mod map_state;
 pub use map_state::*;
+
+mod networking;
+pub use networking::*;
 
 mod utils;
 pub use utils::*;
@@ -40,6 +44,7 @@ pub use ai::*;
 // Pretty sure items in a MapLocation and inventory in a creature state don't have to be rc<refcell<>>
 // Can convert all the Vec<Vec<>>s to a single vector with a wrapper struct that deals with like indexing with x,y using mod %. Will be faster.
 
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct GameState {
     pub map_state: MapState,
 }

@@ -1,11 +1,13 @@
 use std::io::stderr;
 
 use crate::{Battle, Location, MAX_ATTACK_DISTANCE, creature::CreatureState, tasks::Event, tasks::EventChain, tasks::EventTarget, tasks::EventType, utils::UID, utils::Vu2};
+use serde::{Deserialize, Serialize};
 
 use super::MapLocation;
 
 #[derive(Debug, Clone, Copy)]
 #[derive(PartialEq, Hash, Eq)]
+#[derive(Deserialize, Serialize)]
 pub enum ItemType {
     Berry,
     Meat,
@@ -18,6 +20,7 @@ impl Default for ItemType {
 
 #[derive(Debug)]
 #[derive(Default, Hash, PartialEq, Eq, Clone, Copy)]
+#[derive(Deserialize, Serialize)]
 pub struct Item {
     pub item_type: ItemType,
     pub quantity: u32,
@@ -28,6 +31,15 @@ impl Item {
             item_type, quantity
         }
     }
+}
+
+/// Must be Copy/Clone easily.
+#[derive(Debug, Copy, Clone)]
+#[derive(Deserialize, Serialize)]
+pub enum CreatureCommandUser {
+    // TODO: Make stuff that users can send here, get turned into CreatureCommands if they meet requirements
+    MoveTo(UID, Location), // creature, target loc
+    Attack(UID, UID) // attacker, victim
 }
 
 

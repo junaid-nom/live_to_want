@@ -1,5 +1,5 @@
 use crate::{Item, map_state::Location, utils::{UID, get_id, Vector2, Vu2}};
-
+use serde::{Deserialize, Serialize};
 use super::CreatureState;
 
 // game constants:
@@ -12,9 +12,10 @@ pub trait Component: Sync + Send + Clone {
     }
 }
 
-#[derive(Default)]
+#[derive(Default, Clone)]
 #[derive(Debug)]
 #[derive(Hash, PartialEq, Eq)]
+#[derive(Deserialize, Serialize)]
 pub struct ComponentMap {
     pub id_component: IDComponent,
     pub health_component: Option<HealthComponent>,
@@ -55,7 +56,7 @@ impl ComponentMap {
     pub fn fake_clone(&self) -> Self {
         ComponentMap {
             id_component: IDComponent::fake_clone(),
-            health_component: self.health_component.clone(),
+            health_component: self.health_component.as_ref().map_or(None, |hc| Some(hc.fake_clone())),
             location_component: self.location_component.clone(),
             region_component: self.region_component.clone(),
             name_component: self.name_component.clone(),
@@ -88,8 +89,9 @@ impl ComponentMap {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 #[derive(Hash, PartialEq, Eq)]
+#[derive(Deserialize, Serialize)]
 pub struct IDComponent {
     id: UID,
 }
@@ -116,7 +118,8 @@ impl Default for IDComponent {
 }
 
 #[derive(Debug)]
-#[derive(Hash, PartialEq, Eq)]
+#[derive(Hash, PartialEq, Eq, Clone)]
+#[derive(Deserialize, Serialize)]
 pub struct HealthComponent {
     pub health: i32,
     pub max_health: i32,
@@ -126,8 +129,8 @@ impl Component for HealthComponent {
         true
     }
 }
-impl Clone for HealthComponent {
-    fn clone(&self) -> Self {
+impl HealthComponent {
+    pub fn fake_clone(&self) -> Self {
         HealthComponent {
             health: self.max_health,
             max_health: self.max_health
@@ -137,6 +140,7 @@ impl Clone for HealthComponent {
 
 #[derive(Debug, Clone, Copy)]
 #[derive(PartialEq, Hash, Eq)]
+#[derive(Deserialize, Serialize)]
 // Essentially for budding and plant reproduction, don't reproduce onto a tile that already has something with the uses the same soil layer.
 // For things that "bud" that don't need any soil remove the soil component, like if I ever make budding animals
 // All Type takes up all the soil nothing can grow EXCEPT Free.
@@ -152,6 +156,7 @@ impl Default for SoilLayer {
 }
 
 #[derive(Debug, Hash, PartialEq, Eq)]
+#[derive(Deserialize, Serialize)]
 pub struct BuddingComponent {
     pub reproduction_rate: u32,
     pub frame_ready_to_reproduce: u128,
@@ -174,6 +179,7 @@ impl Clone for BuddingComponent {
 
 #[derive(Debug, Clone, Copy)]
 #[derive(Hash, PartialEq, Eq)]
+#[derive(Deserialize, Serialize)]
 pub struct SoilComponent {
     pub soil_layer: SoilLayer,
 }
@@ -184,6 +190,7 @@ impl Component for SoilComponent {
 }
 
 #[derive(Default, Debug, Hash, PartialEq, Eq, Clone)]
+#[derive(Deserialize, Serialize)]
 pub struct LocationComponent {
     pub location: Vu2,
 }
@@ -194,6 +201,7 @@ impl Component for LocationComponent {
 }
 
 #[derive(Default, Debug, Hash, PartialEq, Eq, Copy, Clone)]
+#[derive(Deserialize, Serialize)]
 pub struct RegionComponent {
     pub region: Vu2,
 }
@@ -203,6 +211,7 @@ impl Component for RegionComponent {
     }
 }
 #[derive(Debug, Hash, PartialEq, Eq, Clone)]
+#[derive(Deserialize, Serialize)]
 pub struct NameComponent {
 
 }
@@ -212,6 +221,7 @@ impl Component for NameComponent {
     }
 }
 #[derive(Debug, Hash, PartialEq, Eq, Copy, Clone)]
+#[derive(Deserialize, Serialize)]
 pub struct CreatureTypeComponent {
 
 }
@@ -234,6 +244,7 @@ impl Component for CreatureTypeComponent {
 // ACTUALLY I wont cause that should be based on like health component existing
 // or something like that
 #[derive(Debug, Hash, PartialEq, Eq, Copy, Clone)]
+#[derive(Deserialize, Serialize)]
 pub struct BlockSpaceComponent {
 }
 impl Component for BlockSpaceComponent {
@@ -246,6 +257,7 @@ impl Component for BlockSpaceComponent {
 // a new event chain dynamically created! That has a new Event type that OWNS a creaturestate
 // that is then meant to be moved into a new location (spawn will be similar)
 #[derive(Hash, Debug, PartialEq, Eq)]
+#[derive(Deserialize, Serialize)]
 pub struct MovementComponent {
     //TODO: Add support for "sprint" feature. Also add hgher metabolism thing
     pub frames_to_move: usize,
@@ -296,6 +308,7 @@ impl Clone for MovementComponent {
 
 #[derive(Debug)]
 #[derive(Hash, PartialEq, Eq)]
+#[derive(Deserialize, Serialize)]
 pub struct StarvationComponent {
     pub calories: i32,
     pub metabolism: usize,
@@ -318,6 +331,7 @@ impl Clone for StarvationComponent {
 
 #[derive(Debug)]
 #[derive(Hash, PartialEq, Eq, Clone)]
+#[derive(Deserialize, Serialize)]
 pub struct DeathItemsComponent {
     pub items_to_drop: Vec<Item>,
 }
@@ -330,6 +344,7 @@ impl Component for DeathItemsComponent {
 
 #[derive(Debug)]
 #[derive(Hash, PartialEq, Eq, Clone)]
+#[derive(Deserialize, Serialize)]
 pub enum StatusEffect {
     NoEscape(u32),
     AtRange(u32),//if a character has this on, any melee attack takes longer to do
@@ -344,6 +359,7 @@ pub enum CombatAI {
 
 #[derive(Debug)]
 #[derive(Hash, PartialEq, Eq, Clone)]
+#[derive(Deserialize, Serialize)]
 pub struct BattleComponent {
     pub in_battle:Option<UID>,
     // TODO: Add a GoalNode where if in combat, return None command.

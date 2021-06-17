@@ -1,5 +1,5 @@
 use std::fmt::Formatter;
-
+use serde::{Deserialize, Serialize};
 use crate::{Location, RegionComponent, UID, map_state::Item, utils::Vector2, utils::Vu2};
 
 use super::{ComponentMap, IDComponent, LocationComponent, HealthComponent, NameComponent, StarvationComponent, REPRODUCE_STARTING_CALORIES};
@@ -16,8 +16,9 @@ impl Default for CreatureType {
 }
 
 // Components have a func "get_is_visible()"
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 #[derive(Hash, PartialEq, Eq)]
+#[derive(Deserialize, Serialize)]
 pub struct CreatureState {
     pub components: ComponentMap,
     pub memory: CreatureMemory,
@@ -119,8 +120,9 @@ impl std::fmt::Display for CreatureState {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 #[derive(Default, Hash, PartialEq, Eq)]
+#[derive(Deserialize, Serialize)]
 pub struct CreatureMemory {
     
 }

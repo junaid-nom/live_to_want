@@ -4,6 +4,7 @@ use crate::{BattleList, Neighbor, SoilComponent, SoilLayer, UID, Vu2, creature::
 use rand::prelude::*;
 extern crate rayon;
 use rayon::prelude::*;
+use serde::{Deserialize, Serialize};
 
 use super::Item;
 
@@ -84,6 +85,7 @@ impl RegionCreationStruct {
 
 #[derive(Debug)]
 #[derive(Default)]
+#[derive(Clone, Deserialize, Serialize)]
 pub struct MapState {
     pub regions: RegionGrid,
     pub frame_count: u128,
@@ -735,6 +737,7 @@ impl fmt::Display for MapState {
 
 #[derive(Debug)]
 #[derive(Default, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Deserialize, Serialize)]
 pub struct Location {
     pub region: Vu2,
     pub position: Vu2,
@@ -765,6 +768,7 @@ impl Location{
 
 #[derive(Debug)]
 #[derive(Default, PartialEq, Clone)]
+#[derive(Deserialize, Serialize)]
 pub struct RegionDistances {
     pub left: Option<u32>,
     pub right: Option<u32>,
@@ -895,6 +899,7 @@ impl fmt::Display for RegionDistances {
 }
 
 #[derive(Debug, PartialEq, Clone)]
+#[derive(Deserialize, Serialize)]
 pub enum ExitPoint {
     None,
     Left,
@@ -930,6 +935,7 @@ impl fmt::Display for ExitPoint {
 }
 
 #[derive(Debug, PartialEq, Clone)]
+#[derive(Deserialize, Serialize)]
 pub enum InnerExitRegionDistance {
     Unset,
     Set(RegionDistances),
@@ -967,8 +973,9 @@ impl IndexMut<Vu2> for MapLocationGrid {
         &mut self[index.x][index.y]
     }
 }
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 #[derive(Default)]
+#[derive(Deserialize, Serialize)]
 pub struct MapRegion {
     pub location: Vu2,
     pub exists: bool,
@@ -1542,6 +1549,7 @@ impl MapRegion {
 }
 
 #[derive(Debug, PartialEq, Clone, Copy)]
+#[derive(Deserialize, Serialize)]
 pub enum LocSetDistance {
     Unset,
     Blocked,
@@ -1563,6 +1571,7 @@ impl fmt::Display for LocSetDistance {
 }
 
 #[derive(Debug, PartialEq, Clone)]
+#[derive(Deserialize, Serialize)]
 pub enum RegionSetDistances {
     Unset,
     Blocked,
@@ -1597,8 +1606,9 @@ impl IndexMut<Vu2> for LocSetDistanceGrid {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 #[derive(Default)]
+#[derive(Deserialize, Serialize)]
 pub struct MapLocation {
     pub id_component_items: IDComponent,
     pub id_component_creatures: IDComponent,
@@ -1656,9 +1666,10 @@ impl MapLocation {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 #[derive(Default)]
 #[derive(PartialEq, Eq)]
+#[derive(Deserialize, Serialize)]
 pub struct CreatureList {
     creatures: Option<Vec<CreatureState>>, // some locations will be perma blocked and no creatures allowed so thats None for this
     last_frame_changed: u128,
