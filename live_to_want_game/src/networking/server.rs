@@ -5,14 +5,16 @@ use std::io::{Read, Write};
 use std::net::TcpStream;
 use std::str::from_utf8;
 use std::sync::mpsc::{self, Receiver, Sender};
+use std::{thread, time};
 use crate::GameMessage;
+use tokio::time::{sleep, Duration};
 
 const IP_PORT: &str = "127.0.0.1:7726";
 
 #[tokio::main]
 pub async fn dumb_server() -> Result<(), Box<dyn std::error::Error>> {
     let listener = TcpListener::bind(IP_PORT).await?;
-
+    println!("Started dumb server");
     loop {
         let (mut socket, _) = listener.accept().await?;
 
@@ -42,6 +44,7 @@ pub async fn dumb_server() -> Result<(), Box<dyn std::error::Error>> {
     }
 }
 
+#[tokio::main]
 async fn start_server(sender: Sender<GameMessage>) -> Result<(), Box<dyn std::error::Error>>  {
     let listener = TcpListener::bind(IP_PORT).await?;
     
@@ -84,29 +87,38 @@ async fn start_server(sender: Sender<GameMessage>) -> Result<(), Box<dyn std::er
     }
 }
 
-#[tokio::main]
-pub async fn create_server() -> Receiver<GameMessage> {
+pub fn create_server() -> Receiver<GameMessage> {
     // let (sender: Sender<GameMessage>, receiver: Receiver<GameMessage>) = mpsc::channel();
     let (sender, receiver) = mpsc::channel();
-    tokio::spawn(async move {
-        start_server(sender).await.unwrap();
+    thread::spawn(|| {
+        start_server(sender).unwrap();
     });
 
-    println!("waiting for start msg");
     let start_msg = receiver.recv();
     println!("Got start msg: {:?}", start_msg.unwrap());
     receiver
 }
 
-#[tokio::main]
 pub async fn create_server_dumb() -> Receiver<GameMessage> {
     // let (sender: Sender<GameMessage>, receiver: Receiver<GameMessage>) = mpsc::channel();
     let (sender, receiver) = mpsc::channel();
-    tokio::spawn(async move {
-        //dumb_server().await.unwrap();
-    });
 
-    println!("waiting for start msg");
+    let handler = thread::spawn(|| {
+        dumb_server().unwrap();
+    });
+    
+    println!("b4 spawn");
+    // let handle = tokio::task::spawn_blocking(|| {
+    //     //dumb_server().unwrap();
+    //     println!("Started other thread");
+    //     for i in 0..10 {
+    //         // sleep(Duration::from_millis(1000));
+    //         thread::sleep(time::Duration::from_millis(1000));
+    //         println!("next {}", i);
+    //     }
+    // });
+    println!("af spawn");
+    //println!("waiting for start msg");
     //let start_msg = receiver.recv();
     //println!("Got start msg: {:?}", start_msg.unwrap());
     receiver
@@ -133,7 +145,7 @@ pub fn test_client() {
             let msg = serde_json::to_vec(&msg).unwrap();
 
             stream.write(&msg).unwrap();
-            println!("Sent Hello, awaiting reply...");
+            println!("Sent Hello");
             // let mut data = [0 as u8; 12]; // using 6 byte buffer
             // match stream.read_exact(&mut data) {
             //     Ok(_) => {

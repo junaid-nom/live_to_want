@@ -35,7 +35,7 @@ impl Item {
 
 /// Must be Copy/Clone easily.
 #[derive(Debug, Copy, Clone)]
-#[derive(Deserialize, Serialize)]
+#[derive(Deserialize, Serialize, PartialEq, Eq)]
 pub enum CreatureCommandUser {
     // TODO: Make stuff that users can send here, get turned into CreatureCommands if they meet requirements
     MoveTo(UID, Location), // creature, target loc
