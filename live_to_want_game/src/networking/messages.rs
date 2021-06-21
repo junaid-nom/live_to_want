@@ -31,6 +31,7 @@ pub struct User {
     pub password: String
 }
 
+#[derive(Debug)]
 pub struct LoginManager {
     conn_to_user: HashMap<UID, User>,
     username_to_conn: HashMap<String, UID>,
@@ -88,6 +89,7 @@ impl LoginManager {
 pub struct ConnectionManager {
     send_to_clients: UnboundedSender<ConnectionMessageWrap>,
     receive_server_messages: UnboundedReceiver<GameMessageWrap>,
+    login_manager: LoginManager,
 }
 impl ConnectionManager {
     // TODONEXT: on init, creates a server. Then saves the returned channels.
@@ -98,6 +100,7 @@ impl ConnectionManager {
         ConnectionManager {
             send_to_clients,
             receive_server_messages,
+            login_manager: LoginManager::new(),
         }
     }
     pub fn send_message(message: GameMessage, username: String) {
