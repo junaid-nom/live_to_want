@@ -9,18 +9,33 @@ use tokio::time::Duration;
 use std::{thread, time};
 #[test]
 fn run_simple_server_test() {
-    let receiver = create_server();
-    
-    let client_sent = 10;
-    (0..client_sent).into_par_iter().for_each(|i| {
-        println!("starting client {}", i);
-        test_client();
-    });
+    // TODONEXT: Make real server tests:
 
-    (0..client_sent).into_iter().for_each(|i| {
-        let msg = receiver.recv().unwrap();
-        println!("Received Msg {} {:?}", i, msg);
-    });
+    // - One test that uses ConnectionManager to create a server.
+    // Then in a loop call get_msgs every x seconds.
+    // Also in another thread call test_clients that try to login and then send
+    // a string message. make sure the string message arrives with the right username
+    
+    // in another test have a server from ConnectionManager.
+    // have a test_client login.
+    // then have a 2nd one login with same pw.
+    // make sure first test_client is disconnected on client end.
+    // dc the 2nd test client on the client end.
+    // try to send a message to the DCed test_client. make sure nothing weird happens
+    // make sure connectionManager drops the conn.
+
+    // let receiver = create_server();
+    
+    // let client_sent = 10;
+    // (0..client_sent).into_par_iter().for_each(|i| {
+    //     println!("starting client {}", i);
+    //     test_client();
+    // });
+
+    // (0..client_sent).into_iter().for_each(|i| {
+    //     let msg = receiver.recv().unwrap();
+    //     println!("Received Msg {} {:?}", i, msg);
+    // });
     
     // keep the server alive for awhile...
     // (0..10).into_iter().for_each(|i| {
@@ -28,6 +43,8 @@ fn run_simple_server_test() {
     //     println!("{} Recv result: {:?}",i, result);
     // });
 }
+
+
 
 #[test]
 fn test_serde() {

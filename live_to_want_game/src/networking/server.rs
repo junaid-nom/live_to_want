@@ -5,6 +5,7 @@ use std::collections::HashMap;
 use std::io::{Read, Write};
 use std::net::TcpStream;
 use std::str::from_utf8;
+use std::sync::mpsc::{Receiver, Sender};
 use tokio::sync::mpsc::{self, UnboundedSender, UnboundedReceiver};
 use std::{thread, time};
 use crate::{ConnectionMessageWrap, GameMessage, GameMessageWrap, UID, get_id};
@@ -13,7 +14,7 @@ use tokio::time::{sleep, Duration};
 const IP_PORT: &str = "127.0.0.1:7726";
 
 #[tokio::main]
-async fn start_server(send_to_server: UnboundedSender<GameMessageWrap>, clients_sender: UnboundedSender<ConnectionMessageWrap>, mut clients_receive: UnboundedReceiver<ConnectionMessageWrap>) -> Result<(), Box<dyn std::error::Error>>  {
+async fn start_server(send_to_server: Sender<GameMessageWrap>, clients_sender: UnboundedSender<ConnectionMessageWrap>, mut clients_receive: UnboundedReceiver<ConnectionMessageWrap>) -> Result<(), Box<dyn std::error::Error>>  {
     let listener = TcpListener::bind(IP_PORT).await?;
     
     println!("Listening on {:?} {:?}", IP_PORT, listener.local_addr());
@@ -28,19 +29,19 @@ async fn start_server(send_to_server: UnboundedSender<GameMessageWrap>, clients_
                     match conn_msg {
                         ConnectionMessageWrap::SaveClientConnection(c_uid, sender) => {client_connections.insert(c_uid, sender);},
                         ConnectionMessageWrap::GameMessageWrap(game_msg_wrap) => {
-                            if client_connections.contains_key(&game_msg_wrap.conn_uid) {
-                                match client_connections[&game_msg_wrap.conn_uid].send(GameMessageWrap{
-                                    conn_uid: game_msg_wrap.conn_uid,
+                            if client_connections.contains_key(&game_msg_wrap.conn_id) {
+                                match client_connections[&game_msg_wrap.conn_id].send(GameMessageWrap{
+                                    conn_id: game_msg_wrap.conn_id,
                                     message: game_msg_wrap.message
                                 }) {
                                     Ok(_) => {},
                                     Err(e) => {
                                         eprintln!("failed to write to client channel (client dc?); err = {:?}", e);
                                         all_sender_server.send(GameMessageWrap{
-                                            message: GameMessage::DropConnection(game_msg_wrap.conn_uid),
-                                            conn_uid: 0,
+                                            message: GameMessage::DropConnection(game_msg_wrap.conn_id),
+                                            conn_id: 0,
                                         }).unwrap();
-                                        client_connections.remove(&game_msg_wrap.conn_uid);
+                                        client_connections.remove(&game_msg_wrap.conn_id);
                                     },
                                 }
                             }
@@ -120,16 +121,16 @@ async fn start_server(send_to_server: UnboundedSender<GameMessageWrap>, clients_
     }
 }
 
-pub async fn create_server() -> (UnboundedSender<ConnectionMessageWrap>, UnboundedReceiver<GameMessageWrap>) {
+pub async fn create_server() -> (UnboundedSender<ConnectionMessageWrap>, Receiver<GameMessageWrap>) {
     // let (sender: Sender<GameMessage>, receiver: Receiver<GameMessage>) = mpsc::channel();
-    let  (sender_to_server, mut receive_server) = mpsc::unbounded_channel();
+    let  (sender_to_server, mut receive_server) = std::sync::mpsc::channel();
     let  (sender_to_clients, receieve_clients) = mpsc::unbounded_channel();
     let send_clients_clone = sender_to_clients.clone();
     thread::spawn(|| {
         start_server(sender_to_server, send_clients_clone, receieve_clients).unwrap();
     });
 
-    let start_msg = receive_server.recv().await;
+    let start_msg = receive_server.recv();
     println!("Got start msg: {:?}", start_msg.unwrap());
     (sender_to_clients, receive_server)
 }
@@ -138,7 +139,7 @@ pub fn string_to_game_msg(string_msg: String, conn_uid: UID) -> GameMessageWrap 
     let message = GameMessage::StringMsg(string_msg);
     return GameMessageWrap{
         message,
-        conn_uid
+        conn_id: conn_uid
     };
 }
 

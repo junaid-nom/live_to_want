@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, sync::mpsc::{self, Receiver}, task::Context};
 
 use crate::{CreatureCommandUser, GameState, UID, create_server};
 use serde::{Deserialize, Serialize};
@@ -10,13 +10,20 @@ pub enum GameMessage {
     GameStateMsg(GameState),
     CreatureCommandMsg(CreatureCommandUser),
     LoginMsg{user: User},
+    LoginReplyMsg(bool, String),
     DropConnection(UID),
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct GameMessageWrap{
     pub message: GameMessage,
-    pub conn_uid: UID,
+    pub conn_id: UID,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct GameMessageWrapUsername{
+    pub message: GameMessage,
+    pub username: String,
 }
 
 #[derive(Debug)]
@@ -47,23 +54,32 @@ impl LoginManager {
     }
 
     // If user already logged in, but its valid, drop old connection
-    pub fn login_user(&mut self, to_add: User, conn_id: UID) -> Option<GameMessageWrap> {
+    pub fn login_user(&mut self, to_add: User, conn_id: UID) -> Vec<GameMessageWrap> {
         //TODO: Hash passwords
         if self.username_to_password.contains_key(&to_add.username) {
             if self.username_to_password[&to_add.username] != to_add.password {
-                return None;
+                return vec![
+                    GameMessageWrap{
+                        message: GameMessage::LoginReplyMsg(false, "Wrong Password".to_string()),
+                        conn_id: conn_id
+                    }
+                ];
             }
         }
 
         // if logged in already... disconnect old conn?
-        let ret = if self.username_to_conn.contains_key(&to_add.username) {
-            Some(GameMessageWrap{
+        let mut ret = vec![
+            GameMessageWrap{
+                message: GameMessage::LoginReplyMsg(true, "".to_string()),
+                conn_id: conn_id
+            }
+        ];
+        if self.username_to_conn.contains_key(&to_add.username) {
+            ret.push(GameMessageWrap{
                 message: GameMessage::DropConnection(self.username_to_conn[&to_add.username]),
-                conn_uid: self.username_to_conn[&to_add.username],
-            })
-        } else {
-            None
-        };
+                conn_id: self.username_to_conn[&to_add.username],
+            });
+        }
         self.username_to_conn.insert(to_add.username.clone(), conn_id);
         self.conn_to_user.insert(conn_id, to_add);
         ret
@@ -88,13 +104,13 @@ impl LoginManager {
 #[derive(Debug)]
 pub struct ConnectionManager {
     send_to_clients: UnboundedSender<ConnectionMessageWrap>,
-    receive_server_messages: UnboundedReceiver<GameMessageWrap>,
+    receive_server_messages: Receiver<GameMessageWrap>,
     login_manager: LoginManager,
 }
 impl ConnectionManager {
-    // TODONEXT: on init, creates a server. Then saves the returned channels.
+    // on init, creates a server. Then saves the returned channels.
     // then has methods, receive message and send message.
-    // it should manage username:conn_uid and stuff here?
+    // it should manage username:conn_uid and stuff through login_manager
     pub async fn new() -> Self {
         let (send_to_clients, receive_server_messages) = create_server().await;
         ConnectionManager {
@@ -103,13 +119,69 @@ impl ConnectionManager {
             login_manager: LoginManager::new(),
         }
     }
-    pub fn send_message(message: GameMessage, username: String) {
 
+    pub fn send_message(&mut self, message: GameMessage, username: String) {
+        let conn_id = self.login_manager.get_conn_id(&username);
+        if let Some(conn_id) = conn_id {
+            self.send_to_clients.send(ConnectionMessageWrap::GameMessageWrap(GameMessageWrap{
+                message,
+                conn_id
+            })).unwrap();
+        }
     }
-    pub fn get_messages(&self) -> Vec<GameMessage> {
-        // TODONEXT: Read all the current messages on the list.
-        // if any are UserLogin, check if valid, if invalid respond with error?
+
+    pub fn get_messages(&mut self) -> Vec<GameMessageWrapUsername> {
+        // Read all the current messages on the list.
+        // if any are UserLogin, check if valid, if invalid respond with error.
         // if any DropConnection messages, handle here, just remove_connection from LoginManager
-        vec![]
+        let mut msgs = vec![];
+        loop {
+            let new_msg = self.receive_server_messages.try_recv();
+            match new_msg {
+                Ok(m) => {
+                    match m.message {
+                        GameMessage::LoginMsg { user } => {
+                            // check login. if success send success msg, if not send failure msg
+                            let replies = self.login_manager.login_user(user, m.conn_id);
+                            // drop connection by just sending it to client which will shutdown the client socket on our end
+                            replies.into_iter().for_each(|m| {
+                                self.send_to_clients.send(ConnectionMessageWrap::GameMessageWrap(m)).unwrap();
+                            });
+                        },
+                        GameMessage::DropConnection(conn_id) => {
+                            self.login_manager.remove_connection(conn_id);
+                        },
+                        _ => {
+                            msgs.push(m);
+                        }
+                    }
+                },
+                Err(e) => {
+                    match e {
+                        mpsc::TryRecvError::Empty => break,
+                        mpsc::TryRecvError::Disconnected => panic!("Channel between server and game destroyed!"),
+                    }
+                },
+            }
+        }
+        let mut ret = vec![];
+        msgs.into_iter().for_each(|m| {
+            let username = self.get_username(&m.conn_id);
+            if let Some(username) = username {
+                ret.push(GameMessageWrapUsername{
+                    message: m.message,
+                    username,
+                });
+            }
+        });
+        ret
+    }
+
+    pub fn get_conn_id(&self, username: &String) -> Option<UID> {
+        self.login_manager.get_conn_id(username)
+    }
+
+    pub fn get_username(&self, conn_id: &UID) -> Option<String> {
+        self.login_manager.get_username(conn_id)
     }
 }
