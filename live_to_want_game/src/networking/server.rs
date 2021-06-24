@@ -149,7 +149,7 @@ pub fn string_to_msg_buffer(string_msg: String) -> Vec<u8> {
     return msg;
 }
 
-pub fn test_client() {
+pub fn test_client_just_print() {
     match TcpStream::connect(IP_PORT) {
         Ok(mut stream) => {
             println!("Successfully connected to server in {}", IP_PORT);
@@ -160,26 +160,39 @@ pub fn test_client() {
 
             stream.write(&msg).unwrap();
             println!("Sent Hello");
-            // let mut data = [0 as u8; 12]; // using 6 byte buffer
-            // match stream.read_exact(&mut data) {
-            //     Ok(_) => {
-            //         if &data == &msg {
-            //             println!("Reply is ok!");
-            //         } else {
-            //             let text = from_utf8(&data).unwrap();
-            //             println!("Unexpected reply: {}", text);
-            //         }
-            //     },
-            //     Err(e) => {
-            //         println!("Failed to receive data: {}", e);
-            //     }
-            // }
+            //let mut data = [0 as u8; 12]; // using 6 byte buffer
+            let mut data = vec![];
+            match stream.read_to_end(&mut data) {
+                Ok(n) => {
+                    let msg = &data[0..n];
+                    let message: GameMessageWrap = serde_json::from_slice(msg).unwrap();
+                    println!("Got msg: {:?}", message);
+                },
+                Err(e) => {
+                    println!("Failed to receive data: {}", e);
+                }
+            }
         },
         Err(e) => {
             println!("Failed to connect: {}", e);
         }
     }
     println!("Client Terminated.");
+}
+
+pub fn test_client_with_func(f: Box<dyn Fn(TcpStream) -> () + Send> ) {
+    thread::spawn(move || {
+        match TcpStream::connect(IP_PORT) {
+            Ok(stream) => {
+                println!("Successfully connected to server in {}", IP_PORT);
+                f(stream);
+            },
+            Err(e) => {
+                println!("Failed to connect: {}", e);
+            }
+        }
+        println!("Client Terminated.");
+    });
 }
 
 #[tokio::main]

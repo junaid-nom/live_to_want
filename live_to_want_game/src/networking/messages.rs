@@ -9,7 +9,7 @@ pub enum GameMessage {
     StringMsg(String),
     GameStateMsg(GameState),
     CreatureCommandMsg(CreatureCommandUser),
-    LoginMsg{user: User},
+    LoginMsg(User),
     LoginReplyMsg(bool, String),
     DropConnection(UID),
 }
@@ -140,7 +140,7 @@ impl ConnectionManager {
             match new_msg {
                 Ok(m) => {
                     match m.message {
-                        GameMessage::LoginMsg { user } => {
+                        GameMessage::LoginMsg(user) => {
                             // check login. if success send success msg, if not send failure msg
                             let replies = self.login_manager.login_user(user, m.conn_id);
                             // drop connection by just sending it to client which will shutdown the client socket on our end
