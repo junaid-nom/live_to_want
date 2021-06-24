@@ -55,6 +55,9 @@ async fn run_simple_server_test() {
             _ => panic!("Should get string message!")
         }
     }
+
+    // TODO NEXT: Upgrade above test to also check the client receives messages properly.
+    // client receive -> replies -> check the 2nd client msg.
     
     // in another test have a server from ConnectionManager.
     // have a test_client login.
