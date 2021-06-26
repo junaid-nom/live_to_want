@@ -56,8 +56,11 @@ impl LoginManager {
     // If user already logged in, but its valid, drop old connection
     pub fn login_user(&mut self, to_add: User, conn_id: UID) -> Vec<GameMessageWrap> {
         //TODO: Hash passwords
+        println!("Checking pw for {}", to_add.username);
         if self.username_to_password.contains_key(&to_add.username) {
+            println!("Logged in already {}", to_add.username);
             if self.username_to_password[&to_add.username] != to_add.password {
+                println!("wrong pw {}", to_add.username);
                 return vec![
                     GameMessageWrap{
                         message: GameMessage::LoginReplyMsg(false, "Wrong Password".to_string()),
@@ -65,6 +68,8 @@ impl LoginManager {
                     }
                 ];
             }
+        } else {
+            self.username_to_password.insert(to_add.username.clone(), to_add.password.clone());
         }
 
         // if logged in already... disconnect old conn?

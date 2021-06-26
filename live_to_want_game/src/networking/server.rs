@@ -17,7 +17,7 @@ async fn start_server(send_to_server: Sender<GameMessageWrap>, clients_sender: U
     println!("Listening on {:?} {:?}", IP_PORT, listener.local_addr());
     let mut started = false;
     
-    let all_sender_server = send_to_server.clone();
+    let all_send_to_server = send_to_server.clone();
     tokio::spawn(async move {
         let mut client_connections: HashMap<UID, UnboundedSender<GameMessageWrap>> = HashMap::new();
         loop {
@@ -34,7 +34,7 @@ async fn start_server(send_to_server: Sender<GameMessageWrap>, clients_sender: U
                                     Ok(_) => {},
                                     Err(e) => {
                                         eprintln!("failed to write to client channel (client dc?); err = {:?}", e);
-                                        all_sender_server.send(GameMessageWrap{
+                                        all_send_to_server.send(GameMessageWrap{
                                             message: GameMessage::DropConnection(game_msg_wrap.conn_id),
                                             conn_id: 0,
                                         }).unwrap();
