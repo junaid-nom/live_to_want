@@ -2,6 +2,7 @@ extern crate rayon;
 use std::io::{Read, Write};
 use std::net::TcpStream;
 use std::{rc::Rc, cell::RefCell};
+use std::io::{BufRead, BufReader};
 
 use rayon::prelude::*;
 use live_to_want_game::*;
@@ -22,24 +23,25 @@ async fn run_simple_server_test() {
     // Do simple test just to see if the server is receiving messages.
     let mut server = ConnectionManager::new().await;
     test_client_with_func(Box::new(|mut stream: TcpStream| {
-        let msg = GameMessage::LoginMsg(User{
+        stream.write(&wrap_ser_message(GameMessage::LoginMsg(User{
             username: "test".to_string(),
             password: "poop".to_string(),
-        });
-        let msg = serde_json::to_vec(&msg).unwrap();
-        stream.write(&msg).unwrap();
+        }), 0)).unwrap();
+        
+        stream.write(&wrap_ser_message(GameMessage::StringMsg("Hello There!".to_string()), 0)).unwrap();
+        println!("Sent Hello  From Client");
 
-        let msg = GameMessage::StringMsg("Hello There!".to_string());
-        let msg = serde_json::to_vec(&msg).unwrap();
-        stream.write(&msg).unwrap();
-        println!("Sent Hello");
-        //let mut data = [0 as u8; 12]; // using 6 byte buffer
-        let mut data = vec![];
-        match stream.read_to_end(&mut data) {
-            Ok(n) => {
-                let msg = &data[0..n];
-                let message: GameMessageWrap = serde_json::from_slice(msg).unwrap();
-                println!("Got msg: {:?}", message);
+        let mut stream_reader = BufReader::new(stream.try_clone().unwrap());
+        let mut data = String::new();
+        match stream_reader.read_line(&mut data) {
+            Ok(_) => {
+                //let msg = &data[0..n];
+                data.pop();
+                let message: GameMessageWrap = serde_json::from_str(&data).unwrap();
+                println!("Client got msg: {:?}", message);
+
+                stream.write(&wrap_ser_message(GameMessage::StringMsg("Hello There2!".to_string()), 0)).unwrap();
+                println!("Sent hello reply to server from client");
             },
             Err(e) => {
                 println!("Failed to receive data: {}", e);
@@ -47,17 +49,40 @@ async fn run_simple_server_test() {
         }
     }));
 
-    let msgs = server.get_messages();
-    if msgs.len() > 0 {
-        assert_eq!(msgs[0].username, "test".to_string());
-        match &msgs[0].message {
-            GameMessage::StringMsg(m) => assert_eq!(m, &"Hello There!".to_string()),
-            _ => panic!("Should get string message!")
+    loop {
+        let msgs = server.get_messages();
+        if msgs.len() > 0 {
+            assert_eq!(msgs[0].username, "test".to_string());
+            match &msgs[0].message {
+                GameMessage::StringMsg(m) => {
+                    assert_eq!(m, &"Hello There!".to_string());
+                    println!("Got hello there message: {:?}", m);
+                },
+                _ => panic!("Should get string message!")
+            }
+            println!("sending msg hello reply");
+            server.send_message(GameMessage::StringMsg("ServerMsg".to_string()), msgs[0].username.clone());
+            break;
         }
     }
+    
+    loop {
+        let msgs = server.get_messages();
+        if msgs.len() > 0 {
+            assert_eq!(msgs[0].username, "test".to_string());
+            match &msgs[0].message {
+                GameMessage::StringMsg(m) => assert_eq!(m, &"Hello There2!".to_string()),
+                _ => panic!("Should get string message!")
+            }
+            break;
+        }
+    }
+    
 
     // TODO NEXT: Upgrade above test to also check the client receives messages properly.
     // client receive -> replies -> check the 2nd client msg.
+
+    //test send_message_all
     
     // in another test have a server from ConnectionManager.
     // have a test_client login.
@@ -108,6 +133,39 @@ fn test_serde() {
         panic!("Wrong msg type");
     }
     if let GameMessage::CreatureCommandMsg(cmd_msg) = msg2_de {
+        assert_eq!(cmd_msg, cmd_msg2);
+    } else {
+        panic!("Wrong msg type");
+    }
+}
+
+#[test]
+fn test_serde2() {
+    let str_msg1 = "Hello There!".to_string();
+    let msg1 = GameMessage::StringMsg(str_msg1.clone());
+    let msg1 = GameMessageWrap{
+        message: msg1,
+        conn_id: 0,
+    };
+    let cmd_msg2 = CreatureCommandUser::Attack(1,2);
+    let msg2 = GameMessage::CreatureCommandMsg(cmd_msg2.clone());
+    let msg2 = GameMessageWrap{
+        message: msg2,
+        conn_id: 0,
+    };
+
+    let msg1_ser = serde_json::to_vec(&msg1).unwrap();
+    let msg2_ser = serde_json::to_vec(&msg2).unwrap();
+
+    let msg1_de: GameMessageWrap = serde_json::from_slice(&msg1_ser).unwrap();
+    let msg2_de: GameMessageWrap = serde_json::from_slice(&msg2_ser).unwrap();
+
+    if let GameMessage::StringMsg(msg_str) = msg1_de.message {
+        assert_eq!(msg_str, str_msg1);
+    } else {
+        panic!("Wrong msg type");
+    }
+    if let GameMessage::CreatureCommandMsg(cmd_msg) = msg2_de.message {
         assert_eq!(cmd_msg, cmd_msg2);
     } else {
         panic!("Wrong msg type");

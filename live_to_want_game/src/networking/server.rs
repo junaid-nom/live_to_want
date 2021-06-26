@@ -1,15 +1,12 @@
-use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use tokio::net::TcpListener;
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader};
 use std::collections::HashMap;
 use std::io::{Read, Write};
 use std::net::TcpStream;
-use std::str::from_utf8;
 use std::sync::mpsc::{Receiver, Sender};
 use tokio::sync::mpsc::{self, UnboundedSender, UnboundedReceiver};
-use std::{thread, time};
+use std::thread;
 use crate::{ConnectionMessageWrap, GameMessage, GameMessageWrap, UID, get_id};
-use tokio::time::{sleep, Duration};
 
 const IP_PORT: &str = "127.0.0.1:7726";
 
@@ -61,16 +58,16 @@ async fn start_server(send_to_server: Sender<GameMessageWrap>, clients_sender: U
         if !started {
             send_to_server.send(string_to_game_msg("Starting Server!".to_string(), 0)).unwrap();
             started = true;
-            println!("sent started");
         }
         let (socket, _) = listener.accept().await?;
-        let (mut socket_read, mut socket_write) = socket.into_split();
+        let (socket_read, mut socket_write) = socket.into_split();
+        let mut socket_read = BufReader::new(socket_read);
         let client_uid = get_id();
         let thread_sender_server = send_to_server.clone();
         let  (send_to_client, mut receive_client): (UnboundedSender<GameMessageWrap>, UnboundedReceiver<GameMessageWrap>) = mpsc::unbounded_channel();
         clients_sender.send(ConnectionMessageWrap::SaveClientConnection(client_uid, send_to_client)).unwrap();
 
-        // make one thread for receiving msgs from client, another to send them to the client
+        // make one thread for sending msgs to client, another to recv them from the client
         tokio::spawn(async move {
             loop {
                 let msg_to_send = receive_client.recv().await;
@@ -80,7 +77,8 @@ async fn start_server(send_to_server: Sender<GameMessageWrap>, clients_sender: U
                             socket_write.shutdown().await.unwrap();
                             return;
                         }
-                        let serialized_m = serde_json::to_vec(&m).unwrap();
+                        let mut serialized_m = serde_json::to_vec(&m).unwrap();
+                        serialized_m.push(b'\n');
                         match socket_write.write(&serialized_m).await {
                             Ok(_) => {},
                             Err(e) => {
@@ -94,26 +92,25 @@ async fn start_server(send_to_server: Sender<GameMessageWrap>, clients_sender: U
                     None => break,
                 }
             }
-            
-            println!("Turning off client sending {}", client_uid);
         });
         tokio::spawn(async move {
-            let mut buf = [0; 1024];
-            
+            let mut buf = String::new();
             // In a loop, read data from the socket and write the data back.
             loop {
-                let n = match socket_read.read(&mut buf).await {
+                let _ = match socket_read.read_line(&mut buf).await {
                     // socket closed
-                    Ok(n) if n == 0 => return,
+                    Ok(n) if n == 0 => {println!("Got n == 0 in socket read"); return},
                     Ok(n) => n,
-                    Err(e) => {
-                        eprintln!("failed to read from socket; err = {:?}", e);
+                    Err(_) => {
                         return;
                     }
                 };
 
-                let msg = &buf[0..n];
-                let message: GameMessageWrap = serde_json::from_slice(msg).unwrap();
+                //println!("Got message from client {} : {:?}", client_uid, std::str::from_utf8(msg).unwrap());
+                buf.pop();
+                let mut message: GameMessageWrap = serde_json::from_str(&buf).unwrap();
+                buf.clear();
+                message.conn_id = client_uid;
 
                 thread_sender_server.send(message).unwrap();
             }
@@ -123,7 +120,7 @@ async fn start_server(send_to_server: Sender<GameMessageWrap>, clients_sender: U
 
 pub async fn create_server() -> (UnboundedSender<ConnectionMessageWrap>, Receiver<GameMessageWrap>) {
     // let (sender: Sender<GameMessage>, receiver: Receiver<GameMessage>) = mpsc::channel();
-    let  (sender_to_server, mut receive_server) = std::sync::mpsc::channel();
+    let  (sender_to_server, receive_server) = std::sync::mpsc::channel();
     let  (sender_to_clients, receieve_clients) = mpsc::unbounded_channel();
     let send_clients_clone = sender_to_clients.clone();
     thread::spawn(|| {
@@ -131,15 +128,26 @@ pub async fn create_server() -> (UnboundedSender<ConnectionMessageWrap>, Receive
     });
 
     let start_msg = receive_server.recv();
-    println!("Got start msg: {:?}", start_msg.unwrap());
+    println!("Got Server start msg: {:?}", start_msg.unwrap());
     (sender_to_clients, receive_server)
 }
 
-pub fn string_to_game_msg(string_msg: String, conn_uid: UID) -> GameMessageWrap {
+pub fn wrap_ser_message(message: GameMessage, conn_id: UID) -> Vec<u8> {
+    let msg = GameMessageWrap{
+        message,
+        conn_id
+    };
+    let mut msg = serde_json::to_vec(&msg).unwrap();
+    msg.push(b'\n');
+    
+    return msg
+}
+
+pub fn string_to_game_msg(string_msg: String, conn_id: UID) -> GameMessageWrap {
     let message = GameMessage::StringMsg(string_msg);
     return GameMessageWrap{
         message,
-        conn_id: conn_uid
+        conn_id
     };
 }
 
@@ -191,7 +199,7 @@ pub fn test_client_with_func(f: Box<dyn Fn(TcpStream) -> () + Send> ) {
                 println!("Failed to connect: {}", e);
             }
         }
-        println!("Client Terminated.");
+        println!("Client Func ended.");
     });
 }
 
@@ -211,16 +219,14 @@ pub async fn dumb_server() -> Result<(), Box<dyn std::error::Error>> {
                     // socket closed
                     Ok(n) if n == 0 => return,
                     Ok(n) => n,
-                    Err(e) => {
-                        eprintln!("failed to read from socket; err = {:?}", e);
+                    Err(_) => {
                         return;
                     }
                 };
                 println!("Got data! {:?}", &buf[0..n]);
                 
                 // Write the data back
-                if let Err(e) = socket.write_all(&buf[0..n]).await {
-                    eprintln!("failed to write to socket; err = {:?}", e);
+                if let Err(_) = socket.write_all(&buf[0..n]).await {
                     return;
                 }
             }
@@ -230,9 +236,9 @@ pub async fn dumb_server() -> Result<(), Box<dyn std::error::Error>> {
 
 pub async fn create_server_dumb() -> std::sync::mpsc::Receiver<GameMessage> {
     // let (sender: Sender<GameMessage>, receiver: Receiver<GameMessage>) = mpsc::channel();
-    let (sender, receiver) = std::sync::mpsc::channel();
+    let (_, receiver) = std::sync::mpsc::channel();
 
-    let handler = thread::spawn(|| {
+    let _ = thread::spawn(|| {
         dumb_server().unwrap();
     });
     

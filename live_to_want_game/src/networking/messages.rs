@@ -96,6 +96,10 @@ impl LoginManager {
         self.username_to_conn.get(username).map_or(None, |c| Some(c.clone()))
     }
 
+    pub fn get_all_conn_id(&self) -> Vec<UID> {
+        self.username_to_conn.values().map(|c| c.clone()).collect()
+    }
+
     pub fn get_username(&self, conn_id: &UID) -> Option<String> {
         self.conn_to_user.get(&conn_id).map_or(None, |c| Some(c.username.clone()))
     }
@@ -128,6 +132,15 @@ impl ConnectionManager {
                 conn_id
             })).unwrap();
         }
+    }
+
+    pub fn send_message_all(&mut self, message: GameMessage) {
+        self.login_manager.get_all_conn_id().iter().for_each(|conn_id| {
+            self.send_to_clients.send(ConnectionMessageWrap::GameMessageWrap(GameMessageWrap{
+                message: message.clone(),
+                conn_id: *conn_id
+            })).unwrap();
+        });
     }
 
     pub fn get_messages(&mut self) -> Vec<GameMessageWrapUsername> {
