@@ -1,6 +1,6 @@
 use std::io::stderr;
 
-use crate::{Battle, Location, MAX_ATTACK_DISTANCE, creature::CreatureState, tasks::Event, tasks::EventChain, tasks::EventTarget, tasks::EventType, utils::UID, utils::Vu2};
+use crate::{Battle, Location, MAX_ATTACK_DISTANCE, MapState, creature::CreatureState, tasks::Event, tasks::EventChain, tasks::EventTarget, tasks::EventType, utils::UID, utils::Vu2};
 use serde::{Deserialize, Serialize};
 
 use super::MapLocation;
@@ -37,9 +37,21 @@ impl Item {
 #[derive(Debug, Copy, Clone)]
 #[derive(Deserialize, Serialize, PartialEq, Eq)]
 pub enum CreatureCommandUser {
-    // TODO: Make stuff that users can send here, get turned into CreatureCommands if they meet requirements
+    // TODONEXT: Make stuff that users can send here, get turned into CreatureCommands if they meet requirements
     MoveTo(UID, Location), // creature, target loc
     Attack(UID, UID) // attacker, victim
+}
+impl CreatureCommandUser {
+    pub fn to_creature_command<'a, 'b>(&self, map_state :&'b MapState, c_state : &'b CreatureState) -> Option<CreatureCommand<'b>> {
+        // match on self, check if the command is even legal. For example, moving to impossible location. 
+        // also that the user owns the creature (or should that be done earlier)?
+        // then turn the command into a creature command by getting refs from mapstate.
+        // then in main game loop par_iter on all messages with CreatureCommandUser to generate these.
+        // then generate the event chains and perform them.
+
+        // Also need to add an if for regular goal generation, to not do it if its a user-owned creature and its not set to "auto"
+        todo!()
+    }
 }
 
 
