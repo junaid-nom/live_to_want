@@ -200,7 +200,6 @@ fn test_chain_budding_system_one_of_each_soil<'a>() {
     assert_eq!(game_state.map_state.regions[0][0].grid[1][1].creatures.get_length(), Some(3));
 }
 
-// TODONEXT: Do budding but with blockers and make sure shit doesn't go crazy
 // Put some budding blockers. Also some deer. Watch the deer be moved around because of the trees
 // Might be easiest to test by having a narrow region only 1 open wide
 #[test]

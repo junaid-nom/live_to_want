@@ -4,7 +4,8 @@ use crate::{EventTarget, Location, Vu2, map_state::MapState, tasks::Event, tasks
 
 use super::{CreatureState, STARVING_SLOW_METABOLISM_FACTOR};
 
-// TODONEXT: This won't work because some of the events will target creature_list and some won't! Need to split them up.
+// This will now work even though some of the events will target creature_list and some won't! Need to split them up.
+// Works by process_events_from_mapstate now having splitting events into two types
 pub fn budding_system(m: &MapState, c: &CreatureState) -> Vec<EventChain> {
     // first check if its the frame to reproduce.
     // If so, find a random nearby open spot. that is not blocked

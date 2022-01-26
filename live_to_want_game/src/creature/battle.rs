@@ -106,6 +106,7 @@ impl Battle {
             }
         ).collect();
 
+        // Currently just choose attacks randomly
         let mut rng = rand::thread_rng();
         attack_tuples.into_iter().for_each(|tuple| {
             match tuple {
@@ -147,6 +148,8 @@ impl Battle {
             let mut single_winner = |winner: usize, loser: usize| {
                 let set_winner_hp = Event::make_basic(EventType::SetHealth(fighters[winner].health), fighters[winner].creature_id);
                 let set_loser_hp = Event::make_basic(EventType::SetHealth(fighters[loser].health), fighters[loser].creature_id);
+                // Items that are created when the creature dies (bones etc) are just left on the ground after
+                // the main loop runs the death. Kind of weird, allows the stealing of items? I guess its fine for co-op game.
                 let mut move_items: Vec<Event> = fighters[loser].items.iter().flat_map(|item| {
                     let mut events = vec![];
                     events.push(Event::make_basic(EventType::RemoveItem(item.quantity, item.item_type), fighters[loser].creature_id));

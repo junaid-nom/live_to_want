@@ -1,6 +1,8 @@
 
 
 use std::cmp::Ordering;
+use std::thread;
+use std::time;
 use std::{cell::{Ref, RefCell}, rc::Rc};
 use std::collections::HashMap;
 use std::ops::Deref;
@@ -61,22 +63,38 @@ pub fn unwrap_option_list(opList: Vec<Option<EventChain>>) -> Vec<EventChain> {
     return ret;
 }
 
-pub fn game() {
+pub async fn game() {
+    // TODONEXT (UNTESTED)
     // Make initial map state
-    
+    let map_state = create_basic_map_state();
+    let mut game_state = GameState {
+        map_state,
+    };
     // generate initial goal root
-
+    let goal_node = GoalNode::generate_single_node_graph();
     // start server
-
+    let mut server = ConnectionManager::new().await;
+    
+    
     // loop
-    // get input from connections
-    // run frame
-    // if in super-fast mode, just loop
-    // if in user controlled just check for input until receive something
-    // also can do "slow" mode with a wait
+    loop {
+        // get input from connections
+        // run frame
+        // TODO: if in super-fast mode, just loop
+        // TODO: if in user controlled just check for input until receive something
+        // TODO: also can do "slow" mode with a wait
+
+        let msgs = server.get_messages();
+        game_state = run_frame_with_input(game_state, &goal_node, msgs);
+        thread::sleep(time::Duration::from_millis(1000));
+    }
 }
 
-pub fn run_frame(mut game_state: GameState, root: &GoalNode) -> GameState {
+pub fn run_frame(mut game_state: GameState, root: &GoalNode)  -> GameState {
+    run_frame_with_input(game_state, root, vec![])
+}
+
+pub fn run_frame_with_input(mut game_state: GameState, root: &GoalNode, msgs: Vec<GameMessageWrapUsername>) -> GameState {
     let mut m = game_state.map_state;
     {
         m.frame_count += 1;
@@ -361,6 +379,106 @@ pub fn run_frame(mut game_state: GameState, root: &GoalNode) -> GameState {
     GameState {
         map_state: m,
     }
+}
+
+pub fn create_basic_map_state() -> MapState {
+        // make a mapstate with some budders
+        let openr = RegionCreationStruct::new(10,10, 0, vec![]);
+        let rgrid = vec![
+            vec![openr.clone()],
+        ];
+        //create map
+        let mut map = MapState::new(rgrid, 0);
+        let  region: &mut MapRegion = &mut map.regions[0][0];
+    
+        let mut grass = CreatureState{
+            components: ComponentMap::default(),
+            inventory: Vec::new(),
+            memory: CreatureMemory::default(),
+        };
+        grass.components.region_component = RegionComponent {
+            region: Vu2{x: 0, y: 0},
+        };
+        grass.components.location_component = LocationComponent {
+            location: Vu2{x: 1, y: 1}
+        };
+        grass.components.health_component = Some(HealthComponent {
+            health:  1,
+            max_health: 1,
+        });
+        grass.components.budding_component = Some(BuddingComponent {
+            reproduction_rate: 3,
+            frame_ready_to_reproduce: 3,
+            seed_creature_differences: Box::new(ComponentMap::fake_default()),
+        });
+        grass.components.soil_component = Some(SoilComponent{
+            soil_layer: SoilLayer::Grass
+        });
+        // Just to make sure the grass doesn't replicate with the inventory
+        grass.inventory.push(Item{
+            item_type: ItemType::Berry,
+            quantity: 1,
+        });
+    
+        let mut flower = CreatureState{
+            components: ComponentMap::default(),
+            inventory: Vec::new(),
+            memory: CreatureMemory::default(),
+        };
+        flower.components.region_component = RegionComponent {
+            region: Vu2{x: 0, y: 0},
+        };
+        flower.components.location_component = LocationComponent {
+            location: Vu2{x: 8, y: 1}
+        };
+        flower.components.health_component = Some(HealthComponent {
+            health:  1,
+            max_health: 1,
+        });
+        flower.components.budding_component = Some(BuddingComponent {
+            reproduction_rate: 3,
+            frame_ready_to_reproduce: 3,
+            seed_creature_differences: Box::new(ComponentMap::fake_default()),
+        });
+        flower.components.soil_component = Some(SoilComponent{
+            soil_layer: SoilLayer::Flower
+        });
+    
+        let mut bush = CreatureState{
+            components: ComponentMap::default(),
+            inventory: Vec::new(),
+            memory: CreatureMemory::default(),
+        };
+        bush.components.region_component = RegionComponent {
+            region: Vu2{x: 0, y: 0},
+        };
+        bush.components.location_component = LocationComponent {
+            location: Vu2{x: 5, y: 8}
+        };
+        bush.components.health_component = Some(HealthComponent {
+            health:  1,
+            max_health: 1,
+        });
+        bush.components.budding_component = Some(BuddingComponent {
+            reproduction_rate: 3,
+            frame_ready_to_reproduce: 3,
+            seed_creature_differences: Box::new(ComponentMap::fake_default()),
+        });
+        bush.components.soil_component = Some(SoilComponent{
+            soil_layer: SoilLayer::Bush
+        });
+        
+        region.grid[grass.components.location_component.location].creatures.add_creature(
+            grass, 0
+        );
+        region.grid[flower.components.location_component.location].creatures.add_creature(
+            flower, 0
+        );
+        region.grid[bush.components.location_component.location].creatures.add_creature(
+            bush, 0
+        );
+    
+        return map;
 }
 
 #[cfg(test)]

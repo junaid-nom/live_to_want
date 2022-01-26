@@ -11,10 +11,13 @@ use tokio::time::Duration;
 
 use std::{thread, time};
 
+// TODONEXT: Eventually when game loop actually uses a server, make a basic test that
+// Login in -> Creates player character -> moves player character around
+// Also test logging in and out 
+// Eventually need to also make a scenario where the player attacks and kills something.
+
 #[tokio::test]
 async fn run_simple_server_test() {
-    // TODONEXT: Make real server tests:
-
     // - One test that uses ConnectionManager to create a server.
     // Then in a loop call get_msgs every x seconds.
     // Also in another thread call test_clients that try to login and then send
