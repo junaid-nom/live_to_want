@@ -11,6 +11,15 @@ If they don't have one make a new user character.
 
 Then when you receive user commands have it do stuff.
 
+Then eventually refactor the battle to take in user input, and also maybe refactor to take in an arbitrary "Battle" interface (so I can put in w/e battle stuff in the future, eh maybe should save that for way later?)
+
+Then actually have different play mode speeds, like do stuff only after user input stuff like that.
+Can probably just send an "End Turn" message from the user client to do the next frame?
+Or maybe a "Run X Frames" message. Would probably be based on for example movement speed etc or whatever the user sends.
+ - Could get tricky because need to have a "how long will this take" for every command?
+ - Other way would be make it server based. So server waits until "something" happens to the player then pauses?
+Or fuck it if that's too much work just make it continue on like a real server for now (with configurable game speed)?
+
 Sub tasks:
  - Looks like Login/Disconnect messages are NOT forwarded to the game, and are handled in the LoginManager. This is bad because need spawn/dc messages so server adds/removes players.
 
@@ -25,10 +34,13 @@ Core loop is through lib.rs's run_frame(GameState, GoalNode) method.
 GoalNode is how the AI works. The "bones" work for the network graph but haven't
 actually built out any AI yet.
 
+### AI
 The main idea was to have tree graph. Child nodes can have multiple parents.
 Connections are weighted. A parents value is basically the max (or sometimes the sum) of its
 child nodes. For example Kill-> Kill Deer-x10> Get Bones. So killing a deer gets 10 bones so the value of kill is same as value of 10 bones.
 
+Each node also has requirements. For example the creature might need to have certain int or traits unlocked to check for 
+certain behaviors, for example crafting might require some intelligence or a blueprint unlock or whatever.
 
  
 ### Gameplay Systems
