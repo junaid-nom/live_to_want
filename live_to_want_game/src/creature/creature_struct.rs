@@ -1,6 +1,6 @@
 use std::fmt::Formatter;
 use serde::{Deserialize, Serialize};
-use crate::{Location, RegionComponent, UID, map_state::Item, utils::Vector2, utils::Vu2};
+use crate::{Location, RegionComponent, UID, map_state::Item, utils::Vector2, utils::Vu2, UserComponent};
 
 use super::{ComponentMap, IDComponent, LocationComponent, HealthComponent, NameComponent, StarvationComponent, REPRODUCE_STARTING_CALORIES};
 
@@ -29,6 +29,14 @@ impl CreatureState {
         let mut ret = CreatureState::default();
         ret.components.location_component = LocationComponent{location:loc};
         ret.components.region_component = RegionComponent{region:Vu2::new(0,0)};
+        ret
+    }
+
+    pub fn new_user_creature<'a>(loc: Location, username: String) -> CreatureState {
+        let mut ret = CreatureState::default();
+        ret.components.location_component = LocationComponent{location:loc.position};
+        ret.components.region_component = RegionComponent{region:loc.region};
+        ret.components.user_component = Some(UserComponent{username});
         ret
     }
 
@@ -64,6 +72,7 @@ impl CreatureState {
             death_items_component: c.components.death_items_component.clone(),
             battle_component:  c.components.battle_component.clone(),
             soil_component: c.components.soil_component.clone(),
+            user_component: c.components.user_component.clone(),
         };
 
         CreatureState {

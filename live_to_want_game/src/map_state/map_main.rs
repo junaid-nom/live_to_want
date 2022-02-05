@@ -1,6 +1,6 @@
-use std::{convert::TryInto, fmt, ops::Index, ops::IndexMut, sync::Arc, sync::Mutex, vec::Drain};
+use std::{convert::TryInto, fmt, ops::Index, ops::IndexMut, sync::Arc, sync::Mutex, vec::Drain, collections::HashMap};
 
-use crate::{BattleList, Neighbor, SoilComponent, SoilLayer, UID, Vu2, creature::CreatureState, creature::IDComponent, get_2d_vec, make_string_at_least_length, make_string_at_most_length, utils::Vector2};
+use crate::{BattleList, Neighbor, SoilComponent, SoilLayer, UID, Vu2, creature::CreatureState, creature::IDComponent, get_2d_vec, make_string_at_least_length, make_string_at_most_length, utils::Vector2, EventChain, Event, EventType};
 use rand::prelude::*;
 extern crate rayon;
 use rayon::prelude::*;
@@ -89,7 +89,8 @@ impl RegionCreationStruct {
 pub struct MapState {
     pub regions: RegionGrid,
     pub frame_count: u128,
-    pub battle_list: BattleList
+    pub battle_list: BattleList,
+    pub user_creatures: HashMap<String, MapLocation>,
 }
 impl MapState {
     pub fn new(mut rstructs: Vec<Vec<RegionCreationStruct>>, current_frame: u128) -> Self {
@@ -133,10 +134,26 @@ impl MapState {
         let mut ret = MapState {
             regions: rgrid,
             frame_count: current_frame,
-            battle_list: BattleList::new()
+            battle_list: BattleList::new(),
+            user_creatures: HashMap::new(),
         };
         ret.update_nav();
         ret
+    }
+
+    pub fn get_random_location(&self) -> Location {
+        let mut rng = rand::thread_rng();
+        let xRegion = rng.gen_range(0, self.regions.len());
+        let yRegion = rng.gen_range(0, self.regions[xRegion].len());
+        let regionLocation = Vu2::new(xRegion, yRegion);
+        let region = &self.regions[regionLocation];
+        let xSpot = rng.gen_range(0, region.grid.len());
+        let ySpot = rng.gen_range(0, region.grid[xSpot].len());
+        let locSpot = Vu2::new(xSpot, ySpot);
+        Location {
+            region: regionLocation,
+            position: locSpot,
+        }
     }
 
     pub fn find_closest_non_blocked(&self, loc: Location, blocker: bool) -> Option<Location> {
@@ -584,6 +601,67 @@ impl MapState {
             b.fighter2.health, b.fighter2.current_attack, b.fighter2.last_attack_frame + b.fighter2.current_attack.get_attack_frame_speed() - b.frame);
         });
         f_string
+    }
+    
+    pub fn login_user_creatures(&self, usernames: Vec<String>) -> Vec<EventChain> {
+        let mov_op_ecs: Vec<EventChain> = usernames.par_iter().flat_map(|username| {
+            let mut ret: Vec<EventChain> = vec![];
+            match self.user_creatures.get(username) {
+                Some(creaturesLocation) => {
+                    let id = creaturesLocation.id_component_creatures.id();
+                    let creature_list = creaturesLocation.creatures.creatures.as_ref().unwrap();
+                    let mut removes: Vec<EventChain> = creature_list.par_iter().map(|c| {
+                        let dest: UID = self.location_to_map_location(&c.get_location()).id_component_creatures.id();
+                        let rm_event = Event {
+                            event_type: EventType::RemoveCreature(c.components.id_component.id(), 
+                                Some(dest), self.frame_count),
+                            get_requirements: Box::new(|_,_| true),
+                            on_fail: None,
+                            target: id,
+                        };
+                        EventChain {
+                            events: vec![rm_event],
+                            debug_string: format!("Moving Login {}", c.components.id_component.id()),
+                            creature_list_targets: true
+                        }
+                    }).collect();
+                    ret.append(&mut removes);
+                },
+                None => {
+                    // Make a "Make new creature" event. Target is creature list somewhere?
+                    // Maybe pick a random location. Or a default location.
+                    // Probably already there are some "spawn" eventchain type use that.
+                    println!("Logging in user {} who doesn't have any creatures so making one.", username);
+                    let spawn_location = self.find_closest_non_blocked(self.get_random_location(), false).unwrap();
+                    let new_creature = CreatureState::new_user_creature(spawn_location, username.to_string());
+                    let create_event = Event {
+                        event_type: EventType::AddCreature(new_creature, self.frame_count),
+                        target: self.location_to_map_location(&spawn_location).id_component_creatures.id(),
+                        on_fail: None,
+                        get_requirements: Box::new(|_,_| true),
+                    };
+                    ret.push(EventChain{
+                        events: vec![create_event],
+                        debug_string: format!("Spawn to new user {} to loc {:?}", username, spawn_location),
+                        creature_list_targets: true,
+                    });
+                },
+            };
+
+            ret
+        }).collect();
+        mov_op_ecs
+    }
+
+    pub fn logout_user_creatures(username: String) -> Vec<EventChain> {
+        // TODONEXT:
+        // Para iterate over all creatures in region.
+        // Create event list that removes them and adds them to user_creatures.
+        // Will have to make a new username: MapLocation entry if the user doesn't already exist.
+
+        // TODONEXT: Make tests for login_user_creatures and logout_user_creatures
+        // Then actually make messages for those events and test those.
+        vec![]
     }
 
     pub fn update_nav(&mut self) {

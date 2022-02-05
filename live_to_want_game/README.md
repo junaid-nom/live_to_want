@@ -2,6 +2,10 @@
 
 # Current stuff to do
 
+ - Finish functions login_user_creatures, logout_user_creatures and test them.
+ - Make messages that game can process for login/logout.
+ - Move user char around stuff
+
 Need to setup the actual game server then do things with the messages.
 Most of this should be done in game() in lib.rs
 

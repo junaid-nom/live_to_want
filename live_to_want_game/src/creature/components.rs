@@ -30,6 +30,7 @@ pub struct ComponentMap {
     pub soil_component: Option<SoilComponent>, // used by budding system (and maybe others in future?)
     pub death_items_component: Option<DeathItemsComponent>,// has items that ARE NOT in inventory that should be dropped on death. for example antlers for a deer
     pub battle_component: Option<BattleComponent>,
+    pub user_component: Option<UserComponent>,
 } 
 impl ComponentMap {
     pub fn copy_from_other(self, other:&ComponentMap) -> Self {
@@ -50,6 +51,7 @@ impl ComponentMap {
             soil_component: other.soil_component.or(self.soil_component),
             death_items_component: other.death_items_component.or(self.death_items_component),
             battle_component: other.battle_component.or(self.battle_component),
+            user_component: other.user_component.or(self.user_component),
         }
     }
     // Only meant to be used for budding component and similar. Should never put a fake_clone onto a real creature because no UID
@@ -68,6 +70,7 @@ impl ComponentMap {
             soil_component: self.soil_component.clone(),
             death_items_component: self.death_items_component.clone(),
             battle_component: self.battle_component.clone(),
+            user_component: self.user_component.clone(),
         }
     }
     pub fn fake_default() -> Self {
@@ -85,6 +88,7 @@ impl ComponentMap {
             soil_component: None,
             death_items_component: None,
             battle_component: None,
+            user_component: None,
         }
     }
 }
@@ -195,6 +199,17 @@ pub struct LocationComponent {
     pub location: Vu2,
 }
 impl Component for LocationComponent {
+    fn get_visible() -> bool {
+        true
+    }
+}
+
+#[derive(Default, Debug, Hash, PartialEq, Eq, Clone)]
+#[derive(Deserialize, Serialize)]
+pub struct UserComponent {
+    pub username: String,
+}
+impl Component for UserComponent {
     fn get_visible() -> bool {
         true
     }
