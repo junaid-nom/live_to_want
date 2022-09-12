@@ -283,8 +283,11 @@ pub fn run_frame_with_input(mut game_state: GameState, root: &GoalNode, msgs: Ve
             y.grid.par_iter().flat_map(|xl| {
                 xl.par_iter().flat_map(|yl| {
                     if let Some(cit) = yl.creatures.get_par_iter() {
+                        
                         let ret: Vec<Option<EventChain>> = cit.map(
                             |c| {
+                                // TODOREVAMP: Comment out below and instead use evolutionary growing ai approach? Actually just combine this with evo approach.
+                                // So that we can just do both. Because old approach is great for running tests so good to keep. maybe put in a bool
                                 match GoalCacheNode::get_final_command(&root, &m, &c) {
                                     Some(cc) => {cc.to_event_chain()}
                                     None => {None}
@@ -299,6 +302,7 @@ pub fn run_frame_with_input(mut game_state: GameState, root: &GoalNode, msgs: Ve
             })
         })
     }).collect();
+
 
     // Attack creature command will produce EventChain that will set creatures to battle and have a new target BattleList.
     // The last BattleList event will add the Battle to the list of Battles.

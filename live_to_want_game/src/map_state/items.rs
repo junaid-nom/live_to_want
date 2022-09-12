@@ -60,8 +60,9 @@ pub enum CreatureCommand<'b>{
     // str here is for debugging purposes and is usually just the name of the node
     MoveTo(&'static str, &'b CreatureState, Location, u128), // Assume this sets the destination not instantly move to
     Chase(&'static str, &'b CreatureState, &'b CreatureState),
-    Attack(&'static str, &'b CreatureState, &'b CreatureState, UID), // attacker, victim, 3rd is battle list uid
+    AttackBattle(&'static str, &'b CreatureState, &'b CreatureState, UID), // attacker, victim, 3rd is battle list uid
     TakeItem(&'static str, InventoryHolder<'b>, InventoryHolder<'b>, Item),
+    AttackSimple(&'static str, &'b CreatureState, &'b CreatureState), // attacker, victim
 }
 impl CreatureCommand<'_> {
     pub fn to_event_chain(&self) -> Option<EventChain> {
@@ -85,7 +86,36 @@ impl CreatureCommand<'_> {
                 });
             }
             CreatureCommand::Chase(_, _, _) => {}
-            CreatureCommand::Attack(_, attacker, victim, battle_list_id) => {
+            CreatureCommand::AttackSimple(_, attacker, victim) => {
+                let dist = attacker.get_location().distance_in_region(&victim.get_location());
+                match dist {
+                    Some(dist) => {
+                        if dist > MAX_ATTACK_DISTANCE {
+                            println!("Trying to attack enemy out of range!");
+                            return None
+                        }
+                    },
+                    None => {
+                        println!("Trying to attack enemy not even in same region!");
+                        return None
+                    },
+                }
+
+                // TODO: Do some fancy calculations here to determine how much dmg is done
+                // TODONEXT: Make a test for this
+                let change_health = Event {
+                    event_type: EventType::ChangeHealth(-1),
+                    get_requirements: Box::new(|_,_| true),
+                    on_fail: None,
+                    target: victim.components.id_component.id()
+                };
+                return Some(EventChain {
+                    events: vec![change_health],
+                    debug_string: format!("attack from {} to {}", attacker.components.id_component.id(), victim.components.id_component.id()),
+                    creature_list_targets: true,
+                });
+            }
+            CreatureCommand::AttackBattle(_, attacker, victim, battle_list_id) => {
                 // Create two events that set in battle and battle started = false for the creatures.
                 // And a AddBattle event that will add a battle to a list of battles on mapState.
 
@@ -231,6 +261,7 @@ impl CreatureCommand<'_> {
                     creature_list_targets: false,
                 })
             }
+            
         }
         None
     }

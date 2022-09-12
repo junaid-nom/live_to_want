@@ -280,6 +280,18 @@ impl Event {
                     }
                 }
             },
+            EventType::ChangeHealth(hp_change) => {
+                match effected {
+                    EventTarget::CreatureTarget(c) => {
+                        let health_c = c.components.health_component.as_mut().unwrap();
+                        health_c.health += hp_change;
+                        return None
+                    },
+                    _ => {
+                        panic!("Got leave battle for wrong target");
+                    }
+                }
+            },
             EventType::RemoveBattle(battle_id) => {
                 match effected {
                     EventTarget::BattleListTarget(bl) => {
@@ -310,6 +322,7 @@ pub enum EventType {
     RemoveItem(u32, ItemType),
     AddItem(u32, ItemType),
     SetHealth(i32),
+    ChangeHealth(i32),
     IterateBudding(),
     //IterateMovement(u128),
     InitializeMovement(u128, Location),

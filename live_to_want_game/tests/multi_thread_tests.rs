@@ -398,7 +398,7 @@ fn test_chain_multithread_battle<'a>() {
         get_effort_local: Box::new(|_, _| 1),
         children: Vec::new(),
         name: "attack",
-        get_command: Some(Box::new(|m: & MapState, c| CreatureCommand::Attack("attack_deer_1", c, m.find_closest_creature_to_creature(c).unwrap(), m.battle_list.id))),
+        get_command: Some(Box::new(|m: & MapState, c| CreatureCommand::AttackBattle("attack_deer_1", c, m.find_closest_creature_to_creature(c).unwrap(), m.battle_list.id))),
         get_requirements_met: Box::new(|m, c| m.find_closest_creature_to_creature(c).is_some()),
     };
     //let root = GoalNode::generate_single_node_graph(attack);
@@ -529,7 +529,7 @@ fn test_max_dist_battle<'a>() {
         get_effort_local: Box::new(|_, _| 1),
         children: Vec::new(),
         name: "attack",
-        get_command: Some(Box::new(|m: & MapState, c| CreatureCommand::Attack("attack_deer_1", c, m.find_closest_creature_to_creature(c).unwrap(), m.battle_list.id))),
+        get_command: Some(Box::new(|m: & MapState, c| CreatureCommand::AttackBattle("attack_deer_1", c, m.find_closest_creature_to_creature(c).unwrap(), m.battle_list.id))),
         get_requirements_met: Box::new(|m, c| m.find_closest_creature_to_creature(c).is_some()),
     };
     //let root = GoalNode::generate_single_node_graph(attack);

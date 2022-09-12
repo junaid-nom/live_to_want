@@ -1,5 +1,67 @@
 # Live to want
 
+# Simulator revamp
+
+Trying to decide what the core gameplay loop should be and trying to do it in reasonable implementation time.
+The big thing to scrap is probably the complex turn based battle system.
+Its like a whole game inside this game. And the big issue is that it doesnt synergize with the REAL draw of the game 
+which is the simulation system. Instead lets double down on the sim system.
+
+There's youtube videos like these two that show how you can make interesting evolutionary 
+simulations with simple code. Lets take that idea and go nuts with it.
+https://youtu.be/0Kx4Y9TVMGg
+https://youtu.be/N3tRFayqVtk
+
+TODOREVAMP has todos for this revamp
+
+### Revamp combat to be like a normal roguelike. 
+You walk around the overworld and can attack stuff next to you.
+Items can be used in the overworld. Basic ones to include would be:
+ - Wall (blocks path, can be destroyed with attacks)
+ - projectile weapon like a bow. infinite ammo, the shot is "slow" so its dodgeable.
+ - traps. cause dmg and immobolize for some turn. maybe expensive ones are invisible.
+ - Ranks of melee weapons.
+
+### Trait based evolution. 
+List of traits that each have a float value and can be increased/decreased per mutation.
+ - Some traits have some cost? For example speed requires you to burn more calories.
+ - Many traits are only useful in certain circumstances. For example: Tool use. Lets you use certain items.
+   - Make it gradual so anything can still craft/use any item but the cost is more and the item is less good (trap does less dmg, immobolize for less time etc)
+   - Increasing/decreasing a trait is random and uses up the mutation so that is the downside of these situational traits
+
+### Revamp AI to be evolving.
+AI: 
+ - List of booleans about what is nearby to the animal. List of objects nearby, and float outputs for the entire list like "Has food somewhere. Has predator somewhere." etc.
+ - Output becomes chosing an action, and then its target.
+ - action and target is pretty simple either: move toward/away from. attack something. use an item on a target (this is actually alotta options).
+ - So we really have 3 ais:
+    - 1 that choses which action to do. takes in all items on the list.
+    - One that chooses the targets for the action. There would be a separate ai for EVERY action.
+      - inputs would always just be a set of floats/bools, but they are run on each item individually and output a preference, highest preference is chosen.
+ - Evolution is basically just change the weights between every boolean input and the output.
+  
+
+Examples:
+U r Deer. Nearby is wolf and some veges.
+Goes through list, "predator nearby" input and "run away from target" are heavily weighted so taht wins.
+Goes through list to pick target to run away from, chooses wolf as it has the highest result.
+-
+human sees deer nearby.
+chooses action place trap.
+puts trap down to the right of the deer.
+
+Questions: 
+ - Should personal inventory and stats be part of the input? Yes probably.
+    - personal health and food.
+    - maybe a bunch of ints for how many of each craftable item can be produced. and how many already exist.
+  - How does it relate to evolution? Should some items/behaviors only be unlockable with certain traits? 
+    - Actually should make it all gradual.
+
+## TODO LIST for revamp:
+ - New AI system. Each creature has an AI component? A list of weights between input->output. simple single layer? I guess I can mess around with this later keep it 1 layer for now.
+ - Change attack system.
+
+
 # Current stuff to do
 
  - Finish functions login_user_creatures, logout_user_creatures and test them.
