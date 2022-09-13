@@ -59,6 +59,13 @@ fn run_frames_test_starvation_and_death() {
     ], gs.map_state.regions[start_loc].items);
 }
 
+// TODO: Make test for metabolism that checks to see if traits and if moving stuff works.
+// Prob can just postpone for awhile and do 1 test that uses EVERY trait that changes them and make 1 big calculation.
+
+// TODO: Make a test for simple attack system. Prob similar to the test_chain_multithread_battle test
+// Shud use for example thickness and sharp claws
+
+
 #[test]
 fn test_chain_budding_system_one_of_each_soil<'a>() {
     let soil1 = SoilLayer::Bush;

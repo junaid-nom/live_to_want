@@ -3,8 +3,17 @@ use serde::{Deserialize, Serialize};
 use super::CreatureState;
 
 // game constants:
+pub static STANDARD_HP: i32 = 10000;
+pub static SIMPLE_ATTACK_BASE_DMG: i32 = 1000;
+
 pub static STARVING_SLOW_METABOLISM_FACTOR: f32 = 0.5;
 pub static REPRODUCE_STARTING_CALORIES: i32 = 150;
+pub static MOVING_INCREASED_METABOLISM_FACTOR: f32 = 1.5;
+
+pub static THICK_HIDE_METABOLISM_MULTIPLIER: f32 = 0.2 / 100.0;
+pub static THICK_HIDE_DMG_REDUCE_MULTIPLIER: f32 = SIMPLE_ATTACK_BASE_DMG as f32 * 1.0 / 100.0; // For every 100 thick hide, decrease dmg by 1
+
+pub static SHARP_CLAWS_DMG_INCREASE: f32 = SIMPLE_ATTACK_BASE_DMG as f32 * 1.7 / 100.0; // for every 100 sharp claws, increase dmg by 1.7x simple attack (rounds down)
 
 pub trait Component: Sync + Send + Clone {
     fn get_visible() -> bool {
@@ -31,6 +40,7 @@ pub struct ComponentMap {
     pub death_items_component: Option<DeathItemsComponent>,// has items that ARE NOT in inventory that should be dropped on death. for example antlers for a deer
     pub battle_component: Option<BattleComponent>,
     pub user_component: Option<UserComponent>,
+    pub evolving_traits: Option<EvolvingTraits>,
 } 
 impl ComponentMap {
     pub fn copy_from_other(self, other:&ComponentMap) -> Self {
@@ -52,6 +62,7 @@ impl ComponentMap {
             death_items_component: other.death_items_component.or(self.death_items_component),
             battle_component: other.battle_component.or(self.battle_component),
             user_component: other.user_component.or(self.user_component),
+            evolving_traits: other.evolving_traits.or(self.evolving_traits),
         }
     }
     // Only meant to be used for budding component and similar. Should never put a fake_clone onto a real creature because no UID
@@ -71,6 +82,7 @@ impl ComponentMap {
             death_items_component: self.death_items_component.clone(),
             battle_component: self.battle_component.clone(),
             user_component: self.user_component.clone(),
+            evolving_traits: self.evolving_traits.clone(),
         }
     }
     pub fn fake_default() -> Self {
@@ -89,6 +101,7 @@ impl ComponentMap {
             death_items_component: None,
             battle_component: None,
             user_component: None,
+            evolving_traits: None,
         }
     }
 }
@@ -254,6 +267,52 @@ impl Component for CreatureTypeComponent {
 // creature is a blocker as well then it has to move to an unoccupied space? and this must be done LINEARLY
 // because u cud have 2-4 blockers all moving to the same space
 
+
+// to allow AI to eventually get smart enough to figure out that they should
+// chop down trees to make navigation easier gonna add a "breakable" bool here.
+// ACTUALLY I wont cause that should be based on like health component existing
+// or something like that
+#[derive(Debug, Hash, PartialEq, Eq, Copy, Clone)]
+#[derive(Deserialize, Serialize)]
+pub struct EvolvingTraits {
+    //Implemented: 
+    pub thick_hide: i32, // Reduces damage taken by a flat amount? increases calories per movement?
+    pub sharp_claws: i32, // Increase damage done by attacksimple
+
+    //Unimplemented:
+    pub hamstring: i32, // lowers speed of victim after attacksimple?
+
+}
+impl Component for EvolvingTraits {
+    fn get_visible() -> bool {
+        true
+    }
+}
+impl EvolvingTraits {
+    pub fn get_total_metabolism_multiplier(&self, is_moving: bool) -> f32 {
+        let mut total: f32 = 1.0;
+        total += self.thick_hide as f32 * THICK_HIDE_METABOLISM_MULTIPLIER;
+        if is_moving {
+            total += MOVING_INCREASED_METABOLISM_FACTOR;
+        }
+        total
+    }
+
+    // TODONEXT actually use the below functions in the simple_attack creature command code
+    pub fn get_total_simple_attack_adder(&self) -> i32 {
+        let mut total = SIMPLE_ATTACK_BASE_DMG;
+        total += (self.sharp_claws as f32 * SHARP_CLAWS_DMG_INCREASE).floor() as i32;
+        total
+    }
+
+    pub fn get_total_defense_subtractor(&self) -> i32 {
+        let mut total = 0;
+        total += (self.thick_hide as f32 * THICK_HIDE_DMG_REDUCE_MULTIPLIER).floor() as i32;
+        total
+    }
+}
+
+
 // to allow AI to eventually get smart enough to figure out that they should
 // chop down trees to make navigation easier gonna add a "breakable" bool here.
 // ACTUALLY I wont cause that should be based on like health component existing
@@ -275,7 +334,7 @@ impl Component for BlockSpaceComponent {
 #[derive(Deserialize, Serialize)]
 pub struct MovementComponent {
     //TODO: Add support for "sprint" feature. Also add hgher metabolism thing
-    pub frames_to_move: usize,
+    pub frames_to_move: usize, // this is basically the speed stat but inverted
     pub destination: Location,
     pub frame_ready_to_move: u128, // essentially if frame_ready to move is the current frame or earlier, move to destination
     pub moving: bool,

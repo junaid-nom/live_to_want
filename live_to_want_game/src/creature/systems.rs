@@ -1,6 +1,6 @@
 use rand::Rng;
 
-use crate::{EventTarget, Location, Vu2, map_state::MapState, tasks::Event, tasks::EventChain, tasks::EventType};
+use crate::{EventTarget, Location, Vu2, map_state::MapState, tasks::Event, tasks::EventChain, tasks::EventType, MOVING_INCREASED_METABOLISM_FACTOR};
 
 use super::{CreatureState, STARVING_SLOW_METABOLISM_FACTOR};
 
@@ -102,7 +102,17 @@ pub fn starvation_system(c: &mut CreatureState) {
             if starving {
                 h.health -= 1;
             }
-            let multiplier = if starving {STARVING_SLOW_METABOLISM_FACTOR} else {1.0};
+            let mut multiplier = if starving {STARVING_SLOW_METABOLISM_FACTOR} else {1.0};
+            let mut is_moving = false;
+            if let Some(movement) = c.components.movement_component.as_ref() {
+                is_moving = movement.moving;
+            }
+            // If you have evo traits, use that to determine penalty for moving, otherwise use the flat constant
+            if let Some(traits) = c.components.evolving_traits.as_ref() {
+                multiplier *= traits.get_total_metabolism_multiplier(is_moving);
+            } else if is_moving {
+                multiplier *= MOVING_INCREASED_METABOLISM_FACTOR;
+            }
             s.calories -= (s.metabolism as f32 * multiplier) as i32;
         } else {
             panic!("All starvation components require health component for: {}", c)
