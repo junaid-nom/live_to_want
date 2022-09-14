@@ -1,7 +1,7 @@
 use crate::{Item, map_state::Location, utils::{UID, get_id, Vector2, Vu2}};
 use serde::{Deserialize, Serialize};
 use super::CreatureState;
-
+use rand::Rng;
 // game constants:
 pub static STANDARD_HP: i32 = 10000;
 pub static SIMPLE_ATTACK_BASE_DMG: i32 = 1000;
@@ -10,10 +10,12 @@ pub static STARVING_SLOW_METABOLISM_FACTOR: f32 = 0.5;
 pub static REPRODUCE_STARTING_CALORIES: i32 = 150;
 pub static MOVING_INCREASED_METABOLISM_FACTOR: f32 = 1.5;
 
+pub static MUTATION_CHANGE: i32 = 5;
+
 pub static THICK_HIDE_METABOLISM_MULTIPLIER: f32 = 0.2 / 100.0;
 pub static THICK_HIDE_DMG_REDUCE_MULTIPLIER: f32 = SIMPLE_ATTACK_BASE_DMG as f32 * 1.0 / 100.0; // For every 100 thick hide, decrease dmg by 1
 
-pub static SHARP_CLAWS_DMG_INCREASE: f32 = SIMPLE_ATTACK_BASE_DMG as f32 * 1.7 / 100.0; // for every 100 sharp claws, increase dmg by 1.7x simple attack (rounds down)
+pub static SHARP_CLAWS_DMG_INCREASE: f32 = SIMPLE_ATTACK_BASE_DMG as f32 * 0.7 / 100.0; // for every 100 sharp claws, increase dmg by 1.7x simple attack (rounds down)
 
 pub trait Component: Sync + Send + Clone {
     fn get_visible() -> bool {
@@ -267,6 +269,13 @@ impl Component for CreatureTypeComponent {
 // creature is a blocker as well then it has to move to an unoccupied space? and this must be done LINEARLY
 // because u cud have 2-4 blockers all moving to the same space
 
+#[derive(Debug)]
+pub enum Mutations{
+    ThickHide(),
+    SharpClaws(),
+    // Don't include until implemented:
+    //Hamstring(),
+}
 
 // to allow AI to eventually get smart enough to figure out that they should
 // chop down trees to make navigation easier gonna add a "breakable" bool here.
@@ -297,6 +306,33 @@ impl EvolvingTraits {
         }
         total
     }
+
+    pub fn get_mutated(&self, mutations: u32) -> EvolvingTraits {
+        let mut child = self.clone();
+
+        let mut rng = rand::thread_rng();
+        (0..mutations).for_each(|_| {
+            let change: i32 = if rng.gen_bool(0.5) {
+                MUTATION_CHANGE
+            } else {
+                -1 * MUTATION_CHANGE
+            };
+            let chosen = rng.gen_range(0, 2);
+            match chosen {
+                0 => {
+                    child.thick_hide += change;
+                },
+                1 => {
+                    child.sharp_claws += change;
+                },
+                _ => {
+                    panic!("Got to an unimplemented mutation");
+                }
+            }
+        });
+        child
+    }
+
 
     // TODONEXT actually use the below functions in the simple_attack creature command code
     pub fn get_total_simple_attack_adder(&self) -> i32 {

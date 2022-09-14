@@ -139,3 +139,23 @@ The server itself handles logging in and disconnects. It will then forward
 a LoginMsg or a DropMsg to the receiving pipe, and the game can handle that itself 
 (for example create user character or remove the character on dc).
 
+
+# Tips:
+
+### Compile and run
+`cargo run` 
+Does nothing really right now but good for checking compiler.
+
+### Run tests
+`cargo test`
+Runs all tests. No captured output.
+
+`cargo test -- --show-output`
+Runs all test, and shows output
+
+`cargo test test_name -- --show-output`
+Runs tests that have matching name filter
+
+`$env:RUST_BACKTRACE=1`
+Turn on backtrace for powershell
+

@@ -28,6 +28,7 @@ pub struct EventChain {
     //pub index: usize,
     pub events: Vec<Event>,
     pub debug_string: String,
+    // creature_list_targets targets is only true when you want to target a map spot, and for example add or remove a creature from it
     pub creature_list_targets:bool,
 }
 impl EventChain {
@@ -428,6 +429,7 @@ pub fn process_events<'a, 'b>(
                 tl.tasks.push(ec);
             }
             None => {
+                // If below throws an error probably have creature_list_targets or something set improperly in an event chain
                 let m = uid_map.remove(&key).unwrap();
                 let tl = TaskList {
                     target: m,

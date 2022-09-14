@@ -62,8 +62,120 @@ fn run_frames_test_starvation_and_death() {
 // TODO: Make test for metabolism that checks to see if traits and if moving stuff works.
 // Prob can just postpone for awhile and do 1 test that uses EVERY trait that changes them and make 1 big calculation.
 
-// TODO: Make a test for simple attack system. Prob similar to the test_chain_multithread_battle test
-// Shud use for example thickness and sharp claws
+
+
+// Make a test for simple attack system. Prob similar to the test_chain_multithread_battle test
+// Shud use for example thickness and sharp claws. can enhance later with all the other traits
+#[test]
+// create a map. have two deer. have two deer at the same time declare attack on each other.
+// then also check to make sure the battle actually finishes with the expected result: one deer dead, the other with the first deers items
+fn test_simple_attack<'a>() {
+    //let x: Vec<u32> = (0..100).collect();
+    //let y: i32 = x.into_par_iter().map(|_| {}).sum();
+    //assert_eq!(y, 100);
+
+    // make a mapstate with some deer
+    let openr = RegionCreationStruct::new(5,5, 0, vec![]);
+    let rgrid = vec![
+        vec![openr.clone()],
+    ];
+    //create map
+    let mut map = MapState::new(rgrid, 0);
+    let  region: &mut MapRegion = &mut map.regions[0][0];
+
+    let mut deer1 = CreatureState{
+        components: ComponentMap::default(),
+        inventory: Vec::new(),
+        memory: CreatureMemory::default(),
+    };
+    deer1.components.region_component = RegionComponent {
+        region: Vu2{x: 0, y: 0},
+    };
+    deer1.components.location_component = LocationComponent {
+        location: Vu2{x: 1, y: 1}
+    };
+    deer1.components.health_component = Some(HealthComponent {
+        health:  SIMPLE_ATTACK_BASE_DMG * 10,
+        max_health: SIMPLE_ATTACK_BASE_DMG * 10,
+    });
+    deer1.components.evolving_traits = Some(EvolvingTraits {
+        thick_hide: 50,
+        sharp_claws: 50,
+        hamstring: 0,
+    });
+
+    deer1.inventory.push(Item{
+        item_type: ItemType::Berry,
+        quantity: 1,
+    });
+
+    let mut deer2 =CreatureState{
+        components: ComponentMap::default(),
+        inventory: Vec::new(),
+        memory: CreatureMemory::default(),
+    };
+    deer2.components.region_component = RegionComponent {
+        region: Vu2{x: 0, y: 0},
+    };
+    deer2.components.location_component = LocationComponent {
+        location: Vu2{x: 1, y: 2}
+    };
+    deer2.components.health_component = Some(HealthComponent {
+        health:  SIMPLE_ATTACK_BASE_DMG * 10,
+        max_health: SIMPLE_ATTACK_BASE_DMG * 10,
+    });
+    deer2.components.evolving_traits = Some(EvolvingTraits {
+        thick_hide: 10,
+        sharp_claws: 150,
+        hamstring: 0,
+    });
+
+    println!("simple attack: {} starting HP: {} sharp ratio: {} hide: {}", SIMPLE_ATTACK_BASE_DMG, STANDARD_HP, SHARP_CLAWS_DMG_INCREASE, THICK_HIDE_DMG_REDUCE_MULTIPLIER);
+
+    println!("deer1 attack: {} defense: {} sharp_claw {} hide: {}", deer1.components.evolving_traits.unwrap().get_total_simple_attack_adder(), deer1.components.evolving_traits.unwrap().get_total_defense_subtractor(), deer1.components.evolving_traits.unwrap().sharp_claws, deer1.components.evolving_traits.unwrap().thick_hide);
+    println!("deer2 attack: {} defense: {} sharp_claw {} hide: {}", deer2.components.evolving_traits.as_ref().unwrap().get_total_simple_attack_adder(), deer2.components.evolving_traits.unwrap().get_total_defense_subtractor(), deer2.components.evolving_traits.unwrap().sharp_claws, deer2.components.evolving_traits.unwrap().thick_hide);
+    
+    let deer1_id = deer1.components.id_component.id();
+    let deer2_id = deer2.components.id_component.id();
+    region.grid[deer1.components.location_component.location].creatures.add_creature(
+        deer1, 0
+    );
+    region.grid[deer2.components.location_component.location].creatures.add_creature(
+        deer2, 0
+    );
+    
+    let attack = GoalNode {
+        get_want_local: Box::new(|_, _| 10),
+        get_effort_local: Box::new(|_, _| 1),
+        children: Vec::new(),
+        name: "attack",
+        get_command: Some(Box::new(|m: & MapState, c| CreatureCommand::AttackSimple("attack_deer_closest", c, m.find_closest_creature_to_creature(c).unwrap()))),
+        get_requirements_met: Box::new(|m, c| m.find_closest_creature_to_creature(c).is_some()),
+    };
+    //let root = GoalNode::generate_single_node_graph(attack);
+
+    let mut game_state = GameState {
+        map_state:map
+    };
+    assert_eq!(game_state.map_state.get_creature_list().len(), 2);
+    assert_eq!(game_state.map_state.get_ground_item_list().len(), 0);
+    assert_eq!(game_state.map_state.get_creature_item_list().len(), 1);
+    assert_eq!(game_state.map_state.get_creature_item_list()[0].1, deer1_id);
+
+    
+
+    println!("creatures: {}", game_state.map_state.get_creature_strings());
+
+    for _ in 0..7 {
+        game_state = run_frame(game_state, &attack);
+        println!("creatures: {}", game_state.map_state.get_creature_strings());
+    }
+
+    // deer1 should be dead and items on floor?
+    assert_eq!(game_state.map_state.get_creature_list().len(), 1);
+    assert_eq!(game_state.map_state.get_ground_item_list().len(), 1);
+    
+}
 
 
 #[test]

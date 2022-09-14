@@ -1,6 +1,6 @@
 use std::io::stderr;
 
-use crate::{Battle, Location, MAX_ATTACK_DISTANCE, MapState, creature::CreatureState, tasks::Event, tasks::EventChain, tasks::EventTarget, tasks::EventType, utils::UID, utils::Vu2};
+use crate::{Battle, Location, MAX_ATTACK_DISTANCE, MapState, creature::CreatureState, tasks::Event, tasks::EventChain, tasks::EventTarget, tasks::EventType, utils::UID, utils::Vu2, SIMPLE_ATTACK_BASE_DMG};
 use serde::{Deserialize, Serialize};
 
 use super::MapLocation;
@@ -100,11 +100,19 @@ impl CreatureCommand<'_> {
                         return None
                     },
                 }
-
-                // TODO: Do some fancy calculations here to determine how much dmg is done
+                // Do some fancy calculations here to determine how much dmg is done
+                // should prob also have a multiply based defense
+                let attack_dmg = match attacker.components.evolving_traits {
+                    Some(evo) => evo.get_total_simple_attack_adder(),
+                    None => SIMPLE_ATTACK_BASE_DMG,
+                };
+                let defender_block = match victim.components.evolving_traits {
+                    Some(evo) => evo.get_total_defense_subtractor(),
+                    None => 0,
+                };
                 // TODONEXT: Make a test for this
                 let change_health = Event {
-                    event_type: EventType::ChangeHealth(-1),
+                    event_type: EventType::ChangeHealth(std::cmp::min(-attack_dmg + defender_block, 0)),
                     get_requirements: Box::new(|_,_| true),
                     on_fail: None,
                     target: victim.components.id_component.id()
@@ -112,7 +120,7 @@ impl CreatureCommand<'_> {
                 return Some(EventChain {
                     events: vec![change_health],
                     debug_string: format!("attack from {} to {}", attacker.components.id_component.id(), victim.components.id_component.id()),
-                    creature_list_targets: true,
+                    creature_list_targets: false,
                 });
             }
             CreatureCommand::AttackBattle(_, attacker, victim, battle_list_id) => {
