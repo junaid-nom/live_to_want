@@ -101,7 +101,7 @@ fn test_simple_attack<'a>() {
     deer1.components.evolving_traits = Some(EvolvingTraits {
         thick_hide: 50,
         sharp_claws: 50,
-        hamstring: 0,
+        ..Default::default() 
     });
 
     deer1.inventory.push(Item{
@@ -127,7 +127,7 @@ fn test_simple_attack<'a>() {
     deer2.components.evolving_traits = Some(EvolvingTraits {
         thick_hide: 10,
         sharp_claws: 150,
-        hamstring: 0,
+        ..Default::default()
     });
 
     println!("simple attack: {} starting HP: {} sharp ratio: {} hide: {}", SIMPLE_ATTACK_BASE_DMG, STANDARD_HP, SHARP_CLAWS_DMG_INCREASE, THICK_HIDE_DMG_REDUCE_MULTIPLIER);

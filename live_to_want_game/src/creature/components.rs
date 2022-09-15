@@ -269,28 +269,51 @@ impl Component for CreatureTypeComponent {
 // creature is a blocker as well then it has to move to an unoccupied space? and this must be done LINEARLY
 // because u cud have 2-4 blockers all moving to the same space
 
-#[derive(Debug)]
-pub enum Mutations{
-    ThickHide(),
-    SharpClaws(),
-    // Don't include until implemented:
-    //Hamstring(),
+#[derive(Debug, Hash, PartialEq, Eq, Copy, Clone)]
+#[derive(Deserialize, Serialize)]
+pub struct SexualReproduction {
+    pub is_pregnant: bool,
+    pub pregnancy_completion_frame: u128,
+    pub litter_size: u32,
+}
+impl Component for SexualReproduction {
+    fn get_visible() -> bool {
+        true
+    }
+}
+impl SexualReproduction {
+    pub fn get_if_pregnant(&self) -> bool {
+        return self.is_pregnant;
+    }
+    // TODONEXT make a reproduction system. counts down pregnancy then pops out kids based on this component and relevant evo traits. Also modify metabolsim consumption based on pregnancy and traits
 }
 
 // to allow AI to eventually get smart enough to figure out that they should
 // chop down trees to make navigation easier gonna add a "breakable" bool here.
 // ACTUALLY I wont cause that should be based on like health component existing
 // or something like that
-#[derive(Debug, Hash, PartialEq, Eq, Copy, Clone)]
+#[derive(Debug, Hash, PartialEq, Eq, Copy, Clone, Default)]
 #[derive(Deserialize, Serialize)]
 pub struct EvolvingTraits {
+    // TODO: make everything private, and use CHILDNESS trait to lower traits by a % for children
+
     //Implemented: 
     pub thick_hide: i32, // Reduces damage taken by a flat amount? increases calories per movement?
     pub sharp_claws: i32, // Increase damage done by attacksimple
 
     //Unimplemented:
-    pub hamstring: i32, // lowers speed of victim after attacksimple?
+    pub hamstring: i32, // lowers speed of victim after attacksimple? need to make a whole status effect component for this? or add to movement componenet (prob that?)? how to do duration though and magnitude? debug stack shud prob make a whoel component then for status conditions?
+    pub graceful: i32, // higher this value the less ur metabolism consumed when moving
+    pub move_speed: i32, // increases running speed but increases metabolism consumed when moving
 
+    pub species: i32, // species should start out fairly far apart from each other (this number is random). larger the diff in this number the lower chance they can reproduce sucessfully during sex. 
+    pub litter_size: i32, // increases children but also increases metabolism while pregnant. just bad if this is negative... maybe increases chance of no pregnancy/miscarriage?
+    pub pregnancy_time: i32, // increases pregnancy time but children come out more developed, and vice versa
+    pub maleness: i32, // all animals are hermaphrodite, maleness makes it so u have less chance of being the one who becomes pregnant when sex. Need to also implement ways for animals to detect males in their AI and if they are also male themselves, this might cause male-male competition to evolve hopefully?
+    
+    pub fast_grower: i32, // decreases time as child once out of womb, but increases metabolism
+    pub child_until_frame: u128, // used to calculate childness
+    pub born_on_frame: u128, // used for childness
 }
 impl Component for EvolvingTraits {
     fn get_visible() -> bool {
@@ -304,6 +327,11 @@ impl EvolvingTraits {
         if is_moving {
             total += MOVING_INCREASED_METABOLISM_FACTOR;
         }
+
+        // TODO: Get if pregnant and use that ass well to determine metabolism
+
+        // TODO Should probably move this OUT of this function and just put it in the starvation system since it involves multiple components: moving, pregnant, maybe status conditions and health (heal when injured auto but consume more calories slightly) later on too etc.
+
         total
     }
 
@@ -334,7 +362,7 @@ impl EvolvingTraits {
     }
 
 
-    // TODONEXT actually use the below functions in the simple_attack creature command code
+    // the below functions used in the simple_attack creature command code
     pub fn get_total_simple_attack_adder(&self) -> i32 {
         let mut total = SIMPLE_ATTACK_BASE_DMG;
         total += (self.sharp_claws as f32 * SHARP_CLAWS_DMG_INCREASE).floor() as i32;
