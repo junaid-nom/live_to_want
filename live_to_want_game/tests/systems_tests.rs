@@ -98,10 +98,13 @@ fn test_simple_attack<'a>() {
         health:  SIMPLE_ATTACK_BASE_DMG * 10,
         max_health: SIMPLE_ATTACK_BASE_DMG * 10,
     });
-    deer1.components.evolving_traits = Some(EvolvingTraits {
-        thick_hide: 50,
-        sharp_claws: 50,
-        ..Default::default() 
+    deer1.components.evolving_traits = Some(EvolvingTraitsComponent {
+        traits: EvolvingTraits{
+            thick_hide: 50,
+            sharp_claws: 50,
+            ..Default::default()
+        },
+        ..Default::default()
     });
 
     deer1.inventory.push(Item{
@@ -124,16 +127,19 @@ fn test_simple_attack<'a>() {
         health:  SIMPLE_ATTACK_BASE_DMG * 10,
         max_health: SIMPLE_ATTACK_BASE_DMG * 10,
     });
-    deer2.components.evolving_traits = Some(EvolvingTraits {
-        thick_hide: 10,
-        sharp_claws: 150,
+    deer2.components.evolving_traits = Some(EvolvingTraitsComponent {
+        traits: EvolvingTraits{
+            thick_hide: 10,
+            sharp_claws: 150,
+            ..Default::default()
+        },
         ..Default::default()
     });
 
     println!("simple attack: {} starting HP: {} sharp ratio: {} hide: {}", SIMPLE_ATTACK_BASE_DMG, STANDARD_HP, SHARP_CLAWS_DMG_INCREASE, THICK_HIDE_DMG_REDUCE_MULTIPLIER);
 
-    println!("deer1 attack: {} defense: {} sharp_claw {} hide: {}", deer1.components.evolving_traits.unwrap().get_total_simple_attack_adder(), deer1.components.evolving_traits.unwrap().get_total_defense_subtractor(), deer1.components.evolving_traits.unwrap().sharp_claws, deer1.components.evolving_traits.unwrap().thick_hide);
-    println!("deer2 attack: {} defense: {} sharp_claw {} hide: {}", deer2.components.evolving_traits.as_ref().unwrap().get_total_simple_attack_adder(), deer2.components.evolving_traits.unwrap().get_total_defense_subtractor(), deer2.components.evolving_traits.unwrap().sharp_claws, deer2.components.evolving_traits.unwrap().thick_hide);
+    println!("deer1 attack: {} defense: {} sharp_claw {} hide: {}", deer1.components.evolving_traits.unwrap().get_total_simple_attack_adder(), deer1.components.evolving_traits.unwrap().get_total_defense_subtractor(), deer1.components.evolving_traits.unwrap().traits.sharp_claws, deer1.components.evolving_traits.unwrap().traits.thick_hide);
+    println!("deer2 attack: {} defense: {} sharp_claw {} hide: {}", deer2.components.evolving_traits.as_ref().unwrap().get_total_simple_attack_adder(), deer2.components.evolving_traits.unwrap().get_total_defense_subtractor(), deer2.components.evolving_traits.unwrap().traits.sharp_claws, deer2.components.evolving_traits.unwrap().traits.thick_hide);
     
     let deer1_id = deer1.components.id_component.id();
     let deer2_id = deer2.components.id_component.id();

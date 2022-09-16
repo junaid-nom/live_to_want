@@ -1,6 +1,6 @@
 use rand::Rng;
 
-use crate::{EventTarget, Location, Vu2, map_state::MapState, tasks::Event, tasks::EventChain, tasks::EventType, MOVING_INCREASED_METABOLISM_FACTOR};
+use crate::{EventTarget, Location, Vu2, map_state::MapState, tasks::Event, tasks::EventChain, tasks::EventType, MOVING_INCREASED_METABOLISM_FACTOR, EvolvingTraitsComponent, EvolvingTraits};
 
 use super::{CreatureState, STARVING_SLOW_METABOLISM_FACTOR};
 
@@ -118,6 +118,51 @@ pub fn starvation_system(c: &mut CreatureState) {
             panic!("All starvation components require health component for: {}", c)
         }
     }
+}
+
+pub fn reproduction_system(m: &MapState, c: &mut CreatureState) -> Option<EventChain> {
+    // check if pregnant, if so, check if ready to pop, if so, pop kids out as event chain after figuring out their stats
+    if let Some(mut s) = c.components.sexual_reproduction {
+        if s.is_pregnant {
+            if s.pregnancy_completion_frame == m.frame_count {
+                s.is_pregnant = false;
+                // NOTE assumes this is not a blocker!
+                assert!(c.components.block_space_component.is_none());
+
+                let location = c.components.location_component.location;
+                let region = c.components.region_component.region;
+                let map_region = &m.regions[region.x as usize][region.y as usize];
+                let target_location = map_region.grid[location.x as usize][location.y as usize].id_component_creatures.id();
+
+                let mut make_newborns: Vec<Event> = vec![];
+
+                (0..s.litter_size).for_each(|_| {
+                    let mut new_creature = c.clone();
+                    new_creature.components.evolving_traits = Some(EvolvingTraitsComponent {
+                        adult_traits: c.components.evolving_traits.unwrap().traits.clone_with_mate(&s.partner_genes),
+                        traits: EvolvingTraits::default(), // need to base this off of the childness and stuff
+                        child_until_frame: m.frame_count, // TODONEXT: Based on current frame and pregnancy time of mother, as well as growth rate of child
+                        born_on_frame: m.frame_count,
+                    });
+                    // TODONEXT: Setup childness traits of the new_creature
+                    // also setup creatures initial stuff based on traits, health for example.
+                    // prob need to also zero out things like creature memory for the child?
+
+                    let create_event = Event {
+                        event_type: EventType::AddCreature(new_creature, m.frame_count),
+                        target: target_location,
+                        on_fail: None,
+                        // TODO: Not sure if its okay to spawn creature on a blocked tile? Will it move the blocked creature auto? I think so right?
+                        get_requirements: Box::new(|_,_|  true),
+                    };
+                    make_newborns.push(create_event);
+                });
+
+                // TODONEXT: return event chain
+            }
+        }
+    }
+    None
 }
 
 

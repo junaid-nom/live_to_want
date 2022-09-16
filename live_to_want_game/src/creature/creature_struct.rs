@@ -74,6 +74,7 @@ impl CreatureState {
             soil_component: c.components.soil_component.clone(),
             user_component: c.components.user_component.clone(),
             evolving_traits: c.components.evolving_traits.clone(),
+            sexual_reproduction: c.components.sexual_reproduction.clone(),
         };
 
         CreatureState {

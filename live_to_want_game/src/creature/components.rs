@@ -42,7 +42,8 @@ pub struct ComponentMap {
     pub death_items_component: Option<DeathItemsComponent>,// has items that ARE NOT in inventory that should be dropped on death. for example antlers for a deer
     pub battle_component: Option<BattleComponent>,
     pub user_component: Option<UserComponent>,
-    pub evolving_traits: Option<EvolvingTraits>,
+    pub evolving_traits: Option<EvolvingTraitsComponent>,
+    pub sexual_reproduction: Option<SexualReproduction>,
 } 
 impl ComponentMap {
     pub fn copy_from_other(self, other:&ComponentMap) -> Self {
@@ -65,6 +66,7 @@ impl ComponentMap {
             battle_component: other.battle_component.or(self.battle_component),
             user_component: other.user_component.or(self.user_component),
             evolving_traits: other.evolving_traits.or(self.evolving_traits),
+            sexual_reproduction: other.sexual_reproduction.or(self.sexual_reproduction),
         }
     }
     // Only meant to be used for budding component and similar. Should never put a fake_clone onto a real creature because no UID
@@ -85,6 +87,7 @@ impl ComponentMap {
             battle_component: self.battle_component.clone(),
             user_component: self.user_component.clone(),
             evolving_traits: self.evolving_traits.clone(),
+            sexual_reproduction: self.sexual_reproduction.clone(),
         }
     }
     pub fn fake_default() -> Self {
@@ -104,6 +107,7 @@ impl ComponentMap {
             battle_component: None,
             user_component: None,
             evolving_traits: None,
+            sexual_reproduction: None,
         }
     }
 }
@@ -275,6 +279,7 @@ pub struct SexualReproduction {
     pub is_pregnant: bool,
     pub pregnancy_completion_frame: u128,
     pub litter_size: u32,
+    pub partner_genes : EvolvingTraits,
 }
 impl Component for SexualReproduction {
     fn get_visible() -> bool {
@@ -282,21 +287,13 @@ impl Component for SexualReproduction {
     }
 }
 impl SexualReproduction {
-    pub fn get_if_pregnant(&self) -> bool {
-        return self.is_pregnant;
-    }
     // TODONEXT make a reproduction system. counts down pregnancy then pops out kids based on this component and relevant evo traits. Also modify metabolsim consumption based on pregnancy and traits
+    // TODONEXT make a sex creature command, requires they be same species.
 }
 
-// to allow AI to eventually get smart enough to figure out that they should
-// chop down trees to make navigation easier gonna add a "breakable" bool here.
-// ACTUALLY I wont cause that should be based on like health component existing
-// or something like that
 #[derive(Debug, Hash, PartialEq, Eq, Copy, Clone, Default)]
 #[derive(Deserialize, Serialize)]
 pub struct EvolvingTraits {
-    // TODO: make everything private, and use CHILDNESS trait to lower traits by a % for children
-
     //Implemented: 
     pub thick_hide: i32, // Reduces damage taken by a flat amount? increases calories per movement?
     pub sharp_claws: i32, // Increase damage done by attacksimple
@@ -312,30 +309,104 @@ pub struct EvolvingTraits {
     pub maleness: i32, // all animals are hermaphrodite, maleness makes it so u have less chance of being the one who becomes pregnant when sex. Need to also implement ways for animals to detect males in their AI and if they are also male themselves, this might cause male-male competition to evolve hopefully?
     
     pub fast_grower: i32, // decreases time as child once out of womb, but increases metabolism
+}
+impl EvolvingTraits {
+    pub fn clone_with_multiplier(&self, multiplier :f32) -> EvolvingTraits {
+        EvolvingTraits {
+            thick_hide: (self.thick_hide as f32 * multiplier) as i32,
+            sharp_claws: (self.sharp_claws as f32 * multiplier) as i32,
+            hamstring: (self.hamstring as f32 * multiplier) as i32,
+            graceful: (self.graceful as f32 * multiplier) as i32,
+            move_speed: (self.move_speed as f32 * multiplier) as i32,
+            species: (self.species as f32 * multiplier) as i32,
+            litter_size: (self.litter_size as f32 * multiplier) as i32,
+            pregnancy_time: (self.pregnancy_time as f32 * multiplier) as i32,
+            maleness: (self.maleness as f32 * multiplier) as i32,
+            fast_grower: (self.fast_grower as f32 * multiplier) as i32,
+        }
+    }
+
+    pub fn mix_traits(a: i32, b: i32) -> i32{
+        let mut rng = rand::thread_rng();
+        match rng.gen_range(0, 3) {
+            0 => {
+                a
+            },
+            1 => {
+                b
+            },
+            2 => {
+                (a + b) / 2
+            }
+            _ => {
+                panic!("wtf rng");
+            }
+        }
+    }
+
+    pub fn clone_with_mate(&self, mate: &EvolvingTraits) -> EvolvingTraits {
+        EvolvingTraits {
+            thick_hide: EvolvingTraits::mix_traits(self.thick_hide, mate.thick_hide),
+            sharp_claws: EvolvingTraits::mix_traits(self.sharp_claws, mate.sharp_claws),
+            hamstring: EvolvingTraits::mix_traits(self.hamstring, mate.hamstring),
+            graceful: EvolvingTraits::mix_traits(self.graceful, mate.graceful),
+            move_speed: EvolvingTraits::mix_traits(self.move_speed, mate.move_speed),
+            species: EvolvingTraits::mix_traits(self.species, mate.species),
+            litter_size: EvolvingTraits::mix_traits(self.litter_size, mate.litter_size),
+            pregnancy_time: EvolvingTraits::mix_traits(self.pregnancy_time, mate.pregnancy_time),
+            maleness: EvolvingTraits::mix_traits(self.maleness, mate.maleness),
+            fast_grower: EvolvingTraits::mix_traits(self.fast_grower, mate.fast_grower),
+        }
+    }
+}
+
+// to allow AI to eventually get smart enough to figure out that they should
+// chop down trees to make navigation easier gonna add a "breakable" bool here.
+// ACTUALLY I wont cause that should be based on like health component existing
+// or something like that
+#[derive(Debug, Hash, PartialEq, Eq, Copy, Clone, Default)]
+#[derive(Deserialize, Serialize)]
+pub struct EvolvingTraitsComponent {
+    pub adult_traits: EvolvingTraits,
+    pub traits: EvolvingTraits,
+    
     pub child_until_frame: u128, // used to calculate childness
     pub born_on_frame: u128, // used for childness
 }
-impl Component for EvolvingTraits {
+impl Component for EvolvingTraitsComponent {
     fn get_visible() -> bool {
         true
     }
 }
-impl EvolvingTraits {
+impl EvolvingTraitsComponent {
+    pub fn update_stats_based_on_childness(&mut self, frame: u128 ) {
+        if frame > self.child_until_frame {
+            return;
+        }
+        let total_time = self.child_until_frame - self.born_on_frame;
+        let percent_done = (frame - self.born_on_frame) as f32 / total_time as f32;
+        self.traits = self.adult_traits.clone_with_multiplier(percent_done);
+        // TODO whatever calls this should remove child component when this is done?
+        // TODO: Fuck this is gonna be really complicated for stuff like healthcomponent, movement etc that set their own stats at startup.
+        // For example, max hp is set when creature is born, so will have to fucking update max hp every frame as child grows.
+        // gonna be tedious for every system... maybe make on "on init" type function that does this? also used when a child is born
+    }
+
     pub fn get_total_metabolism_multiplier(&self, is_moving: bool) -> f32 {
         let mut total: f32 = 1.0;
-        total += self.thick_hide as f32 * THICK_HIDE_METABOLISM_MULTIPLIER;
+        total += self.traits.thick_hide as f32 * THICK_HIDE_METABOLISM_MULTIPLIER;
         if is_moving {
             total += MOVING_INCREASED_METABOLISM_FACTOR;
         }
 
-        // TODO: Get if pregnant and use that ass well to determine metabolism
+        // TODO: Get if pregnant and use that as well to determine metabolism
 
         // TODO Should probably move this OUT of this function and just put it in the starvation system since it involves multiple components: moving, pregnant, maybe status conditions and health (heal when injured auto but consume more calories slightly) later on too etc.
 
         total
     }
 
-    pub fn get_mutated(&self, mutations: u32) -> EvolvingTraits {
+    pub fn get_mutated(&self, mutations: u32) -> EvolvingTraitsComponent {
         let mut child = self.clone();
 
         let mut rng = rand::thread_rng();
@@ -348,10 +419,10 @@ impl EvolvingTraits {
             let chosen = rng.gen_range(0, 2);
             match chosen {
                 0 => {
-                    child.thick_hide += change;
+                    child.traits.thick_hide += change;
                 },
                 1 => {
-                    child.sharp_claws += change;
+                    child.traits.sharp_claws += change;
                 },
                 _ => {
                     panic!("Got to an unimplemented mutation");
@@ -365,13 +436,13 @@ impl EvolvingTraits {
     // the below functions used in the simple_attack creature command code
     pub fn get_total_simple_attack_adder(&self) -> i32 {
         let mut total = SIMPLE_ATTACK_BASE_DMG;
-        total += (self.sharp_claws as f32 * SHARP_CLAWS_DMG_INCREASE).floor() as i32;
+        total += (self.traits.sharp_claws as f32 * SHARP_CLAWS_DMG_INCREASE).floor() as i32;
         total
     }
 
     pub fn get_total_defense_subtractor(&self) -> i32 {
         let mut total = 0;
-        total += (self.thick_hide as f32 * THICK_HIDE_DMG_REDUCE_MULTIPLIER).floor() as i32;
+        total += (self.traits.thick_hide as f32 * THICK_HIDE_DMG_REDUCE_MULTIPLIER).floor() as i32;
         total
     }
 }
