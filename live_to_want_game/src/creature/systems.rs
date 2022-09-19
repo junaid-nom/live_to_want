@@ -120,12 +120,17 @@ pub fn starvation_system(c: &mut CreatureState) {
     }
 }
 
-pub fn reproduction_system(m: &MapState, c: &mut CreatureState) -> Option<EventChain> {
+pub fn child_growth_system(c: &mut CreatureState, frame: u128) {
+    if let Some(_) = c.components.evolving_traits.as_mut() {
+        c.setup_creature(frame, false);
+    }
+}
+
+pub fn sex_reproduction_system(m: &MapState, c: &CreatureState) -> Vec<EventChain> {
     // check if pregnant, if so, check if ready to pop, if so, pop kids out as event chain after figuring out their stats
-    if let Some(mut s) = c.components.sexual_reproduction {
+    if let Some(s) = c.components.sexual_reproduction.as_ref() {
         if s.is_pregnant {
             if s.pregnancy_completion_frame == m.frame_count {
-                s.is_pregnant = false;
                 // NOTE assumes this is not a blocker!
                 assert!(c.components.block_space_component.is_none());
 
@@ -133,20 +138,22 @@ pub fn reproduction_system(m: &MapState, c: &mut CreatureState) -> Option<EventC
                 let region = c.components.region_component.region;
                 let map_region = &m.regions[region.x as usize][region.y as usize];
                 let target_location = map_region.grid[location.x as usize][location.y as usize].id_component_creatures.id();
-
+                let mother_pregnany_time = c.components.evolving_traits.as_ref().unwrap().get_pregnancy_length();
                 let mut make_newborns: Vec<Event> = vec![];
 
                 (0..s.litter_size).for_each(|_| {
                     let mut new_creature = c.clone();
                     new_creature.components.evolving_traits = Some(EvolvingTraitsComponent {
-                        adult_traits: c.components.evolving_traits.unwrap().traits.clone_with_mate(&s.partner_genes),
+                        adult_traits: c.components.evolving_traits.as_ref().unwrap().traits.clone_with_mate(&s.partner_genes),
                         traits: EvolvingTraits::default(), // need to base this off of the childness and stuff
-                        child_until_frame: m.frame_count, // TODONEXT: Based on current frame and pregnancy time of mother, as well as growth rate of child
+                        child_until_frame: m.frame_count + new_creature.get_child_length(mother_pregnany_time), // Based on current frame and pregnancy time of mother, as well as growth rate of child
                         born_on_frame: m.frame_count,
                     });
-                    // TODONEXT: Setup childness traits of the new_creature
+                    
+                    // Setup childness traits of the new_creature
                     // also setup creatures initial stuff based on traits, health for example.
                     // prob need to also zero out things like creature memory for the child?
+                    new_creature.setup_creature(m.frame_count, true);
 
                     let create_event = Event {
                         event_type: EventType::AddCreature(new_creature, m.frame_count),
@@ -158,11 +165,29 @@ pub fn reproduction_system(m: &MapState, c: &mut CreatureState) -> Option<EventC
                     make_newborns.push(create_event);
                 });
 
-                // TODONEXT: return event chain
+                let iterate_events = vec![Event { 
+                    event_type: EventType::IterateSexReproduction(), 
+                    on_fail: None,
+                    get_requirements: Box::new(|_,_|  true),
+                    target: c.get_id(),
+                }];
+
+                return vec![
+                    EventChain {
+                        events: make_newborns,
+                        debug_string: format!("Birthing {}", c.components.id_component.id()),
+                        creature_list_targets: true
+                    },
+                    EventChain {
+                        events: iterate_events,
+                        debug_string: format!("Birthing Iterate {}", c.components.id_component.id()),
+                        creature_list_targets: false
+                    },
+                ];
             }
         }
     }
-    None
+    vec![]
 }
 
 

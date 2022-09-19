@@ -7,6 +7,7 @@ use core::fmt;
 
 extern crate rayon;
 use live_to_want_game::*;
+use rand::Rng;
 use rayon::prelude::*;
 
 
@@ -188,6 +189,17 @@ fn bool_list_contains() {
 
     assert_eq!(v1.contains(&true), true);
     assert_eq!(v2.contains(&true), false);
+}
+
+
+#[test]
+fn test_unsigned_subtraction() {
+    let mut rng = rand::thread_rng();
+    let r: u32 = rng.gen_range(500, 1000);
+    let v100: u32 = 100;
+
+    // this causes panic //assert!(v100 - r > 0); // overflows into wrap as default
+    assert!(v100.saturating_sub(r) == 0);
 }
 
 #[test]

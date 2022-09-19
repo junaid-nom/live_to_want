@@ -1,6 +1,7 @@
 use std::io::stderr;
 
 use crate::{Battle, Location, MAX_ATTACK_DISTANCE, MapState, creature::CreatureState, tasks::Event, tasks::EventChain, tasks::EventTarget, tasks::EventType, utils::UID, utils::Vu2, SIMPLE_ATTACK_BASE_DMG};
+use rand::Rng;
 use serde::{Deserialize, Serialize};
 
 use super::MapLocation;
@@ -63,6 +64,7 @@ pub enum CreatureCommand<'b>{
     AttackBattle(&'static str, &'b CreatureState, &'b CreatureState, UID), // attacker, victim, 3rd is battle list uid
     TakeItem(&'static str, InventoryHolder<'b>, InventoryHolder<'b>, Item),
     AttackSimple(&'static str, &'b CreatureState, &'b CreatureState), // attacker, victim
+    Sex(&'static str, &'b CreatureState, &'b CreatureState, u128) // 
 }
 impl CreatureCommand<'_> {
     pub fn to_event_chain(&self) -> Option<EventChain> {
@@ -102,11 +104,11 @@ impl CreatureCommand<'_> {
                 }
                 // Do some fancy calculations here to determine how much dmg is done
                 // should prob also have a multiply based defense
-                let attack_dmg = match attacker.components.evolving_traits {
+                let attack_dmg = match attacker.components.evolving_traits.as_ref() {
                     Some(evo) => evo.get_total_simple_attack_adder(),
                     None => SIMPLE_ATTACK_BASE_DMG,
                 };
-                let defender_block = match victim.components.evolving_traits {
+                let defender_block = match victim.components.evolving_traits.as_ref() {
                     Some(evo) => evo.get_total_defense_subtractor(),
                     None => 0,
                 };
@@ -269,7 +271,57 @@ impl CreatureCommand<'_> {
                     creature_list_targets: false,
                 })
             }
-            
+            CreatureCommand::Sex(_, c1, c2, current_frame) => {
+                // if either one pregnant, fails
+                // also need failure case for sex when orgies and get pregnant already
+                if let Some(sex1) = c1.components.sexual_reproduction.as_ref() {
+                    if sex1.is_pregnant {
+                        return None;
+                    }
+                    if let Some(sex2) = c2.components.sexual_reproduction.as_ref() {
+                        if sex2.is_pregnant {
+                            return None;
+                        }
+                        
+                        // Chose who becomes pregnant based on traits.
+                        let traits1 = c1.components.evolving_traits.as_ref().unwrap();
+                        let traits2 = c2.components.evolving_traits.as_ref().unwrap();
+
+                        if !c1.can_sex(traits2.adult_traits.species, *current_frame) || !c2.can_sex(traits1.adult_traits.species, *current_frame) {
+                            return None;
+                        }
+
+                        let weight1 = traits1.get_pregnancy_weight();
+                        let weight2 = traits2.get_pregnancy_weight();
+                        
+                        let mut rng = rand::thread_rng();
+                        let chosen = rng.gen_range(0, weight1 + weight2);
+                        let pregnant_c2 = chosen > weight1;
+                        let pregnant = if pregnant_c2 {
+                            c2
+                        } else { c1 };
+                        let mate = if !pregnant_c2 {
+                            c2
+                        } else { c1 };
+                        
+                        let ptraits = pregnant.components.evolving_traits.as_ref().unwrap();
+                        let pregnancy_length = ptraits.get_pregnancy_length();
+                        let mate_traits = mate.components.evolving_traits.as_ref().unwrap().adult_traits.clone();
+                        
+                        return Some(EventChain{
+                            events: vec![Event {
+                                event_type: EventType::Impregnate(mate_traits, current_frame + pregnancy_length), 
+                                get_requirements: Box::new(|_,_| true), // so in multithread, the LAST person to sex in a frame will impregnate.
+                                on_fail: None,
+                                target: pregnant.get_id()
+                            }],
+                            debug_string: format!("impregnate mother: {} father: {}", pregnant.get_id(), mate.get_id()),
+                            creature_list_targets: false,
+                        });
+                    }
+                }
+
+            },
         }
         None
     }

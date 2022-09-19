@@ -110,7 +110,9 @@ pub fn run_frame_with_input(mut game_state: GameState, root: &GoalNode, msgs: Ve
                     if let Some(par_iter) = yl.creatures.get_par_iter() {
                         let ret: Vec<EventChain> = par_iter.flat_map(
                             |c| {
-                                budding_system(&m, c)
+                                let mut all_chains = budding_system(&m, c);
+                                all_chains.extend(sex_reproduction_system(&m, c));
+                                all_chains
                             }
                         ).collect();
                         return ret;

@@ -62,7 +62,7 @@ fn run_frames_test_starvation_and_death() {
 // TODO: Make test for metabolism that checks to see if traits and if moving stuff works.
 // Prob can just postpone for awhile and do 1 test that uses EVERY trait that changes them and make 1 big calculation.
 
-
+// TODONEXT: Test sex, and then reproduction. Make sure the sex related stuff like species, multithreads, mutating, inheritance, litter size, pregnancy time, and childness work.
 
 // Make a test for simple attack system. Prob similar to the test_chain_multithread_battle test
 // Shud use for example thickness and sharp claws. can enhance later with all the other traits
@@ -138,8 +138,16 @@ fn test_simple_attack<'a>() {
 
     println!("simple attack: {} starting HP: {} sharp ratio: {} hide: {}", SIMPLE_ATTACK_BASE_DMG, STANDARD_HP, SHARP_CLAWS_DMG_INCREASE, THICK_HIDE_DMG_REDUCE_MULTIPLIER);
 
-    println!("deer1 attack: {} defense: {} sharp_claw {} hide: {}", deer1.components.evolving_traits.unwrap().get_total_simple_attack_adder(), deer1.components.evolving_traits.unwrap().get_total_defense_subtractor(), deer1.components.evolving_traits.unwrap().traits.sharp_claws, deer1.components.evolving_traits.unwrap().traits.thick_hide);
-    println!("deer2 attack: {} defense: {} sharp_claw {} hide: {}", deer2.components.evolving_traits.as_ref().unwrap().get_total_simple_attack_adder(), deer2.components.evolving_traits.unwrap().get_total_defense_subtractor(), deer2.components.evolving_traits.unwrap().traits.sharp_claws, deer2.components.evolving_traits.unwrap().traits.thick_hide);
+    println!("deer1 attack: {} defense: {} sharp_claw {} hide: {}", 
+        deer1.components.evolving_traits.as_ref().unwrap().get_total_simple_attack_adder(), 
+        deer1.components.evolving_traits.as_ref().unwrap().get_total_defense_subtractor(), 
+        deer1.components.evolving_traits.as_ref().unwrap().traits.sharp_claws, 
+        deer1.components.evolving_traits.as_ref().unwrap().traits.thick_hide);
+    println!("deer2 attack: {} defense: {} sharp_claw {} hide: {}", 
+        deer2.components.evolving_traits.as_ref().unwrap().get_total_simple_attack_adder(), 
+        deer2.components.evolving_traits.as_ref().unwrap().get_total_defense_subtractor(), 
+        deer2.components.evolving_traits.as_ref().unwrap().traits.sharp_claws, 
+        deer2.components.evolving_traits.as_ref().unwrap().traits.thick_hide);
     
     let deer1_id = deer1.components.id_component.id();
     let deer2_id = deer2.components.id_component.id();

@@ -1,3 +1,5 @@
+use std::u32::MAX;
+
 use crate::{Item, map_state::Location, utils::{UID, get_id, Vector2, Vu2}};
 use serde::{Deserialize, Serialize};
 use super::CreatureState;
@@ -5,17 +7,30 @@ use rand::Rng;
 // game constants:
 pub static STANDARD_HP: i32 = 10000;
 pub static SIMPLE_ATTACK_BASE_DMG: i32 = 1000;
+pub static STANDARD_FRAMES_TO_MOVE: usize = 10;
+pub static STANDARD_CHILD_TIME: u128 = 30 * STANDARD_FRAMES_TO_MOVE as u128;
+pub static STANDARD_PREGNANCY_TIME: u128 = 20 * STANDARD_FRAMES_TO_MOVE as u128;
+pub static BASE_PREGNANCY_WEIGHT: i32 = 100;
 
 pub static STARVING_SLOW_METABOLISM_FACTOR: f32 = 0.5;
 pub static REPRODUCE_STARTING_CALORIES: i32 = 150;
 pub static MOVING_INCREASED_METABOLISM_FACTOR: f32 = 1.5;
 
-pub static MUTATION_CHANGE: i32 = 5;
+pub static MUTATION_CHANGE: i32 = 10;
+pub static SPECIES_SEX_RANGE: i32 = MUTATION_CHANGE * 5;// Shouldnt be too high because the expected value of species changing is 0, and its rarely mutated.
 
 pub static THICK_HIDE_METABOLISM_MULTIPLIER: f32 = 0.2 / 100.0;
 pub static THICK_HIDE_DMG_REDUCE_MULTIPLIER: f32 = SIMPLE_ATTACK_BASE_DMG as f32 * 1.0 / 100.0; // For every 100 thick hide, decrease dmg by 1
 
 pub static SHARP_CLAWS_DMG_INCREASE: f32 = SIMPLE_ATTACK_BASE_DMG as f32 * 0.7 / 100.0; // for every 100 sharp claws, increase dmg by 1.7x simple attack (rounds down)
+
+pub static GIRTH_HEALTH_INCREASE: f32 = (STANDARD_HP as f32 * 0.7) / 100.0;
+
+pub static MOVE_SPEED_FRAME_REDUCTION: f32 = 0.1; // Every 10 pts = 1 frame less movement
+
+pub static BASE_PREGNANCY_TIME_ADDER: i32 = 1;
+pub static FAST_GROWER_MULTIPLIER: f32 = 0.001; // each point in fast grower reduces total time by .1%
+pub static LITTER_SIZE_TRAIT_NEEDED_FOR_ONE_BABY: i32 = 100;
 
 pub trait Component: Sync + Send + Clone {
     fn get_visible() -> bool {
@@ -159,6 +174,9 @@ impl HealthComponent {
             max_health: self.max_health
         }
     }
+    pub fn at_max_health(&self) -> bool {
+        return self.health == self.max_health;
+    }
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -273,7 +291,7 @@ impl Component for CreatureTypeComponent {
 // creature is a blocker as well then it has to move to an unoccupied space? and this must be done LINEARLY
 // because u cud have 2-4 blockers all moving to the same space
 
-#[derive(Debug, Hash, PartialEq, Eq, Copy, Clone)]
+#[derive(Debug, Hash, PartialEq, Eq, Clone)]
 #[derive(Deserialize, Serialize)]
 pub struct SexualReproduction {
     pub is_pregnant: bool,
@@ -291,24 +309,24 @@ impl SexualReproduction {
     // TODONEXT make a sex creature command, requires they be same species.
 }
 
-#[derive(Debug, Hash, PartialEq, Eq, Copy, Clone, Default)]
+#[derive(Debug, Hash, PartialEq, Eq, Clone, Default)]
 #[derive(Deserialize, Serialize)]
 pub struct EvolvingTraits {
     //Implemented: 
     pub thick_hide: i32, // Reduces damage taken by a flat amount? increases calories per movement?
     pub sharp_claws: i32, // Increase damage done by attacksimple
-
-    //Unimplemented:
-    pub hamstring: i32, // lowers speed of victim after attacksimple? need to make a whole status effect component for this? or add to movement componenet (prob that?)? how to do duration though and magnitude? debug stack shud prob make a whoel component then for status conditions?
-    pub graceful: i32, // higher this value the less ur metabolism consumed when moving
+    pub girth: i32, // Increase max health, no downside
+    
     pub move_speed: i32, // increases running speed but increases metabolism consumed when moving
-
     pub species: i32, // species should start out fairly far apart from each other (this number is random). larger the diff in this number the lower chance they can reproduce sucessfully during sex. 
     pub litter_size: i32, // increases children but also increases metabolism while pregnant. just bad if this is negative... maybe increases chance of no pregnancy/miscarriage?
     pub pregnancy_time: i32, // increases pregnancy time but children come out more developed, and vice versa
     pub maleness: i32, // all animals are hermaphrodite, maleness makes it so u have less chance of being the one who becomes pregnant when sex. Need to also implement ways for animals to detect males in their AI and if they are also male themselves, this might cause male-male competition to evolve hopefully?
-    
     pub fast_grower: i32, // decreases time as child once out of womb, but increases metabolism
+    
+    //Unimplemented:
+    pub hamstring: i32, // lowers speed of victim after attacksimple? need to make a whole status effect component for this? or add to movement componenet (prob that?)? how to do duration though and magnitude? debug stack shud prob make a whoel component then for status conditions?
+    pub graceful: i32, // higher this value the less ur metabolism consumed when moving
 }
 impl EvolvingTraits {
     pub fn clone_with_multiplier(&self, multiplier :f32) -> EvolvingTraits {
@@ -323,6 +341,7 @@ impl EvolvingTraits {
             pregnancy_time: (self.pregnancy_time as f32 * multiplier) as i32,
             maleness: (self.maleness as f32 * multiplier) as i32,
             fast_grower: (self.fast_grower as f32 * multiplier) as i32,
+            girth: (self.girth as f32 * multiplier) as i32,
         }
     }
 
@@ -356,6 +375,7 @@ impl EvolvingTraits {
             pregnancy_time: EvolvingTraits::mix_traits(self.pregnancy_time, mate.pregnancy_time),
             maleness: EvolvingTraits::mix_traits(self.maleness, mate.maleness),
             fast_grower: EvolvingTraits::mix_traits(self.fast_grower, mate.fast_grower),
+            girth: EvolvingTraits::mix_traits(self.girth, mate.girth),
         }
     }
 }
@@ -364,7 +384,7 @@ impl EvolvingTraits {
 // chop down trees to make navigation easier gonna add a "breakable" bool here.
 // ACTUALLY I wont cause that should be based on like health component existing
 // or something like that
-#[derive(Debug, Hash, PartialEq, Eq, Copy, Clone, Default)]
+#[derive(Debug, Hash, PartialEq, Eq, Clone, Default)]
 #[derive(Deserialize, Serialize)]
 pub struct EvolvingTraitsComponent {
     pub adult_traits: EvolvingTraits,
@@ -379,8 +399,35 @@ impl Component for EvolvingTraitsComponent {
     }
 }
 impl EvolvingTraitsComponent {
+    pub fn get_if_child(&self, frame: u128) -> bool {
+        return frame > self.child_until_frame;
+    }
+
+    pub fn get_litter_size(&self) -> u32 {
+        let mut total = 1;
+        let mut rng = rand::thread_rng();
+        if self.traits.litter_size < 0 {
+            let abort_chance = self.traits.litter_size as f64 / LITTER_SIZE_TRAIT_NEEDED_FOR_ONE_BABY as f64;
+            if rng.gen_bool(abort_chance.abs()) {
+                return 0;
+            } else {
+                return 1;
+            }
+        }
+
+        let guaranteed_added = self.traits.litter_size / LITTER_SIZE_TRAIT_NEEDED_FOR_ONE_BABY;
+        total += guaranteed_added;
+        let increase_chance = (self.traits.litter_size % LITTER_SIZE_TRAIT_NEEDED_FOR_ONE_BABY) as f64 / LITTER_SIZE_TRAIT_NEEDED_FOR_ONE_BABY as f64;
+        if rng.gen_bool(increase_chance) {
+            total += 1;
+        }
+
+        total as u32
+    }
+
     pub fn update_stats_based_on_childness(&mut self, frame: u128 ) {
         if frame > self.child_until_frame {
+            assert!(self.adult_traits == self.traits);
             return;
         }
         let total_time = self.child_until_frame - self.born_on_frame;
@@ -390,6 +437,22 @@ impl EvolvingTraitsComponent {
         // TODO: Fuck this is gonna be really complicated for stuff like healthcomponent, movement etc that set their own stats at startup.
         // For example, max hp is set when creature is born, so will have to fucking update max hp every frame as child grows.
         // gonna be tedious for every system... maybe make on "on init" type function that does this? also used when a child is born
+    }
+
+    pub fn get_frames_to_move(&self) -> usize {
+        return STANDARD_FRAMES_TO_MOVE - (MOVE_SPEED_FRAME_REDUCTION * self.traits.move_speed as f32) as usize;
+    }
+
+    pub fn get_max_health(&self) -> i32 {
+        return (STANDARD_HP as f32 + (self.traits.girth as f32 * GIRTH_HEALTH_INCREASE)) as i32;
+    }
+
+    pub fn get_pregnancy_weight(&self) -> i32 {
+        return std::cmp::max(BASE_PREGNANCY_WEIGHT - self.traits.maleness, 0);
+    }
+
+    pub fn get_pregnancy_length(&self) -> u128 {
+        return std::cmp::max(STANDARD_PREGNANCY_TIME - (self.traits.pregnancy_time * BASE_PREGNANCY_TIME_ADDER) as u128, 0);
     }
 
     pub fn get_total_metabolism_multiplier(&self, is_moving: bool) -> f32 {
@@ -416,17 +479,38 @@ impl EvolvingTraitsComponent {
             } else {
                 -1 * MUTATION_CHANGE
             };
-            let chosen = rng.gen_range(0, 2);
+            let chosen = rng.gen_range(0, 9);
             match chosen {
                 0 => {
-                    child.traits.thick_hide += change;
+                    child.adult_traits.thick_hide += change;
                 },
                 1 => {
-                    child.traits.sharp_claws += change;
+                    child.adult_traits.sharp_claws += change;
+                },
+                2 => {
+                    child.adult_traits.girth += change;
+                },
+                3 => {
+                    child.adult_traits.move_speed += change;
+                },
+                4 => {
+                    child.adult_traits.species += change;
+                },
+                5 => {
+                    child.adult_traits.litter_size += change;
+                },
+                6 => {
+                    child.adult_traits.pregnancy_time += change;
+                },
+                7 => {
+                    child.adult_traits.maleness += change;
+                },
+                8 => {
+                    child.adult_traits.fast_grower += change;
                 },
                 _ => {
                     panic!("Got to an unimplemented mutation");
-                }
+                },
             }
         });
         child

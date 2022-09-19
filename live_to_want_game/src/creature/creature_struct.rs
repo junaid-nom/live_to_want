@@ -1,6 +1,6 @@
-use std::fmt::Formatter;
+use std::{fmt::Formatter, cmp::max};
 use serde::{Deserialize, Serialize};
-use crate::{Location, RegionComponent, UID, map_state::Item, utils::Vector2, utils::Vu2, UserComponent};
+use crate::{Location, RegionComponent, UID, map_state::Item, utils::Vector2, utils::Vu2, UserComponent, STANDARD_PREGNANCY_TIME, STANDARD_CHILD_TIME, FAST_GROWER_MULTIPLIER, SPECIES_SEX_RANGE};
 
 use super::{ComponentMap, IDComponent, LocationComponent, HealthComponent, NameComponent, StarvationComponent, REPRODUCE_STARTING_CALORIES};
 
@@ -45,6 +45,55 @@ impl CreatureState {
         ret.components.location_component = LocationComponent{location:loc.position};
         ret.components.region_component = RegionComponent{region:loc.region};
         ret
+    }
+
+    pub fn can_sex_anything(&self, frame: u128) -> bool {
+        if self.components.sexual_reproduction.is_none() || self.components.evolving_traits.is_none() {
+            return false;
+        }
+        // cant if pregnant, and not child
+        if self.components.sexual_reproduction.as_ref().unwrap().is_pregnant {
+            return false;
+        }
+        if self.components.evolving_traits.as_ref().unwrap().get_if_child(frame) {
+            return false;
+        }
+        true
+    }
+
+    pub fn can_sex(&self, other_species: i32, frame: u128) -> bool {
+        if !self.can_sex_anything(frame) {
+            return false;
+        }
+        // cant if pregnant, and not child and not same species
+        if (self.components.evolving_traits.as_ref().unwrap().adult_traits.species - other_species).abs() > SPECIES_SEX_RANGE {
+            return false;
+        }
+        
+        true
+    }
+
+    pub fn get_child_length(&self, mother_pregnany_time: u128) -> u128 {
+        let mut total_time = STANDARD_CHILD_TIME.saturating_sub(mother_pregnany_time - STANDARD_PREGNANCY_TIME);
+
+        total_time = (total_time as f32 * (1.0 - (FAST_GROWER_MULTIPLIER * self.components.evolving_traits.as_ref().unwrap().adult_traits.fast_grower as f32)).max(0.0)) as u128;
+
+        return total_time;
+    }
+
+    pub fn setup_creature(&mut self, frame: u128, reset_health: bool) {
+        // setup childness
+        self.components.evolving_traits.as_mut().unwrap().update_stats_based_on_childness(frame);
+
+        // Setup max health and health.
+        let max_health = self.components.evolving_traits.as_ref().unwrap().get_max_health();
+        let already_max_health = self.components.health_component.as_ref().unwrap().at_max_health();
+        self.components.health_component.as_mut().unwrap().max_health = max_health;
+        if reset_health || already_max_health {
+            self.components.health_component.as_mut().unwrap().health = max_health;
+        }
+        // setup movement stuff
+        self.components.movement_component.as_mut().unwrap().frames_to_move = self.components.evolving_traits.as_ref().unwrap().get_frames_to_move();
     }
 
     // for reproduction via budding mostly

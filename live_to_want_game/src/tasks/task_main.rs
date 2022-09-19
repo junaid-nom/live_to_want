@@ -1,6 +1,6 @@
 use fmt::Debug;
 
-use crate::{Battle, BattleList, CreatureList, Location, battle, creature::CreatureState, map_state::Item, map_state::ItemType, map_state::MapState, utils::UID};
+use crate::{Battle, BattleList, CreatureList, Location, battle, creature::CreatureState, map_state::Item, map_state::ItemType, map_state::MapState, utils::UID, EvolvingTraits};
 use core::fmt;
 use std::collections::HashMap;
 extern crate rayon;
@@ -216,6 +216,14 @@ impl Event {
                 }
                 _ => panic!("Wrong event target for budding"),
             },
+            EventType::IterateSexReproduction() => match effected {
+                EventTarget::CreatureTarget(c) => {
+                    let birther = c.components.sexual_reproduction.as_mut().unwrap();
+                    birther.is_pregnant = false;
+                    None
+                }
+                _ => panic!("Wrong event target for budding"),
+            },
             // EventType::IterateMovement(current_frame) => {
             //     match effected {
             //         EventTarget::CreatureTarget(c) => {
@@ -304,6 +312,21 @@ impl Event {
                     }
                 }
             },
+            EventType::Impregnate(mate_traits, pregnancy_finish_frame) => {
+                match effected {
+                    EventTarget::CreatureTarget(c) => {
+                        let s = c.components.sexual_reproduction.as_mut().unwrap();
+                        s.is_pregnant = true;
+                        s.partner_genes = mate_traits;
+                        s.pregnancy_completion_frame = pregnancy_finish_frame;
+                        s.litter_size = c.components.evolving_traits.as_ref().unwrap().get_litter_size();
+                        return None
+                    },
+                    _ => {
+                        panic!("Got impregnate for wrong target");
+                    }
+                }
+            },
         }
     }
 }
@@ -325,12 +348,14 @@ pub enum EventType {
     SetHealth(i32),
     ChangeHealth(i32),
     IterateBudding(),
+    IterateSexReproduction(),
     //IterateMovement(u128),
     InitializeMovement(u128, Location),
     EnterBattle(UID),
     LeaveBattle(), // Mostly for canceling battle events in case of conflict
     AddBattle(Battle),
     RemoveBattle(UID),
+    Impregnate(EvolvingTraits, u128), // mate_traits, pregnancy_completion_frame
 }
 
 pub fn process_events_from_mapstate(m: &mut MapState, event_chains: Vec<EventChain>) {
