@@ -264,6 +264,7 @@ pub fn run_frame_with_input(mut game_state: GameState, root: &GoalNode, msgs: Ve
                     if let Some(cit) = yl.creatures.get_par_iter_mut() {
                         cit.for_each(
                             |c| {
+                                child_growth_system(c, current_frame);
                                 starvation_system(c);
                                 movement_system_iterate(current_frame, c, location);
                             }

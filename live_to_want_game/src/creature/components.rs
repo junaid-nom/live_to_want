@@ -5,12 +5,14 @@ use serde::{Deserialize, Serialize};
 use super::CreatureState;
 use rand::Rng;
 // game constants:
+pub static DEBUG_EVENTS: bool = true;
+
 pub static STANDARD_HP: i32 = 10000;
 pub static SIMPLE_ATTACK_BASE_DMG: i32 = 1000;
 pub static STANDARD_FRAMES_TO_MOVE: usize = 10;
 pub static STANDARD_CHILD_TIME: u128 = 30 * STANDARD_FRAMES_TO_MOVE as u128;
 pub static STANDARD_PREGNANCY_TIME: u128 = 20 * STANDARD_FRAMES_TO_MOVE as u128;
-pub static BASE_PREGNANCY_WEIGHT: i32 = 100;
+pub static BASE_PREGNANCY_CHANCE_WEIGHT: i32 = 100;
 
 pub static STARVING_SLOW_METABOLISM_FACTOR: f32 = 0.5;
 pub static REPRODUCE_STARTING_CALORIES: i32 = 150;
@@ -400,7 +402,7 @@ impl Component for EvolvingTraitsComponent {
 }
 impl EvolvingTraitsComponent {
     pub fn get_if_child(&self, frame: u128) -> bool {
-        return frame > self.child_until_frame;
+        return frame < self.child_until_frame;
     }
 
     pub fn get_litter_size(&self) -> u32 {
@@ -427,6 +429,7 @@ impl EvolvingTraitsComponent {
 
     pub fn update_stats_based_on_childness(&mut self, frame: u128 ) {
         if frame > self.child_until_frame {
+            // if below assertion fails make sure child_until_frame was set to at least 1 to give a frame to update
             assert!(self.adult_traits == self.traits);
             return;
         }
@@ -448,11 +451,11 @@ impl EvolvingTraitsComponent {
     }
 
     pub fn get_pregnancy_weight(&self) -> i32 {
-        return std::cmp::max(BASE_PREGNANCY_WEIGHT - self.traits.maleness, 0);
+        return std::cmp::max(BASE_PREGNANCY_CHANCE_WEIGHT - self.traits.maleness, 0);
     }
 
     pub fn get_pregnancy_length(&self) -> u128 {
-        return std::cmp::max(STANDARD_PREGNANCY_TIME - (self.traits.pregnancy_time * BASE_PREGNANCY_TIME_ADDER) as u128, 0);
+        return std::cmp::max(STANDARD_PREGNANCY_TIME as i32 + (self.traits.pregnancy_time * BASE_PREGNANCY_TIME_ADDER) as i32, 0) as u128;
     }
 
     pub fn get_total_metabolism_multiplier(&self, is_moving: bool) -> f32 {

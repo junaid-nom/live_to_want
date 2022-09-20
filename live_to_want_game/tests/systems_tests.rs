@@ -63,6 +63,272 @@ fn run_frames_test_starvation_and_death() {
 // Prob can just postpone for awhile and do 1 test that uses EVERY trait that changes them and make 1 big calculation.
 
 // TODONEXT: Test sex, and then reproduction. Make sure the sex related stuff like species, multithreads, mutating, inheritance, litter size, pregnancy time, and childness work.
+#[test]
+fn test_sex_reproduction<'a>() {
+    // make a mapstate with some deer
+    let openr = RegionCreationStruct::new(5,5, 0, vec![]);
+    let rgrid = vec![
+        vec![openr.clone()],
+    ];
+    //create map
+    let mut map = MapState::new(rgrid, 0);
+    let  region: &mut MapRegion = &mut map.regions[0][0];
+
+    let mut deer1 = CreatureState{
+        components: ComponentMap::default(),
+        inventory: Vec::new(),
+        memory: CreatureMemory::default(),
+    };
+    deer1.components.region_component = RegionComponent {
+        region: Vu2{x: 0, y: 0},
+    };
+    deer1.components.location_component = LocationComponent {
+        location: Vu2{x: 1, y: 1}
+    };
+    deer1.components.health_component = Some(HealthComponent {
+        health:  SIMPLE_ATTACK_BASE_DMG * 10,
+        max_health: SIMPLE_ATTACK_BASE_DMG * 10,
+    });
+    deer1.components.evolving_traits = Some(EvolvingTraitsComponent {
+        adult_traits: EvolvingTraits{
+            species: 0,
+            litter_size: LITTER_SIZE_TRAIT_NEEDED_FOR_ONE_BABY * 3 + 50,
+            pregnancy_time: STANDARD_PREGNANCY_TIME as i32 * 2,
+            maleness: 0,
+            fast_grower: 100,
+            ..Default::default()
+        },
+        child_until_frame: 1,
+        ..Default::default()
+    });
+    deer1.components.sexual_reproduction = Some(SexualReproduction {
+        is_pregnant: false,
+        pregnancy_completion_frame: 1,
+        litter_size: 1,
+        partner_genes: EvolvingTraits{ ..Default::default() },
+    });
+
+    deer1.inventory.push(Item{
+        item_type: ItemType::Berry,
+        quantity: 1,
+    });
+
+    let mut deer2 =CreatureState{
+        components: ComponentMap::default(),
+        inventory: Vec::new(),
+        memory: CreatureMemory::default(),
+    };
+    deer2.components.region_component = RegionComponent {
+        region: Vu2{x: 0, y: 0},
+    };
+    deer2.components.location_component = LocationComponent {
+        location: Vu2{x: 1, y: 1}
+    };
+    deer2.components.health_component = Some(HealthComponent {
+        health:  SIMPLE_ATTACK_BASE_DMG * 10,
+        max_health: SIMPLE_ATTACK_BASE_DMG * 10,
+    });
+    deer2.components.evolving_traits = Some(EvolvingTraitsComponent {
+        adult_traits: EvolvingTraits{
+            species: 0,
+            thick_hide: 200,
+            litter_size: LITTER_SIZE_TRAIT_NEEDED_FOR_ONE_BABY * 3 + 50,
+            pregnancy_time: STANDARD_PREGNANCY_TIME as i32 * 2,
+            maleness: 100,
+            fast_grower: 100,
+            ..Default::default()
+        },
+        child_until_frame: 1,
+        ..Default::default()
+    });
+    deer2.components.sexual_reproduction = Some(SexualReproduction {
+        is_pregnant: false,
+        pregnancy_completion_frame: 1,
+        litter_size: 1,
+        partner_genes: EvolvingTraits{ ..Default::default() },
+    });
+
+
+    let mut deer3 = CreatureState{
+        components: ComponentMap::default(),
+        inventory: Vec::new(),
+        memory: CreatureMemory::default(),
+    };
+    deer3.components.region_component = RegionComponent {
+        region: Vu2{x: 0, y: 0},
+    };
+    deer3.components.location_component = LocationComponent {
+        location: Vu2{x: 2, y: 1}
+    };
+    deer3.components.health_component = Some(HealthComponent {
+        health:  10,
+        max_health: 10,
+    });
+    deer3.components.battle_component = Some(BattleComponent {
+        in_battle: None,
+    });
+    deer3.components.evolving_traits = Some(EvolvingTraitsComponent {
+        adult_traits: EvolvingTraits{
+            species: 0,
+            move_speed: 200,
+            litter_size: LITTER_SIZE_TRAIT_NEEDED_FOR_ONE_BABY * 2,
+            pregnancy_time: -200,
+            maleness: 0,
+            fast_grower: 100,
+            ..Default::default()
+        },
+        child_until_frame: 1,
+        ..Default::default()
+    });
+    deer3.components.sexual_reproduction = Some(SexualReproduction {
+        is_pregnant: false,
+        pregnancy_completion_frame: 1,
+        litter_size: 1,
+        partner_genes: EvolvingTraits{ ..Default::default() },
+    });
+    
+
+    let mut deer4 = CreatureState{
+        components: ComponentMap::default(),
+        inventory: Vec::new(),
+        memory: CreatureMemory::default(),
+    };
+    deer4.components.region_component = RegionComponent {
+        region: Vu2{x: 0, y: 0},
+    };
+    deer4.components.location_component = LocationComponent {
+        location: Vu2{x: 1, y: 2}
+    };
+    deer4.components.health_component = Some(HealthComponent {
+        health:  10,
+        max_health: 10,
+    });
+    deer4.components.battle_component = Some(BattleComponent {
+        in_battle: None,
+    });
+    deer4.components.evolving_traits = Some(EvolvingTraitsComponent { // can't mate
+        adult_traits: EvolvingTraits{
+            species: SPECIES_SEX_RANGE + 1,
+            sharp_claws: 200,
+            litter_size: LITTER_SIZE_TRAIT_NEEDED_FOR_ONE_BABY * 3 + 50,
+            pregnancy_time: STANDARD_PREGNANCY_TIME as i32 * 2,
+            maleness: 0,
+            fast_grower: 100,
+            ..Default::default()
+        },
+        child_until_frame: 1,
+        ..Default::default()
+    });
+    deer4.components.sexual_reproduction = Some(SexualReproduction {
+        is_pregnant: false,
+        pregnancy_completion_frame: 1,
+        litter_size: 1,
+        partner_genes: EvolvingTraits{ ..Default::default() },
+    });
+
+
+    println!("pregnancy time: {} child time: {}", STANDARD_PREGNANCY_TIME, STANDARD_CHILD_TIME);
+
+    println!("deer1 {}", deer1);
+    println!("deer2 {}", deer2);
+    println!("deer3 {}", deer3);
+    println!("deer4 {}", deer4);
+
+    
+    let deer1_id = deer1.components.id_component.id();
+    let deer2_id = deer2.components.id_component.id();
+    let deer3_id = deer3.components.id_component.id();
+    let deer4_id = deer4.components.id_component.id();
+
+    region.grid[deer1.components.location_component.location].creatures.add_creature(
+        deer1, 0
+    );
+    region.grid[deer2.components.location_component.location].creatures.add_creature(
+        deer2, 0
+    );
+    region.grid[deer3.components.location_component.location].creatures.add_creature(
+        deer3, 0
+    );
+    region.grid[deer4.components.location_component.location].creatures.add_creature(
+        deer4, 0
+    );
+    
+    let attack = GoalNode {
+        get_want_local: Box::new(|_, _| 10),
+        get_effort_local: Box::new(|_, _| 1),
+        children: Vec::new(),
+        name: "sex",
+        get_command: Some(Box::new(|m: & MapState, c| {
+            let mate_cmd = m.get_creature_list().iter().find(|c2| {
+                return c.can_sex(c2.get_id(), c2.components.evolving_traits.as_ref().unwrap().adult_traits.species, m.frame_count)
+                && c2.can_sex(c.get_id(), c.components.evolving_traits.as_ref().unwrap().adult_traits.species, m.frame_count);
+            }).map(|c2| {
+                return CreatureCommand::Sex(
+                    "sex_deer_closest_can", 
+                    c,
+                    c2,
+                    m.frame_count);
+            });
+            if mate_cmd.is_some() {
+                return mate_cmd.unwrap();
+            }
+
+            let target =m.find_closest_creature_to_creature(c).unwrap();
+            let cmd = CreatureCommand::Sex(
+                "sex_deer_closest", 
+                c, 
+                target,
+                m.frame_count);
+            println!("Choosing for {} target: {}", c.get_id(), target.get_id());
+            return cmd;
+        })),
+        get_requirements_met: Box::new(|m, c| m.find_closest_creature_to_creature(c).is_some()),
+    };
+    //let root = GoalNode::generate_single_node_graph(attack);
+
+    let mut game_state = GameState {
+        map_state:map
+    };
+    assert_eq!(game_state.map_state.get_creature_list().len(), 4);
+    assert_eq!(game_state.map_state.get_ground_item_list().len(), 0);
+    assert_eq!(game_state.map_state.get_creature_item_list().len(), 1);
+    assert_eq!(game_state.map_state.get_creature_item_list()[0].1, deer1_id);
+
+    println!("creatures: {}", game_state.map_state.get_creature_strings());
+
+    for _ in 0..7 {
+        game_state = run_frame(game_state, &attack);
+        println!("creatures: {}", game_state.map_state.get_creature_strings());
+    }
+
+    // no one dead
+    assert_eq!(game_state.map_state.get_creature_list().len(), 4);
+    assert_eq!(game_state.map_state.get_ground_item_list().len(), 0);
+
+    game_state.map_state.get_creature_list().iter().for_each(|c| {
+        let id = c.get_id();
+        if id == deer1_id {
+            assert!(c.components.sexual_reproduction.as_ref().unwrap().is_pregnant)
+        }
+        if id == deer2_id {
+            // too male to become pregnant (unless another super male was added)
+            assert!(!c.components.sexual_reproduction.as_ref().unwrap().is_pregnant)
+        }
+        if id == deer3_id {
+            assert!(c.components.sexual_reproduction.as_ref().unwrap().is_pregnant)
+        }
+        if id == deer4_id {
+            // not same species so no mate.
+            assert!(!c.components.sexual_reproduction.as_ref().unwrap().is_pregnant)
+        }
+    });
+
+    // TODONEXT: make sure far away creature cant reproduce! (add a 5th far away deer? and code to check distance)
+
+    // TODONEXT: actually test the reproduction part, see if kids come out at the right times.
+
+    // TODONEXT: Check if kids become adults.
+}
 
 // Make a test for simple attack system. Prob similar to the test_chain_multithread_battle test
 // Shud use for example thickness and sharp claws. can enhance later with all the other traits

@@ -282,12 +282,12 @@ impl CreatureCommand<'_> {
                         if sex2.is_pregnant {
                             return None;
                         }
-                        
                         // Chose who becomes pregnant based on traits.
                         let traits1 = c1.components.evolving_traits.as_ref().unwrap();
                         let traits2 = c2.components.evolving_traits.as_ref().unwrap();
 
-                        if !c1.can_sex(traits2.adult_traits.species, *current_frame) || !c2.can_sex(traits1.adult_traits.species, *current_frame) {
+                        if !c1.can_sex(c2.get_id(), traits2.adult_traits.species, *current_frame) || !c2.can_sex(c1.get_id(), traits1.adult_traits.species, *current_frame) {
+                            println!("Fail c1 can't sex {} {}", c1.get_id(), c2.get_id());
                             return None;
                         }
 
@@ -295,7 +295,7 @@ impl CreatureCommand<'_> {
                         let weight2 = traits2.get_pregnancy_weight();
                         
                         let mut rng = rand::thread_rng();
-                        let chosen = rng.gen_range(0, weight1 + weight2);
+                        let chosen = rng.gen_range(0, weight1 + weight2 + 1);
                         let pregnant_c2 = chosen > weight1;
                         let pregnant = if pregnant_c2 {
                             c2
@@ -307,7 +307,7 @@ impl CreatureCommand<'_> {
                         let ptraits = pregnant.components.evolving_traits.as_ref().unwrap();
                         let pregnancy_length = ptraits.get_pregnancy_length();
                         let mate_traits = mate.components.evolving_traits.as_ref().unwrap().adult_traits.clone();
-                        
+                        println!("SUCCESSFULLY SEXED! preg:{} mate: {}", pregnant.get_id(), mate.get_id());
                         return Some(EventChain{
                             events: vec![Event {
                                 event_type: EventType::Impregnate(mate_traits, current_frame + pregnancy_length), 

@@ -1,6 +1,6 @@
 use fmt::Debug;
 
-use crate::{Battle, BattleList, CreatureList, Location, battle, creature::CreatureState, map_state::Item, map_state::ItemType, map_state::MapState, utils::UID, EvolvingTraits};
+use crate::{Battle, BattleList, CreatureList, Location, battle, creature::CreatureState, map_state::Item, map_state::ItemType, map_state::MapState, utils::UID, EvolvingTraits, DEBUG_EVENTS};
 use core::fmt;
 use std::collections::HashMap;
 extern crate rayon;
@@ -34,6 +34,9 @@ pub struct EventChain {
 impl EventChain {
     fn process(mut self, effected: &mut EventTarget) -> Option<EventChain> {
         let e = self.events.remove(0);
+        if DEBUG_EVENTS {
+            println!("Processing {:?}", e);
+        }
         let success = (*e.get_requirements)(&*effected, &e.event_type);
         if success {
             let added_event = e.mutate(effected);

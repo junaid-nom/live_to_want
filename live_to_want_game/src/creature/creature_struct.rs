@@ -49,27 +49,39 @@ impl CreatureState {
 
     pub fn can_sex_anything(&self, frame: u128) -> bool {
         if self.components.sexual_reproduction.is_none() || self.components.evolving_traits.is_none() {
+            println!("No components :( {}", self.get_id());
             return false;
         }
         // cant if pregnant, and not child
         if self.components.sexual_reproduction.as_ref().unwrap().is_pregnant {
+            println!("they Preg already :( {}", self.get_id());
             return false;
         }
         if self.components.evolving_traits.as_ref().unwrap().get_if_child(frame) {
+            println!("child :( {}", self.get_id());
             return false;
         }
         true
     }
 
-    pub fn can_sex(&self, other_species: i32, frame: u128) -> bool {
+    pub fn can_sex(&self, other_id: u64, other_species: i32, frame: u128) -> bool {
         if !self.can_sex_anything(frame) {
+            println!("Cnat sex anything :( {} {}", self.get_id(), other_id);
             return false;
         }
+
+        if self.get_id() == other_id {
+            // TODO: Add self_fertilization, has a chance to allow self sex, determined by a stat in sex reproduction. whud have to be a whole update system like child that calculates if u can self sex this frame, so that can_sex and the actual event both succeed same frame.
+            println!("Cant sex urself :( {} {}", self.get_id(), other_id);
+            return false;
+        }
+
         // cant if pregnant, and not child and not same species
         if (self.components.evolving_traits.as_ref().unwrap().adult_traits.species - other_species).abs() > SPECIES_SEX_RANGE {
+            println!("not same species :( {} {}", self.get_id(), other_id);
             return false;
         }
-        
+        println!("Can sex {} {}", self.get_id(), other_id);
         true
     }
 
@@ -82,18 +94,25 @@ impl CreatureState {
     }
 
     pub fn setup_creature(&mut self, frame: u128, reset_health: bool) {
+        if self.components.evolving_traits.is_none() {
+            return;
+        }
         // setup childness
         self.components.evolving_traits.as_mut().unwrap().update_stats_based_on_childness(frame);
 
         // Setup max health and health.
-        let max_health = self.components.evolving_traits.as_ref().unwrap().get_max_health();
-        let already_max_health = self.components.health_component.as_ref().unwrap().at_max_health();
-        self.components.health_component.as_mut().unwrap().max_health = max_health;
-        if reset_health || already_max_health {
-            self.components.health_component.as_mut().unwrap().health = max_health;
+        if self.components.health_component.is_some() {
+            let max_health = self.components.evolving_traits.as_ref().unwrap().get_max_health();
+            let already_max_health = self.components.health_component.as_ref().unwrap().at_max_health();
+            self.components.health_component.as_mut().unwrap().max_health = max_health;
+            if reset_health || already_max_health {
+                self.components.health_component.as_mut().unwrap().health = max_health;
+            }
         }
         // setup movement stuff
-        self.components.movement_component.as_mut().unwrap().frames_to_move = self.components.evolving_traits.as_ref().unwrap().get_frames_to_move();
+        if self.components.movement_component.is_some() {
+            self.components.movement_component.as_mut().unwrap().frames_to_move = self.components.evolving_traits.as_ref().unwrap().get_frames_to_move();
+        } 
     }
 
     // for reproduction via budding mostly
@@ -168,14 +187,27 @@ impl std::fmt::Display for CreatureState {
 
         if let Some(bc) = self.components.battle_component.as_ref() {
             f_string = format!("{} | Combat: {}", f_string, bc.in_battle.as_ref().unwrap_or(&0));
-        } else {
-            f_string = format!("{} | Combat: N/A", f_string);
         }
 
-        f_string = format!("{} | items ", f_string);
-        for item in &self.inventory {
-            f_string = format!("{}, {:?}-{}",f_string, item.item_type, item.quantity);
+        if self.inventory.len() > 0 {
+            f_string = format!("{} | items ", f_string);
+            for item in &self.inventory {
+                f_string = format!("{}, {:?}-{}",f_string, item.item_type, item.quantity);
+            }
         }
+
+        if let Some(preg) = self.components.sexual_reproduction.as_ref() {
+            if preg.is_pregnant {
+                f_string = format!("{} | litter: {} done: {} mate:{:?}", f_string, preg.litter_size, preg.pregnancy_completion_frame, preg.partner_genes);
+            } else {
+                f_string = format!("{} NOT_PREG", f_string);
+            }
+        }
+
+        if let Some(evo) = self.components.evolving_traits.as_ref() {
+            f_string = format!("{} is_child_until:{} {:?}", f_string, evo.child_until_frame, evo.adult_traits);
+        }
+
         write!(f, "{}", f_string)
     }
 }
