@@ -1,6 +1,6 @@
 use rand::Rng;
 
-use crate::{EventTarget, Location, Vu2, map_state::MapState, tasks::Event, tasks::EventChain, tasks::EventType, MOVING_INCREASED_METABOLISM_FACTOR, EvolvingTraitsComponent, EvolvingTraits};
+use crate::{EventTarget, Location, Vu2, map_state::MapState, tasks::Event, tasks::EventChain, tasks::EventType, MOVING_INCREASED_METABOLISM_FACTOR, EvolvingTraitsComponent, EvolvingTraits, REPRODUCE_STARTING_CALORIES_MULTIPLIER, STANDARD_METABOLISM, STANDARD_PREGNANCY_LIVE_WEIGHT};
 
 use super::{CreatureState, STARVING_SLOW_METABOLISM_FACTOR};
 
@@ -114,6 +114,8 @@ pub fn starvation_system(c: &mut CreatureState) {
                 multiplier *= MOVING_INCREASED_METABOLISM_FACTOR;
             }
             s.calories -= (s.metabolism as f32 * multiplier) as i32;
+
+            // TODONEXT: integrate move_speed, fast_grower, thick_hide, is_pregnant and others
         } else {
             panic!("All starvation components require health component for: {}", c)
         }
@@ -130,6 +132,7 @@ pub fn sex_reproduction_system(m: &MapState, c: &CreatureState) -> Vec<EventChai
     // check if pregnant, if so, check if ready to pop, if so, pop kids out as event chain after figuring out their stats
     if let Some(s) = c.components.sexual_reproduction.as_ref() {
         if s.is_pregnant {
+            //println!("Checking if ready to pop out {} frame: {} goal: {}", c.get_id(), m.frame_count, s.pregnancy_completion_frame);
             if s.pregnancy_completion_frame == m.frame_count {
                 // NOTE assumes this is not a blocker!
                 assert!(c.components.block_space_component.is_none());
@@ -142,18 +145,23 @@ pub fn sex_reproduction_system(m: &MapState, c: &CreatureState) -> Vec<EventChai
                 let mut make_newborns: Vec<Event> = vec![];
 
                 (0..s.litter_size).for_each(|_| {
-                    let mut new_creature = c.clone();
+                    let mut new_creature = CreatureState::clone_to_new_location(c, location);
                     new_creature.components.evolving_traits = Some(EvolvingTraitsComponent {
                         adult_traits: c.components.evolving_traits.as_ref().unwrap().traits.clone_with_mate(&s.partner_genes),
                         traits: EvolvingTraits::default(), // need to base this off of the childness and stuff
-                        child_until_frame: m.frame_count + new_creature.get_child_length(mother_pregnany_time), // Based on current frame and pregnancy time of mother, as well as growth rate of child
+                        child_until_frame: 0, // Based on current frame and pregnancy time of mother, as well as growth rate of child
                         born_on_frame: m.frame_count,
-                    });
+                    }.get_mutated(1));
+                    new_creature.components.evolving_traits.as_mut().unwrap().child_until_frame = m.frame_count + new_creature.get_child_length(mother_pregnany_time);
                     
                     // Setup childness traits of the new_creature
                     // also setup creatures initial stuff based on traits, health for example.
                     // prob need to also zero out things like creature memory for the child?
                     new_creature.setup_creature(m.frame_count, true);
+
+                    if let Some(starvation) = new_creature.components.starvation_component.as_mut() {
+                        starvation.calories = (STANDARD_METABOLISM as f32 * REPRODUCE_STARTING_CALORIES_MULTIPLIER as f32 * c.components.evolving_traits.as_ref().unwrap().get_newborn_starting_calories_multiplier()) as i32;
+                    }
 
                     let create_event = Event {
                         event_type: EventType::AddCreature(new_creature, m.frame_count),
@@ -165,12 +173,25 @@ pub fn sex_reproduction_system(m: &MapState, c: &CreatureState) -> Vec<EventChai
                     make_newborns.push(create_event);
                 });
 
-                let iterate_events = vec![Event { 
-                    event_type: EventType::IterateSexReproduction(), 
+                let mut iterate_events = vec![Event { 
+                    event_type: EventType::ResetSexReproduction(), 
                     on_fail: None,
                     get_requirements: Box::new(|_,_|  true),
                     target: c.get_id(),
                 }];
+
+                let death_weight = c.components.evolving_traits.as_ref().unwrap().get_weight_of_childbirth_death();
+                let live_weight = STANDARD_PREGNANCY_LIVE_WEIGHT;
+                let mut rng = rand::thread_rng();
+                let chosen = rng.gen_range(0, live_weight);
+                if chosen < death_weight {
+                    iterate_events.push(Event { 
+                        event_type: EventType::SetHealth(0),
+                        on_fail: None,
+                        get_requirements: Box::new(|_,_|  true),
+                        target: c.get_id(),
+                    });
+                }
 
                 return vec![
                     EventChain {

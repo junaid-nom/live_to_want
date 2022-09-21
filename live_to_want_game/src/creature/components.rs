@@ -1,8 +1,5 @@
-use std::u32::MAX;
-
-use crate::{Item, map_state::Location, utils::{UID, get_id, Vector2, Vu2}};
+use crate::{Item, map_state::Location, utils::{UID, get_id, Vu2}};
 use serde::{Deserialize, Serialize};
-use super::CreatureState;
 use rand::Rng;
 // game constants:
 pub static DEBUG_EVENTS: bool = true;
@@ -10,12 +7,14 @@ pub static DEBUG_EVENTS: bool = true;
 pub static STANDARD_HP: i32 = 10000;
 pub static SIMPLE_ATTACK_BASE_DMG: i32 = 1000;
 pub static STANDARD_FRAMES_TO_MOVE: usize = 10;
-pub static STANDARD_CHILD_TIME: u128 = 30 * STANDARD_FRAMES_TO_MOVE as u128;
 pub static STANDARD_PREGNANCY_TIME: u128 = 20 * STANDARD_FRAMES_TO_MOVE as u128;
+pub static STANDARD_CHILD_TIME: u128 = STANDARD_PREGNANCY_TIME * 2 as u128; // Should be atleast double preg time to make maxing out pregnancy worthwhile?
 pub static BASE_PREGNANCY_CHANCE_WEIGHT: i32 = 100;
+pub static STANDARD_METABOLISM: i32 = 100;
+pub static STANDARD_PREGNANCY_LIVE_WEIGHT: i32 = 100;
 
 pub static STARVING_SLOW_METABOLISM_FACTOR: f32 = 0.5;
-pub static REPRODUCE_STARTING_CALORIES: i32 = 150;
+pub static REPRODUCE_STARTING_CALORIES_MULTIPLIER: i32 = 150;
 pub static MOVING_INCREASED_METABOLISM_FACTOR: f32 = 1.5;
 
 pub static MUTATION_CHANGE: i32 = 10;
@@ -31,8 +30,10 @@ pub static GIRTH_HEALTH_INCREASE: f32 = (STANDARD_HP as f32 * 0.7) / 100.0;
 pub static MOVE_SPEED_FRAME_REDUCTION: f32 = 0.1; // Every 10 pts = 1 frame less movement
 
 pub static BASE_PREGNANCY_TIME_ADDER: i32 = 1;
-pub static FAST_GROWER_MULTIPLIER: f32 = 0.001; // each point in fast grower reduces total time by .1%
+pub static FAST_GROWER_MULTIPLIER: f32 = 0.005; // each point in fast grower reduces total time by .5%
 pub static LITTER_SIZE_TRAIT_NEEDED_FOR_ONE_BABY: i32 = 100;
+pub static CANNIBAL_PREGNANCY_CHILD_CALORIES_MULTIPLIER: f32 = 0.1; // so 100 would give u 10x starting calories!
+pub static CANNIBAL_PREGNANCY_DEATH_WEIGHT_MULTIPLIER: f32 = 1.0; // so 100 would give u 10x starting calories!
 
 pub trait Component: Sync + Send + Clone {
     fn get_visible() -> bool {
@@ -293,13 +294,18 @@ impl Component for CreatureTypeComponent {
 // creature is a blocker as well then it has to move to an unoccupied space? and this must be done LINEARLY
 // because u cud have 2-4 blockers all moving to the same space
 
-#[derive(Debug, Hash, PartialEq, Eq, Clone)]
+#[derive(Debug, Hash, PartialEq, Eq)]
 #[derive(Deserialize, Serialize)]
 pub struct SexualReproduction {
     pub is_pregnant: bool,
     pub pregnancy_completion_frame: u128,
     pub litter_size: u32,
     pub partner_genes : EvolvingTraits,
+}
+impl Clone for SexualReproduction {
+    fn clone(&self) -> Self {
+        Self { is_pregnant: false, pregnancy_completion_frame: 0, litter_size: 0, partner_genes: EvolvingTraits::default() }
+    }
 }
 impl Component for SexualReproduction {
     fn get_visible() -> bool {
@@ -325,10 +331,12 @@ pub struct EvolvingTraits {
     pub pregnancy_time: i32, // increases pregnancy time but children come out more developed, and vice versa
     pub maleness: i32, // all animals are hermaphrodite, maleness makes it so u have less chance of being the one who becomes pregnant when sex. Need to also implement ways for animals to detect males in their AI and if they are also male themselves, this might cause male-male competition to evolve hopefully?
     pub fast_grower: i32, // decreases time as child once out of womb, but increases metabolism
-    
+    pub cannibal_childbirth: i32, // chance to die in childbirth, but babies born with a lot of calories
+
     //Unimplemented:
     pub hamstring: i32, // lowers speed of victim after attacksimple? need to make a whole status effect component for this? or add to movement componenet (prob that?)? how to do duration though and magnitude? debug stack shud prob make a whoel component then for status conditions?
     pub graceful: i32, // higher this value the less ur metabolism consumed when moving
+    pub more_mutations: i32, // Higher the number more mutations that will happen, similar to litter_size
 }
 impl EvolvingTraits {
     pub fn clone_with_multiplier(&self, multiplier :f32) -> EvolvingTraits {
@@ -344,6 +352,8 @@ impl EvolvingTraits {
             maleness: (self.maleness as f32 * multiplier) as i32,
             fast_grower: (self.fast_grower as f32 * multiplier) as i32,
             girth: (self.girth as f32 * multiplier) as i32,
+            more_mutations: (self.more_mutations as f32 * multiplier) as i32,
+            cannibal_childbirth: (self.cannibal_childbirth as f32 * multiplier) as i32,
         }
     }
 
@@ -378,6 +388,8 @@ impl EvolvingTraits {
             maleness: EvolvingTraits::mix_traits(self.maleness, mate.maleness),
             fast_grower: EvolvingTraits::mix_traits(self.fast_grower, mate.fast_grower),
             girth: EvolvingTraits::mix_traits(self.girth, mate.girth),
+            more_mutations: EvolvingTraits::mix_traits(self.more_mutations, mate.more_mutations),
+            cannibal_childbirth: EvolvingTraits::mix_traits(self.cannibal_childbirth, mate.cannibal_childbirth),
         }
     }
 }
@@ -442,6 +454,15 @@ impl EvolvingTraitsComponent {
         // gonna be tedious for every system... maybe make on "on init" type function that does this? also used when a child is born
     }
 
+    pub fn get_newborn_starting_calories_multiplier(&self) -> f32 {
+        // NOTE no downside to getting more than 100 cannibal_childbirth so maybe worth clamping to 100? or maybe its ok
+        return 1.0 + (self.traits.cannibal_childbirth as f32 * CANNIBAL_PREGNANCY_CHILD_CALORIES_MULTIPLIER);
+    }
+
+    pub fn get_weight_of_childbirth_death(&self) -> i32 {
+        (self.traits.cannibal_childbirth as f32 * CANNIBAL_PREGNANCY_DEATH_WEIGHT_MULTIPLIER) as i32
+    }
+
     pub fn get_frames_to_move(&self) -> usize {
         return STANDARD_FRAMES_TO_MOVE - (MOVE_SPEED_FRAME_REDUCTION * self.traits.move_speed as f32) as usize;
     }
@@ -455,7 +476,7 @@ impl EvolvingTraitsComponent {
     }
 
     pub fn get_pregnancy_length(&self) -> u128 {
-        return std::cmp::max(STANDARD_PREGNANCY_TIME as i32 + (self.traits.pregnancy_time * BASE_PREGNANCY_TIME_ADDER) as i32, 0) as u128;
+        return std::cmp::max(STANDARD_PREGNANCY_TIME as i32 + (self.traits.pregnancy_time * BASE_PREGNANCY_TIME_ADDER) as i32, 1) as u128;
     }
 
     pub fn get_total_metabolism_multiplier(&self, is_moving: bool) -> f32 {
@@ -482,7 +503,7 @@ impl EvolvingTraitsComponent {
             } else {
                 -1 * MUTATION_CHANGE
             };
-            let chosen = rng.gen_range(0, 9);
+            let chosen = rng.gen_range(0, 10);
             match chosen {
                 0 => {
                     child.adult_traits.thick_hide += change;
@@ -510,6 +531,9 @@ impl EvolvingTraitsComponent {
                 },
                 8 => {
                     child.adult_traits.fast_grower += change;
+                },
+                9 => {
+                    child.adult_traits.cannibal_childbirth += change;
                 },
                 _ => {
                     panic!("Got to an unimplemented mutation");
@@ -596,7 +620,7 @@ impl Clone for MovementComponent {
         MovementComponent{
             frames_to_move: self.frames_to_move,
             destination: self.destination,
-            moving: false,
+            moving: false, // TODO: hopefully this is enough for children to not bug out?
             frame_ready_to_move: self.frame_ready_to_move,
         }
     }
@@ -617,7 +641,7 @@ impl Component for StarvationComponent {
 impl Clone for StarvationComponent {
     fn clone(&self) -> Self {
         StarvationComponent{
-            calories: self.metabolism as i32 * REPRODUCE_STARTING_CALORIES,
+            calories: STANDARD_METABOLISM as i32 * REPRODUCE_STARTING_CALORIES_MULTIPLIER,
             metabolism: self.metabolism,
         }
     }
@@ -654,7 +678,7 @@ pub enum CombatAI {
 }
 
 #[derive(Debug)]
-#[derive(Hash, PartialEq, Eq, Clone)]
+#[derive(Hash, PartialEq, Eq)]
 #[derive(Deserialize, Serialize)]
 pub struct BattleComponent {
     pub in_battle:Option<UID>,
@@ -666,6 +690,11 @@ impl BattleComponent {
     }
     pub fn leave_in_battle(&mut self) {
         self.in_battle = None;
+    }
+}
+impl Clone for BattleComponent {
+    fn clone(&self) -> Self {
+        Self { in_battle: None }
     }
 }
 impl Component for BattleComponent {

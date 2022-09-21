@@ -219,7 +219,7 @@ impl Event {
                 }
                 _ => panic!("Wrong event target for budding"),
             },
-            EventType::IterateSexReproduction() => match effected {
+            EventType::ResetSexReproduction() => match effected {
                 EventTarget::CreatureTarget(c) => {
                     let birther = c.components.sexual_reproduction.as_mut().unwrap();
                     birther.is_pregnant = false;
@@ -351,7 +351,7 @@ pub enum EventType {
     SetHealth(i32),
     ChangeHealth(i32),
     IterateBudding(),
-    IterateSexReproduction(),
+    ResetSexReproduction(),
     //IterateMovement(u128),
     InitializeMovement(u128, Location),
     EnterBattle(UID),

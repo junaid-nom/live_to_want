@@ -1,8 +1,8 @@
 use std::{fmt::Formatter, cmp::max};
 use serde::{Deserialize, Serialize};
-use crate::{Location, RegionComponent, UID, map_state::Item, utils::Vector2, utils::Vu2, UserComponent, STANDARD_PREGNANCY_TIME, STANDARD_CHILD_TIME, FAST_GROWER_MULTIPLIER, SPECIES_SEX_RANGE};
+use crate::{Location, RegionComponent, UID, map_state::Item, utils::Vector2, utils::Vu2, UserComponent, STANDARD_PREGNANCY_TIME, STANDARD_CHILD_TIME, FAST_GROWER_MULTIPLIER, SPECIES_SEX_RANGE, MAX_ATTACK_DISTANCE};
 
-use super::{ComponentMap, IDComponent, LocationComponent, HealthComponent, NameComponent, StarvationComponent, REPRODUCE_STARTING_CALORIES};
+use super::{ComponentMap, IDComponent, LocationComponent, HealthComponent, NameComponent, StarvationComponent, REPRODUCE_STARTING_CALORIES_MULTIPLIER};
 
 #[derive(Debug, Hash, PartialEq, Eq)]
 pub enum CreatureType {
@@ -16,13 +16,18 @@ impl Default for CreatureType {
 }
 
 // Components have a func "get_is_visible()"
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 #[derive(Hash, PartialEq, Eq)]
 #[derive(Deserialize, Serialize)]
 pub struct CreatureState {
     pub components: ComponentMap,
     pub memory: CreatureMemory,
     pub inventory: Vec<Item>,
+}
+impl Clone for CreatureState {
+    fn clone(&self) -> Self {
+        CreatureState::clone_to_new_location(self, self.get_location().position)
+    }
 }
 impl CreatureState {
     pub fn new<'a>(loc: Vu2) -> CreatureState {
@@ -49,44 +54,67 @@ impl CreatureState {
 
     pub fn can_sex_anything(&self, frame: u128) -> bool {
         if self.components.sexual_reproduction.is_none() || self.components.evolving_traits.is_none() {
-            println!("No components :( {}", self.get_id());
+            //println!("No components :( {}", self.get_id());
             return false;
         }
         // cant if pregnant, and not child
         if self.components.sexual_reproduction.as_ref().unwrap().is_pregnant {
-            println!("they Preg already :( {}", self.get_id());
+            //println!("they Preg already :( {}", self.get_id());
             return false;
         }
         if self.components.evolving_traits.as_ref().unwrap().get_if_child(frame) {
-            println!("child :( {}", self.get_id());
+            //println!("child :( {}", self.get_id());
             return false;
         }
         true
     }
 
-    pub fn can_sex(&self, other_id: u64, other_species: i32, frame: u128) -> bool {
+    pub fn get_if_child(&self, frame: u128) -> bool {
+        if self.components.evolving_traits.as_ref().is_none() {
+            return false;
+        }
+
+        self.components.evolving_traits.as_ref().unwrap().get_if_child(frame)
+    }
+
+    pub fn can_sex(&self, other_id: u64, other_species: i32, other_location: Location, frame: u128) -> bool {
+        let dist = self.get_location().distance_in_region(&other_location);
+        match dist {
+            Some(dist) => {
+                if dist > MAX_ATTACK_DISTANCE {
+                    //println!("Trying to sex enemy out of range!");
+                    return false;
+                }
+            },
+            None => {
+                //println!("Trying to sex enemy not even in same region!");
+                return false;
+            },
+        }
+
         if !self.can_sex_anything(frame) {
-            println!("Cnat sex anything :( {} {}", self.get_id(), other_id);
+            //println!("Cnat sex anything :( {} {}", self.get_id(), other_id);
             return false;
         }
 
         if self.get_id() == other_id {
             // TODO: Add self_fertilization, has a chance to allow self sex, determined by a stat in sex reproduction. whud have to be a whole update system like child that calculates if u can self sex this frame, so that can_sex and the actual event both succeed same frame.
-            println!("Cant sex urself :( {} {}", self.get_id(), other_id);
+            //println!("Cant sex urself :( {} {}", self.get_id(), other_id);
             return false;
         }
 
         // cant if pregnant, and not child and not same species
         if (self.components.evolving_traits.as_ref().unwrap().adult_traits.species - other_species).abs() > SPECIES_SEX_RANGE {
-            println!("not same species :( {} {}", self.get_id(), other_id);
+            //println!("not same species :( {} {}", self.get_id(), other_id);
             return false;
         }
-        println!("Can sex {} {}", self.get_id(), other_id);
+        //println!("Can sex {} {}", self.get_id(), other_id);
         true
     }
 
     pub fn get_child_length(&self, mother_pregnany_time: u128) -> u128 {
-        let mut total_time = STANDARD_CHILD_TIME.saturating_sub(mother_pregnany_time - STANDARD_PREGNANCY_TIME);
+        println!("standard_child: {} mother_preg: {} standard_mother{}", STANDARD_CHILD_TIME, mother_pregnany_time, STANDARD_PREGNANCY_TIME);
+        let mut total_time = (STANDARD_CHILD_TIME as i32 - (mother_pregnany_time as i32 - STANDARD_PREGNANCY_TIME as i32)).max(0) as u128;
 
         total_time = (total_time as f32 * (1.0 - (FAST_GROWER_MULTIPLIER * self.components.evolving_traits.as_ref().unwrap().adult_traits.fast_grower as f32)).max(0.0)) as u128;
 
@@ -112,7 +140,7 @@ impl CreatureState {
         // setup movement stuff
         if self.components.movement_component.is_some() {
             self.components.movement_component.as_mut().unwrap().frames_to_move = self.components.evolving_traits.as_ref().unwrap().get_frames_to_move();
-        } 
+        }        
     }
 
     // for reproduction via budding mostly

@@ -286,8 +286,8 @@ impl CreatureCommand<'_> {
                         let traits1 = c1.components.evolving_traits.as_ref().unwrap();
                         let traits2 = c2.components.evolving_traits.as_ref().unwrap();
 
-                        if !c1.can_sex(c2.get_id(), traits2.adult_traits.species, *current_frame) || !c2.can_sex(c1.get_id(), traits1.adult_traits.species, *current_frame) {
-                            println!("Fail c1 can't sex {} {}", c1.get_id(), c2.get_id());
+                        if !c1.can_sex(c2.get_id(), traits2.adult_traits.species, c2.get_location(), *current_frame) || !c2.can_sex(c1.get_id(), traits1.adult_traits.species, c1.get_location(), *current_frame) {
+                            //println!("Fail c1 can't sex {} {}", c1.get_id(), c2.get_id());
                             return None;
                         }
 
@@ -295,7 +295,7 @@ impl CreatureCommand<'_> {
                         let weight2 = traits2.get_pregnancy_weight();
                         
                         let mut rng = rand::thread_rng();
-                        let chosen = rng.gen_range(0, weight1 + weight2 + 1);
+                        let chosen = rng.gen_range(0, (weight1 + weight2).max(1));
                         let pregnant_c2 = chosen > weight1;
                         let pregnant = if pregnant_c2 {
                             c2
