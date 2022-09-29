@@ -337,6 +337,7 @@ pub struct EvolvingTraits {
     pub hamstring: i32, // lowers speed of victim after attacksimple? need to make a whole status effect component for this? or add to movement componenet (prob that?)? how to do duration though and magnitude? debug stack shud prob make a whoel component then for status conditions?
     pub graceful: i32, // higher this value the less ur metabolism consumed when moving
     pub more_mutations: i32, // Higher the number more mutations that will happen, similar to litter_size
+    // pub anti_rape: i32, // increases chance of sex failing when other creatures try to sex you.
 }
 impl EvolvingTraits {
     pub fn clone_with_multiplier(&self, multiplier :f32) -> EvolvingTraits {

@@ -142,9 +142,57 @@ a LoginMsg or a DropMsg to the receiving pipe, and the game can handle that itse
 
 # Tips:
 
+### How file structure works
+This is a good summary: https://web.mit.edu/rust-lang_v1.25/arch/amd64_ubuntu1404/share/doc/rust/html/book/first-edition/crates-and-modules.html
+
+Basically you have a lib.rs file which declares all the modules.
+`mod mymod;`
+All modules either need to be declared:
+
+Right there: 
+```rs
+mod mymod {
+  pub fn blah() {}
+}
+```
+
+In a file:
+Note mymod.rs file name matches the mod mymod; in lib.rs
+```
+src\
+  - lib.rs
+  - main.rs
+  - mymod.rs
+```
+
+In folder with a mod.rs:
+```
+src\
+  - lib.rs
+  - main.rs
+  - mymod\
+    mod.rs
+```
+
+This can be recurssive, so mymod\mod.rs could have `mod mysubmodA;` and `mod mysubmodB;`.
+Then mysubmodA and mysubmodB must be implemented like above:
+- inside mymod\mod.rs 
+- new file mysubmodA.rs
+- new folder mymod\mysubmodA\mod.rs
+
+### Tests
+For a library crate you will need to import:
+extern crate mycrate;
+use mycrate::mymod::blah;
+
+
 ### Compile and run
 `cargo run` 
 Does nothing really right now but good for checking compiler.
+Note runs main.rs. A crate can have both a lib.rs and a main.rs
+
+`rustup update`
+updates rust version
 
 ### Run tests
 `cargo test`
@@ -156,6 +204,25 @@ Runs all test, and shows output
 `cargo test test_name -- --show-output`
 Runs tests that have matching name filter
 
+`cargo test --color always`
+to display colors
+
+`cargo test --release --test-threads=17`
+To test with optimizations on
+
 `$env:RUST_BACKTRACE=1`
 Turn on backtrace for powershell
 
+### dependencies weirdness:
+the deep_ai requires libtorch which you gotta do some weird stuff for:
+https://crates.io/crates/tch
+See "Libtorch Manual Install" which talks about how to get it working on windows
+
+You will need GCC to get it to work which you can get by following this:
+https://code.visualstudio.com/docs/cpp/config-mingw
+ - install mysys2 https://www.msys2.org/
+ - run `pacman -S --needed base-devel mingw-w64-x86_64-toolchain` in a mysys2 terminal
+ - for PATH env var add path to the bin something like: `C:\msys64\mingw64\bin`
+
+Reopen powershell for changes to take affect ofc.
+C:\Users\xjuna\Documents\live_to_want\deep_ai
