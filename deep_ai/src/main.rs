@@ -1,5 +1,6 @@
 mod normal_nets;
 use normal_nets::lolok;
+extern crate tch;
 use tch::Tensor;
 
 pub fn main() {
