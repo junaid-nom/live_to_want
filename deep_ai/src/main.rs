@@ -1,5 +1,5 @@
 mod normal_nets;
-use normal_nets::{lolok, RunMNISTConvNet};
+use normal_nets::{lolok, RunMNISTConvNet, run_net_on_cos_func};
 
 
 pub fn main() {
@@ -8,5 +8,6 @@ pub fn main() {
     println!("Cuda available: {}", tch::Cuda::is_available());
     println!("Cudnn available: {}", tch::Cuda::cudnn_is_available());
     
-    RunMNISTConvNet();
+    //RunMNISTConvNet();
+    run_net_on_cos_func();
 }
