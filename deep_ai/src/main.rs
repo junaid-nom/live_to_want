@@ -1,12 +1,12 @@
 mod normal_nets;
-use normal_nets::lolok;
-extern crate tch;
-use tch::Tensor;
+use normal_nets::{lolok, RunMNISTConvNet};
+
 
 pub fn main() {
     println!("{}", lolok());
-
-    let t = Tensor::of_slice(&[3, 1, 4, 1, 5]);
-    let t = t * 2;
-    t.print();
+    tch::maybe_init_cuda();
+    println!("Cuda available: {}", tch::Cuda::is_available());
+    println!("Cudnn available: {}", tch::Cuda::cudnn_is_available());
+    
+    RunMNISTConvNet();
 }

@@ -5,3 +5,5 @@ authors = ["JunaidNomani"]
 
 [dependencies]
 tch = "0.8.0"
+# anyhow is unneeded
+anyhow = "1.0.65"
