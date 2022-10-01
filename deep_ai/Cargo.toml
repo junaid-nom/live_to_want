@@ -7,3 +7,4 @@ authors = ["JunaidNomani"]
 tch = "0.8.0"
 # anyhow is unneeded
 anyhow = "1.0.65"
+plotters = "0.3.4"
