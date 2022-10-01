@@ -152,6 +152,10 @@ pub fn draw_graph() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 pub fn run_net_on_cos_func() {
+    // Easily make a tensor:
+    // let vec = [3.0, 1.0, 4.0, 1.0, 5.0].to_vec();
+    // let t1 = Tensor::of_slice(&vec);
+
     let root = BitMapBackend::new("plotters-doc-data/0.png", (640, 480)).into_drawing_area();
     root.fill(&WHITE).unwrap();
 
