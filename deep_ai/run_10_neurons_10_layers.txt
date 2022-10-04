@@ -1,0 +1,20 @@
+Lol Okay
+Cuda available: true
+Cudnn available: true
+x: [
+    20001,
+    1,
+]
+y: [
+    20001,
+    1,
+]
+batch_size: 20001 epochs 78000 LayerCount: 2, Nuerons per layer: 10 accuracy final: 0.8566551219909813
+batch_size: 20001 epochs 78000 LayerCount: 3, Nuerons per layer: 10 accuracy final: 0.8641685005736515
+batch_size: 20001 epochs 78000 LayerCount: 4, Nuerons per layer: 10 accuracy final: 0.9147818133232742
+batch_size: 20001 epochs 78000 LayerCount: 5, Nuerons per layer: 10 accuracy final: 0.9208758621893849
+batch_size: 20001 epochs 78000 LayerCount: 6, Nuerons per layer: 10 accuracy final: 0.9358046990496821
+batch_size: 20001 epochs 26885 LayerCount: 7, Nuerons per layer: 10 accuracy final: 0.9900004094043116
+batch_size: 20001 epochs 78000 LayerCount: 8, Nuerons per layer: 10 accuracy final: 0.9264785338864255
+batch_size: 20001 epochs 78000 LayerCount: 9, Nuerons per layer: 10 accuracy final: 0.9545514189620643
+batch_size: 20001 epochs 65522 LayerCount: 10, Nuerons per layer: 10 accuracy final: 0.9900121359364771

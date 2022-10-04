@@ -1,0 +1,101 @@
+Lol Okay
+Cuda available: true
+Cudnn available: true
+x: [
+    20001,
+    1,
+]
+y: [
+    20001,
+    1,
+]
+batch_size: 20001 epochs 78000 LayerCount: 2, Nuerons per layer: 10 accuracy final: 0.8242294678157118
+batch_size: 20001 epochs 78000 LayerCount: 3, Nuerons per layer: 10 accuracy final: 0.9310476203232037
+batch_size: 20001 epochs 75816 LayerCount: 4, Nuerons per layer: 10 accuracy final: 0.9900026246968654
+batch_size: 20001 epochs 52463 LayerCount: 5, Nuerons per layer: 10 accuracy final: 0.9900005063225785
+batch_size: 20001 epochs 78000 LayerCount: 6, Nuerons per layer: 10 accuracy final: 0.9828028806918419
+batch_size: 20001 epochs 38241 LayerCount: 7, Nuerons per layer: 10 accuracy final: 0.9900043099428748
+batch_size: 20001 epochs 46835 LayerCount: 8, Nuerons per layer: 10 accuracy final: 0.9900008798491913
+batch_size: 20001 epochs 32801 LayerCount: 9, Nuerons per layer: 10 accuracy final: 0.9900037088243253
+batch_size: 20001 epochs 78000 LayerCount: 10, Nuerons per layer: 10 accuracy final: 0.9765328812924607
+batch_size: 20001 epochs 78000 LayerCount: 2, Nuerons per layer: 10 accuracy final: 0.8404137946225352
+batch_size: 20001 epochs 78000 LayerCount: 3, Nuerons per layer: 10 accuracy final: 0.9452742857907058
+batch_size: 20001 epochs 78000 LayerCount: 4, Nuerons per layer: 10 accuracy final: 0.8825967240992751
+batch_size: 20001 epochs 78000 LayerCount: 5, Nuerons per layer: 10 accuracy final: 0.8888623958128428
+batch_size: 20001 epochs 78000 LayerCount: 6, Nuerons per layer: 10 accuracy final: 0.830512726836178
+batch_size: 20001 epochs 27575 LayerCount: 7, Nuerons per layer: 10 accuracy final: 0.9900014951499568
+batch_size: 20001 epochs 78000 LayerCount: 8, Nuerons per layer: 10 accuracy final: 0.9171766749257284
+batch_size: 20001 epochs 17390 LayerCount: 9, Nuerons per layer: 10 accuracy final: 0.9900024849279816
+batch_size: 20001 epochs 13481 LayerCount: 10, Nuerons per layer: 10 accuracy final: 0.9900020879034126
+batch_size: 20001 epochs 78000 LayerCount: 2, Nuerons per layer: 10 accuracy final: 0.8558849935549259
+batch_size: 20001 epochs 78000 LayerCount: 3, Nuerons per layer: 10 accuracy final: 0.8992712364680266
+batch_size: 20001 epochs 78000 LayerCount: 4, Nuerons per layer: 10 accuracy final: 0.8834418709364767
+batch_size: 20001 epochs 78000 LayerCount: 5, Nuerons per layer: 10 accuracy final: 0.938998236235282
+batch_size: 20001 epochs 78000 LayerCount: 6, Nuerons per layer: 10 accuracy final: 0.9206423892938377
+batch_size: 20001 epochs 78000 LayerCount: 7, Nuerons per layer: 10 accuracy final: 0.9463809975462731
+batch_size: 20001 epochs 78000 LayerCount: 8, Nuerons per layer: 10 accuracy final: 0.9426674986534086
+batch_size: 20001 epochs 44298 LayerCount: 9, Nuerons per layer: 10 accuracy final: 0.9900024843200446
+batch_size: 20001 epochs 78000 LayerCount: 10, Nuerons per layer: 10 accuracy final: 0.9577380011161681
+batch_size: 20001 epochs 78000 LayerCount: 2, Nuerons per layer: 10 accuracy final: 0.8772692584489609
+batch_size: 20001 epochs 78000 LayerCount: 3, Nuerons per layer: 10 accuracy final: 0.9029731944402297
+batch_size: 20001 epochs 78000 LayerCount: 4, Nuerons per layer: 10 accuracy final: 0.9360009626378822
+batch_size: 20001 epochs 78000 LayerCount: 5, Nuerons per layer: 10 accuracy final: 0.8198462472213017
+batch_size: 20001 epochs 78000 LayerCount: 6, Nuerons per layer: 10 accuracy final: 0.9673216497204934
+batch_size: 20001 epochs 45745 LayerCount: 7, Nuerons per layer: 10 accuracy final: 0.9900122294663894
+batch_size: 20001 epochs 78000 LayerCount: 8, Nuerons per layer: 10 accuracy final: 0.9238604323863149
+batch_size: 20001 epochs 15155 LayerCount: 9, Nuerons per layer: 10 accuracy final: 0.9900002057752242
+batch_size: 20001 epochs 16646 LayerCount: 10, Nuerons per layer: 10 accuracy final: 0.990006723101035
+batch_size: 20001 epochs 78000 LayerCount: 2, Nuerons per layer: 10 accuracy final: 0.8583521778884753
+batch_size: 20001 epochs 78000 LayerCount: 3, Nuerons per layer: 10 accuracy final: 0.9045397835453477
+batch_size: 20001 epochs 78000 LayerCount: 4, Nuerons per layer: 10 accuracy final: 0.8983887657482179
+batch_size: 20001 epochs 78000 LayerCount: 5, Nuerons per layer: 10 accuracy final: 0.9236435649168622
+batch_size: 20001 epochs 78000 LayerCount: 6, Nuerons per layer: 10 accuracy final: 0.8739614450069113
+batch_size: 20001 epochs 21533 LayerCount: 7, Nuerons per layer: 10 accuracy final: 0.990003898211595
+batch_size: 20001 epochs 78000 LayerCount: 8, Nuerons per layer: 10 accuracy final: 0.967976605091731
+batch_size: 20001 epochs 78000 LayerCount: 9, Nuerons per layer: 10 accuracy final: 0.9413432600223912
+batch_size: 20001 epochs 78000 LayerCount: 10, Nuerons per layer: 10 accuracy final: 0.9637238790074514
+batch_size: 20001 epochs 78000 LayerCount: 2, Nuerons per layer: 10 accuracy final: 0.8580042938698316
+batch_size: 20001 epochs 78000 LayerCount: 3, Nuerons per layer: 10 accuracy final: 0.910255282281381
+batch_size: 20001 epochs 78000 LayerCount: 4, Nuerons per layer: 10 accuracy final: 0.9047644609397939
+batch_size: 20001 epochs 78000 LayerCount: 5, Nuerons per layer: 10 accuracy final: 0.9448773658226135
+batch_size: 20001 epochs 78000 LayerCount: 6, Nuerons per layer: 10 accuracy final: 0.9764376119085386
+batch_size: 20001 epochs 78000 LayerCount: 7, Nuerons per layer: 10 accuracy final: 0.9617036108785638
+batch_size: 20001 epochs 66509 LayerCount: 8, Nuerons per layer: 10 accuracy final: 0.9900007397733589
+batch_size: 20001 epochs 78000 LayerCount: 9, Nuerons per layer: 10 accuracy final: 0.9892074477731583
+batch_size: 20001 epochs 13116 LayerCount: 10, Nuerons per layer: 10 accuracy final: 0.9900024922798469
+batch_size: 20001 epochs 78000 LayerCount: 2, Nuerons per layer: 10 accuracy final: 0.8575787759799909
+batch_size: 20001 epochs 78000 LayerCount: 3, Nuerons per layer: 10 accuracy final: 0.9088717432661263
+batch_size: 20001 epochs 78000 LayerCount: 4, Nuerons per layer: 10 accuracy final: 0.9250081769019793
+batch_size: 20001 epochs 56774 LayerCount: 5, Nuerons per layer: 10 accuracy final: 0.9900005359237453
+batch_size: 20001 epochs 78000 LayerCount: 6, Nuerons per layer: 10 accuracy final: 0.9480917490480495
+batch_size: 20001 epochs 36507 LayerCount: 7, Nuerons per layer: 10 accuracy final: 0.9900017872100341
+batch_size: 20001 epochs 78000 LayerCount: 8, Nuerons per layer: 10 accuracy final: 0.9778138475622882
+batch_size: 20001 epochs 78000 LayerCount: 9, Nuerons per layer: 10 accuracy final: 0.8192647139368447
+batch_size: 20001 epochs 17589 LayerCount: 10, Nuerons per layer: 10 accuracy final: 0.9900041566026919
+batch_size: 20001 epochs 78000 LayerCount: 2, Nuerons per layer: 10 accuracy final: 0.8778241116948965
+batch_size: 20001 epochs 78000 LayerCount: 3, Nuerons per layer: 10 accuracy final: 0.8839929534681952
+batch_size: 20001 epochs 78000 LayerCount: 4, Nuerons per layer: 10 accuracy final: 0.9591901490202094
+batch_size: 20001 epochs 78000 LayerCount: 5, Nuerons per layer: 10 accuracy final: 0.989562459069129
+batch_size: 20001 epochs 78000 LayerCount: 6, Nuerons per layer: 10 accuracy final: 0.9653453136866024
+batch_size: 20001 epochs 78000 LayerCount: 7, Nuerons per layer: 10 accuracy final: 0.9491970763195277
+batch_size: 20001 epochs 70204 LayerCount: 8, Nuerons per layer: 10 accuracy final: 0.9900025123298469
+batch_size: 20001 epochs 48284 LayerCount: 9, Nuerons per layer: 10 accuracy final: 0.9900013012061398
+batch_size: 20001 epochs 10001 LayerCount: 10, Nuerons per layer: 10 accuracy final: 0.9900026068044456
+batch_size: 20001 epochs 78000 LayerCount: 2, Nuerons per layer: 10 accuracy final: 0.8284670902779028
+batch_size: 20001 epochs 78000 LayerCount: 3, Nuerons per layer: 10 accuracy final: 0.9505137637384975
+batch_size: 20001 epochs 78000 LayerCount: 4, Nuerons per layer: 10 accuracy final: 0.9341933270149437
+batch_size: 20001 epochs 78000 LayerCount: 5, Nuerons per layer: 10 accuracy final: 0.9794577507816322
+batch_size: 20001 epochs 78000 LayerCount: 6, Nuerons per layer: 10 accuracy final: 0.9272202122992834
+batch_size: 20001 epochs 78000 LayerCount: 7, Nuerons per layer: 10 accuracy final: 0.9554977616061747
+batch_size: 20001 epochs 78000 LayerCount: 8, Nuerons per layer: 10 accuracy final: 0.9699154805704376
+batch_size: 20001 epochs 20766 LayerCount: 9, Nuerons per layer: 10 accuracy final: 0.9900007201137498
+batch_size: 20001 epochs 48517 LayerCount: 10, Nuerons per layer: 10 accuracy final: 0.9900178015336389
+batch_size: 20001 epochs 78000 LayerCount: 2, Nuerons per layer: 10 accuracy final: 0.8530344723743246
+batch_size: 20001 epochs 78000 LayerCount: 3, Nuerons per layer: 10 accuracy final: 0.8592308466478942
+batch_size: 20001 epochs 78000 LayerCount: 4, Nuerons per layer: 10 accuracy final: 0.9818064339500291
+batch_size: 20001 epochs 66790 LayerCount: 5, Nuerons per layer: 10 accuracy final: 0.9900000791008261
+batch_size: 20001 epochs 78000 LayerCount: 6, Nuerons per layer: 10 accuracy final: 0.9837273152749137
+batch_size: 20001 epochs 78000 LayerCount: 7, Nuerons per layer: 10 accuracy final: 0.9893541981098587
+batch_size: 20001 epochs 78000 LayerCount: 8, Nuerons per layer: 10 accuracy final: 0.9704886189127414
+batch_size: 20001 epochs 59227 LayerCount: 9, Nuerons per layer: 10 accuracy final: 0.9900053137511314
+batch_size: 20001 epochs 17516 LayerCount: 10, Nuerons per layer: 10 accuracy final: 0.9900113210923183

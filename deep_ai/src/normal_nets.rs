@@ -1,9 +1,10 @@
 extern crate tch;
+
 use self::tch::kind;
 
 use self::tch::data::Iter2;
 
-use self::tch::{nn, nn::ModuleT, nn::OptimizerConfig, Device, Tensor};
+use self::tch::{nn, nn::ModuleT, nn::LinearConfig, nn::OptimizerConfig, Device, Tensor, no_grad_guard};
 extern crate plotters;
 use self::plotters::prelude::*;
 
@@ -28,7 +29,7 @@ impl ConvMNISTNet {
         ConvMNISTNet { conv1, conv2, fc1, fc2 }
     }
 }
-impl nn::ModuleT for ConvMNISTNet {
+impl ModuleT for ConvMNISTNet {
     fn forward_t(&self, xs: &Tensor, train: bool) -> Tensor {
         xs.view([-1, 1, 28, 28])
             .apply(&self.conv1)
@@ -67,57 +68,47 @@ pub fn RunMNISTConvNet() {
 
 #[derive(Debug)]
 struct LongNet {
-    fc1: nn::Linear,
-    fc2: nn::Linear,
-    fc3: nn::Linear,
-    fc4: nn::Linear,
-    fc5: nn::Linear,
-    fc6: nn::Linear,
-    fc7: nn::Linear,
-    fc8: nn::Linear,
-    fc9: nn::Linear,
-    fc10: nn::Linear,
+    hidden_linears: Vec<nn::Linear>,
+    in_layer: nn::Linear,
+    out_layer: nn::Linear,
 }
 impl LongNet {
-    fn new(vs: &nn::Path) -> LongNet {
-        let fc1 = nn::linear(vs, 1, 200, Default::default());
-        let fc2 = nn::linear(vs, 200, 200, Default::default());
-        let fc3 = nn::linear(vs, 200, 200, Default::default());
-        let fc4 = nn::linear(vs, 200, 200, Default::default());
-        let fc5 = nn::linear(vs, 200, 200, Default::default());
-        let fc6 = nn::linear(vs, 10, 10, Default::default());
-        let fc7 = nn::linear(vs, 10, 10, Default::default());
-        let fc8 = nn::linear(vs, 10, 10, Default::default());
-        let fc9 = nn::linear(vs, 10, 10, Default::default());
-        let fc10 = nn::linear(vs, 200, 1, Default::default());
-        LongNet { fc1, fc2, fc3, fc4, fc5, fc6, fc7, fc8, fc9, fc10 }
+    fn new(vs: &nn::Path, hidden_layers_count: usize, hidden_layer_dim: i64, in_dim :i64, out_dim: i64) -> LongNet {
+        let lconfig = LinearConfig{
+            ..Default::default()
+        };
+        
+        let mut net = LongNet{ 
+            hidden_linears: vec![], 
+            //fc1, fc2, fc3, fc4, fc5, fc6, fc7, fc8, fc9, fc10,
+            in_layer: nn::linear(vs, in_dim, hidden_layer_dim, Default::default()),
+            out_layer: nn::linear(vs, hidden_layer_dim, out_dim, Default::default()),
+        };
+
+        for lay in 0..hidden_layers_count{
+            net.hidden_linears.push(nn::linear(vs, hidden_layer_dim, hidden_layer_dim, Default::default()));
+        }
+        //no_grad_guard();
+        //net.in_layer.ws = net.in_layer.ws.fill(1).requires_grad_(false);
+        net
     }
 }
-impl nn::ModuleT for LongNet {
+impl ModuleT for LongNet {
     fn forward_t(&self, xs: &Tensor, train: bool) -> Tensor {
-        let a = xs.view([-1,1])
-            .apply(&self.fc1)
-            .leaky_relu()
-            .apply(&self.fc2)
-            .leaky_relu()
-            .apply(&self.fc3)
-            .leaky_relu()
-            .apply(&self.fc4)
-            .leaky_relu()
-            .apply(&self.fc5)
-            .leaky_relu()
-            // .apply(&self.fc6)
-            // .leaky_relu()
-            // .apply(&self.fc7)
-            // .leaky_relu()
-            // .apply(&self.fc8)
-            // .leaky_relu()
-            // .apply(&self.fc9)
-            // .leaky_relu()
-            .apply(&self.fc10);
-        //a.print();
+        let a = xs.view([-1,1]);
+        let mut a = a.apply(&self.in_layer).leaky_relu();
+        for layer in &self.hidden_linears {
+            a = a.apply(layer).leaky_relu();
+        }
+        a = a.apply(&self.out_layer);
         a
     }
+}
+
+#[test]
+pub fn test_net_set_weights() {
+    let vs = nn::VarStore::new(Device::cuda_if_available());
+    let net = LongNet::new(&vs.root(), 0, 10, 1, 1);
 }
 
 pub fn draw_graph() -> Result<(), Box<dyn std::error::Error>> {
@@ -151,6 +142,44 @@ pub fn draw_graph() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
+pub fn get_net_accuracy(net: &dyn ModuleT, x: &Tensor, true_y: &Tensor, batch_size: i64) -> f64 {
+    let _no_grad = no_grad_guard();
+    let mut sum_accuracy = 0f64;
+    let mut sample_count = 0f64;
+    for (xs, ys) in Iter2::new(x, true_y, batch_size).to_device(Device::cuda_if_available()).return_smaller_last_batch() {
+        let y_out = net.forward_t(&xs, false);
+        let size = xs.size()[0] as f64;
+        sum_accuracy += get_accuracy_tensors(&y_out, &ys);
+        sample_count += size;
+    }
+    (1. - (sum_accuracy / sample_count)).abs()
+}
+
+pub fn get_accuracy_tensors(y: &Tensor, true_y: &Tensor) -> f64 {
+    Vec::<f64>::from((y.true_divide(true_y).f_add_scalar(-1)).unwrap().abs().sum(tch::Kind::Double))[0]
+}
+#[test]
+fn test_get_net_accuracy() {
+    assert_eq!(get_accuracy_tensors(
+        &Tensor::of_slice(&[1,2,3,4,5]),
+        &Tensor::of_slice(&[1,2,3,4,5])), 0.);
+
+    assert_eq!(get_accuracy_tensors(
+        &Tensor::of_slice(&[2,4,6,8,10]),
+        &Tensor::of_slice(&[1,2,3,4,5])
+    ) / 5., 1.);
+
+    assert_eq!(get_accuracy_tensors(
+        &Tensor::of_slice(&[1,4,6,8,5, 6]),
+        &Tensor::of_slice(&[1,2,3,4,5, 6])
+    ) / 6., 0.5);
+
+    assert_eq!(get_accuracy_tensors(
+        &Tensor::of_slice(&[1,2,3,4,5, 6]),
+        &Tensor::of_slice(&[1,4,6,8,5, 6])
+    ) / 6., 0.25);
+}
+
 pub fn run_net_on_cos_func() {
     // Easily make a tensor:
     // let vec = [3.0, 1.0, 4.0, 1.0, 5.0].to_vec();
@@ -175,15 +204,15 @@ pub fn run_net_on_cos_func() {
     let x = x.reshape(&[20001, 1]);
     //x.print();
     println!("x: {:#?}", x.size());
-    let y = (x.square() * 10).sin().exponential_(3.0).cos();
+    let y = (x.square() * 10).sin().pow_(3.0).cos();
     let y = y.reshape(&[20001, 1]);
     //y.print();
     println!("y: {:#?}", y.size());
     //println!("x, 15000: {:#?}", x.view([20001]).double_value(&[15000]));
     //println!("vec x {:#?}", Vec::<f64>::from(&x));
 
-    let og_iter = (-50..=50).map(|x| x as f32 / 50.0).map(|x| (x, x * x));
-    let true_iter = Vec::<f64>::from(&x).into_iter().zip(Vec::<f64>::from(&y));
+    //let og_iter = (-50..=50).map(|x| x as f32 / 50.0).map(|x| (x, x * x));
+    //let true_iter = Vec::<f64>::from(&x).into_iter().zip(Vec::<f64>::from(&y));
     let true_iter2= Vec::<f32>::from(&x).into_iter().zip(Vec::<f32>::from(&y));
 
     //println!("example {:#?}", og_iter);
@@ -206,6 +235,63 @@ pub fn run_net_on_cos_func() {
     // TODONEXT: Why does the function result for y KEEP CHANGING???
     // and why is the graph totally fucked
 
+    let vs = nn::VarStore::new(Device::cuda_if_available());
+    for _ in 0..10 {
+        for layer_count in 0..9 {
+            let hidden_layers_count = layer_count;
+            let hidden_layer_neurons = 10;
+            
+            let net = LongNet::new(&vs.root(), hidden_layers_count, hidden_layer_neurons, 1, 1);
+            let mut opt = nn::Adam::default().build(&vs, 1e-4).unwrap();
+            let batch_size = 20001;
+            let epoch_default = 1000;
+            let epochs = batch_size / 256 / 1 * epoch_default;
+            //let epochs = 1;
+            let mut epochs_occured = 0;
+            let mut test_accuracy = 0.;
+            for _ in 1..epochs+1 {
+                epochs_occured += 1;
+                let mut data = Iter2::new(&x,&y,batch_size);
+                let data = data.to_device(Device::cuda_if_available());
+                for (batch_xs, batch_ys) in data.shuffle() {
+                    //println!("xs: {:#?}", batch_xs.size());
+                    let loss = net.forward_t(&batch_xs, true);
+                    let loss = loss.mse_loss(&batch_ys, tch::Reduction::Mean);
+                    //loss.print();
+                    opt.backward_step(&loss);
+                }
+                
+                test_accuracy = get_net_accuracy(&net, &x, &y, batch_size);
+                // println!("epoch: {:4} test acc: {:5.2}%", epoch, 100. * test_accuracy,);
+                if test_accuracy > 0.99 {
+                    break;
+                }
+            }
+    
+            println!("batch_size: {} epochs {} LayerCount: {}, Nuerons per layer: {} accuracy final: {}", batch_size, epochs_occured, hidden_layers_count + 2, hidden_layer_neurons, test_accuracy);
+    
+            let mut data = Iter2::new(&x,&y,256);
+            let data = data.to_device(Device::cuda_if_available());
+            let mut total_vec = Vec::<(f32,f32)>::new();
+            for (batch_xs, _) in data {
+                //println!("xs: {:#?}", batch_xs.size());
+                let out = net.forward_t(&batch_xs, false);
+                //out.print();
+                let part_iter= Vec::<f32>::from(&batch_xs).into_iter().zip(Vec::<f32>::from(&out));
+                total_vec.extend(part_iter);
+            }
+    
+            chart
+                .draw_series(LineSeries::new(
+                    //true_iter.clone(),
+                    total_vec.clone(),
+                    &BLUE,
+                )).unwrap()
+                .label(String::from(format!("net L: {} N: {}", hidden_layers_count, hidden_layer_neurons)))
+                .legend(|(x, y)| PathElement::new(vec![(x, y), (x + 20, y)], &BLUE));
+        }
+    }
+    
     chart
         .configure_series_labels()
         .background_style(&WHITE.mix(0.8))
@@ -213,21 +299,5 @@ pub fn run_net_on_cos_func() {
         .draw().unwrap();
 
     root.present().unwrap();
-
-    let vs = nn::VarStore::new(Device::cuda_if_available());
-    let net = LongNet::new(&vs.root());
-    let mut opt = nn::Adam::default().build(&vs, 1e-4).unwrap();
-
-    for epoch in 1..100 {
-        let mut data = Iter2::new(&x,&y,256);
-        let mut data = data.to_device(Device::cuda_if_available());
-        for (batch_xs, batch_ys) in data.shuffle() {
-            //println!("xs: {:#?}", batch_xs.size());
-            let loss = net.forward_t(&batch_xs, true).mse_loss(&batch_ys, tch::Reduction::Mean);
-            //loss.print();
-            opt.backward_step(&loss);
-        }
-        let test_accuracy = net.batch_accuracy_for_logits(&x, &y, vs.device(), 1024);
-        println!("epoch: {:4} test acc: {:5.2}%", epoch, 100. * test_accuracy,);
-    }
+    
 }
