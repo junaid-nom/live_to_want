@@ -1,5 +1,6 @@
-mod normal_nets;
 mod bert_nets;
+mod normal_nets;
+
 use bert_nets::*;
 use normal_nets::*;
 
