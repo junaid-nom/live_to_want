@@ -16,6 +16,7 @@ pub struct MathRLGame{
     pub moves: Vec<MathRLGameMove>,
     pub current: Vec<f32>,
     pub answer: Vec<MathRLGameMove>,
+    pub won: bool,
 }
 impl MathRLGame{
     pub fn new(number_length: usize, sequence_until_goal: usize, max_num: f32) -> MathRLGame {
@@ -52,21 +53,30 @@ impl MathRLGame{
             current: starting.clone(),
             starting,
             answer,
+            won: false,
         }
     }
     pub fn operate_self(&mut self, op: MathRLGameMove) {
         let mut prev = None;
         if op.operation == 0 {
             for i in (0..self.moves.len()).rev() {
-                if !self.moves[i].undone {
+                if !self.moves[i].undone && self.moves[i].operation != 0 {
                     prev = Some(&mut self.moves[i]);
                     break;
                 }
             }
         }
+        if op.operation == 0 && prev.is_none() {
+            self.moves.push(op);
+            return;
+        } else {
+            MathRLGame::operate_inplace(&op, &mut self.current, prev);
+            self.moves.push(op);
+        }
+    }
 
-        MathRLGame::operate_inplace(&op, &mut self.current, prev);
-        self.moves.push(op);
+    pub fn check_if_won(&self) -> bool {
+        return self.current == self.goal;
     }
 
     pub fn operate(op: &MathRLGameMove, src: &Vec<f32>, previous: Option<&mut MathRLGameMove>) -> Vec<f32> {
@@ -135,5 +145,87 @@ impl MathRLGame{
             }
         }        
     }
+}
+
+
+// TESTS:
+#[test]
+pub fn test_math_rl_game() {
+    // perform a bunch of moves and some undos and make sure it works
+    let mut many_undos = MathRLGame {
+        starting: vec![2., 2., 3.],
+        goal: vec![1., 6., 12.],
+        moves: vec![],
+        current: vec![2., 2., 3.],
+        answer: vec![],
+        won: false,
+    };
+    let moves_to_do = vec![
+        MathRLGameMove { // 3*2 = 6
+            operation: 3,
+            pos1: 2, 
+            pos2: 1, 
+            save_into_pos1: true, 
+            undone: false 
+        },
+        MathRLGameMove { 
+            operation: 3, // 6*2 = 12
+            pos1: 2, 
+            pos2: 1, 
+            save_into_pos1: true, 
+            undone: false 
+        },
+
+        // 2 wrong actions, undo one, then do another wrong action, then undo twice
+        MathRLGameMove { 
+            operation: 2, // 2 - 12 = -10
+            pos1: 1,
+            pos2: 2, 
+            save_into_pos1: true, 
+            undone: false
+        },
+        MathRLGameMove { 
+            operation: 4, // 2 / -10 = -.2
+            pos1: 0, 
+            pos2: 1,
+            save_into_pos1: true, 
+            undone: false 
+        },
+        MathRLGameMove { 
+            operation: 0, // undo
+            pos1: 0, 
+            pos2: 0,
+            save_into_pos1: true, 
+            undone: false 
+        }, // 2, -10, 12
+        MathRLGameMove {
+            operation: 4, // -10/2 = -5
+            pos1: 1, 
+            pos2: 0,
+            save_into_pos1: true, 
+            undone: false 
+        },
+        MathRLGameMove { 
+            operation: 0, // undo
+            pos1: 0, 
+            pos2: 0,
+            save_into_pos1: true, 
+            undone: false 
+        }, 
+        MathRLGameMove { 
+            operation: 0, // undo
+            pos1: 0, 
+            pos2: 0,
+            save_into_pos1: true, 
+            undone: false 
+        }, // 2, 6, 12
+    ];
+    for m in moves_to_do {
+        many_undos.operate_self(m);
+        println!("game state now: {:#?}", many_undos);
+    }
+    assert_eq!(many_undos.current.into_iter().map(|x| (x * 100.).round()).collect::<Vec<f32>>(), vec![2.0f32, 2., 12.].into_iter().map(|x| (x * 100.).round()).collect::<Vec<f32>>());
+
+    // make a test where we do a game.
 }
 
