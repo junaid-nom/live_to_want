@@ -72,6 +72,9 @@ impl MathRLGame{
         } else {
             MathRLGame::operate_inplace(&op, &mut self.current, prev);
             self.moves.push(op);
+            if self.check_if_won() {
+                self.won = true;
+            }
         }
     }
 
@@ -226,6 +229,6 @@ pub fn test_math_rl_game() {
     }
     assert_eq!(many_undos.current.into_iter().map(|x| (x * 100.).round()).collect::<Vec<f32>>(), vec![2.0f32, 2., 12.].into_iter().map(|x| (x * 100.).round()).collect::<Vec<f32>>());
 
-    // make a test where we do a game.
+    // make a test where we do a game. try every operation. and make sure u try subtract and divide with diff bools for which one u save to.
 }
 
