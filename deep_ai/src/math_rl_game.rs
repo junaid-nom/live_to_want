@@ -60,7 +60,21 @@ impl MathRLGame{
             if op.operation == 3 && (goal[op.pos1] == 0. || goal[op.pos2] == 0.) {
                 op.operation = 1;
             }
-
+            let result = MathRLGame::operate(&op, &goal, None);
+            let mut bad = false;
+            for r in result {
+                if r != 0. && !r.is_normal() {
+                    bad = true;
+                }
+            }
+            if bad {
+                let add = (goal[op.pos1] + goal[op.pos2]);
+                if add == 0. || add.is_normal() {
+                    op.operation = 1;
+                } else {
+                    op.operation = 2;
+                }
+            }
             MathRLGame::operate_inplace(&op, &mut goal, None);
             answer.push(op);
         }
@@ -511,12 +525,15 @@ pub fn test_math_rl_game() {
 
 #[test]
 pub fn run_long_sequence() {
-    let mut long_one = MathRLGame::new(3, 200, 99.);
-    for mov in long_one.answer.clone() {
-        long_one.operate_self(mov);
-        println!("game state now: {:#?}", long_one.current);
+    for _ in 0..100 {
+        let mut long_one = MathRLGame::new(3, 200, 99.);
+        for mov in long_one.answer.clone() {
+            long_one.operate_self(mov);
+            println!("game state now: {:#?}", long_one.current);
+        }
+        println!("game state now: {:#?} goal {:#?}", long_one.current, long_one.goal);
+        assert_eq!(long_one.won, true);
     }
-    println!("game state now: {:#?} goal {:#?}", long_one.current, long_one.goal);
-    assert_eq!(long_one.won, true);
+    
 }
 
