@@ -4,6 +4,8 @@ extern crate rust_bert;
 use std::iter::successors;
 
 use self::rust_bert::bert::BertConfig;
+use normal_nets::*;
+
 
 use self::tch::kind;
 
@@ -215,6 +217,49 @@ pub fn test_encode_decode() {
     println!("original {:#?} decoded {:#?}", original, decoded);
     assert_eq!(original, decoded);
 }
+
+#[derive(Debug)]
+struct DumbformerLayer {
+    heads: Vec<LongNet>,
+    head_combiner: nn::Linear,
+    token_size: usize,
+    max_num_tokens: usize,
+    extra_size: usize,
+    total_inp_length: i64,
+}
+impl DumbformerLayer {
+    fn new(vs: &nn::Path, token_size: usize, max_num_tokens: usize, extra_size: usize, head_count: usize, head_hidden_layers: usize, head_hidden_node_size:i64, head_combiner_node_size: i64) -> DumbformerLayer {
+        let total_inp_length: i64 = (extra_size + ((token_size+max_num_tokens) * (max_num_tokens + 1))) as i64;
+        
+        let mut heads = vec![];
+        for _ in 0..head_count{
+            heads.push(LongNet::new(vs, head_hidden_layers, head_hidden_node_size, total_inp_length, token_size as i64));
+        }
+
+        let head_combiner = nn::linear(vs, total_inp_length, head_combiner_node_size, Default::default());
+        
+        DumbformerLayer {
+            heads,
+            head_combiner,
+            token_size,
+            max_num_tokens,
+            extra_size,
+            total_inp_length,
+        }
+    }
+}
+impl ModuleT for DumbformerLayer {
+    fn forward_t(&self, xs: &Tensor, train: bool) -> Tensor {
+        let a = xs.view([-1, self.total_inp_length]);
+        // let mut a = a.apply(&self.in_layer).leaky_relu();
+        // for layer in &self.hidden_linears {
+        //     a = a.apply(layer).leaky_relu();
+        // }
+        // a = a.apply(&self.out_layer);
+        a
+    }
+}
+
 
 
 pub fn bert_test_on_math() {

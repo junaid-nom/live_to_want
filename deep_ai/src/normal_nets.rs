@@ -69,13 +69,13 @@ pub fn RunMNISTConvNet() {
 
 
 #[derive(Debug)]
-struct LongNet {
+pub struct LongNet {
     hidden_linears: Vec<nn::Linear>,
     in_layer: nn::Linear,
     out_layer: nn::Linear,
 }
 impl LongNet {
-    fn new(vs: &nn::Path, hidden_layers_count: usize, hidden_layer_dim: i64, in_dim :i64, out_dim: i64) -> LongNet {
+    pub fn new(vs: &nn::Path, hidden_layers_count: usize, hidden_layer_dim: i64, in_dim :i64, out_dim: i64) -> LongNet {
         let lconfig = LinearConfig{
             ..Default::default()
         };
