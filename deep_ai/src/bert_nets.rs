@@ -263,6 +263,8 @@ impl ModuleT for DumbformerLayer {
     /// position should be after token in the sentence
     fn forward_t(&self, xs: &Tensor, train: bool) -> Tensor {
         let a = xs.view([-1, self.sentence_length_with_extra]); // should it be 1?
+        assert_eq!(a.requires_grad(), true);
+
         let row_count_real = a.size()[0];
 
         let extra_size = self.extra_size as i64;
@@ -276,10 +278,13 @@ impl ModuleT for DumbformerLayer {
             let mut outs = vec![];
             outs.push(extra.copy());
             let inp = Tensor::cat(&[extra.copy(), token, sentence.copy()],1);
+            assert_eq!(inp.requires_grad(), true);
+
             for head in &self.heads {
                 outs.push(head.forward_t(&inp, train).leaky_relu());
             }
             let total_out = Tensor::cat(&outs, 1);
+            assert_eq!(total_out.requires_grad(), true);
             final_tokens.push(self.head_combiner.forward_t(&total_out, train).leaky_relu());
         }
         let mut tokens_plus_pos = Vec::new();
@@ -289,22 +294,20 @@ impl ModuleT for DumbformerLayer {
             let pos = pos.repeat(&[row_count_real, 1]);
             tokens_plus_pos.push(Tensor::cat(&[token, &pos],1));
         }
-        return Tensor::cat(&tokens_plus_pos, 1);
+
+        let output = Tensor::cat(&tokens_plus_pos, 1);
+        assert_eq!(output.requires_grad(), true);
+        return output;
         
         // take out extra
         // take out sentence.
         // for each token: inp= extra + token + sentence 
             // foreach head(inp) -> out
                 // concatenate outs
-            // obtain head_combiner out per token
+            // re-add extra obtain head_combiner out per token
         // sentence = foreach token: token + position
         // final out: extra + sentence.
 
-        // let mut a = a.apply(&self.in_layer).leaky_relu();
-        // for layer in &self.hidden_linears {
-        //     a = a.apply(layer).leaky_relu();
-        // }
-        // a = a.apply(&self.out_layer);
     }
 }
 
@@ -325,10 +328,11 @@ fn test_transformations() {
     let head_combiner_size = (extra_size + (head_count * token_size_no_pos)) as i64;
     let token_and_pos_size = (token_size_no_pos + pos_size) as i64;
 
-    let xs = Tensor::of_slice(&[
-        22,22,22,    0,1,2,3,4,44,
-        66,66,66,    5,6,7,8,9,99,
-        -22,-22,-22, -1, -2, -3, -4, -5, -55,]);
+    let mut xs = Tensor::of_slice(&[
+        22.,22.,22.,    0.,1.,2.,3.,4.,44.,
+        66.,66.,66.,    5.,6.,7.,8.,9.,99.,
+        -22.,-22.,-22., -1., -2., -3., -4., -5., -55.,]);
+    xs = xs.requires_grad_(true);
     let row_count = 3;
     let a = xs.view([-1, sentence_length_with_extra]); // should it be 1?
     let row_count_real = a.size()[0];
@@ -364,6 +368,7 @@ fn test_transformations() {
         println!("total to head inp:");
         let inp = Tensor::cat(&[extra.copy(), token.copy(), sentence.copy()],1);
         inp.print();
+        assert_eq!(inp.requires_grad(), true);
         assert_eq!(inp.internal_shape_as_tensor(), Tensor::of_slice(&[row_count, total_inp_length_to_head]));
         println!("total to head inp END");
 
