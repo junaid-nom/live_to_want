@@ -5,6 +5,7 @@ use std::iter::successors;
 
 use self::rust_bert::bert::BertConfig;
 use normal_nets::*;
+use self::tch::IndexOp;
 
 
 use self::tch::kind;
@@ -228,7 +229,7 @@ struct DumbformerLayer {
     total_inp_length: i64,
 }
 impl DumbformerLayer {
-    fn new(vs: &nn::Path, token_size: usize, max_num_tokens: usize, extra_size: usize, head_count: usize, head_hidden_layers: usize, head_hidden_node_size:i64, head_combiner_node_size: i64) -> DumbformerLayer {
+    fn new(vs: &nn::Path, token_size: usize, max_num_tokens: usize, extra_size: usize, head_count: usize, head_hidden_layers: usize, head_hidden_node_size:i64) -> DumbformerLayer {
         let total_inp_length: i64 = (extra_size + ((token_size+max_num_tokens) * (max_num_tokens + 1))) as i64;
         
         let mut heads = vec![];
@@ -236,7 +237,7 @@ impl DumbformerLayer {
             heads.push(LongNet::new(vs, head_hidden_layers, head_hidden_node_size, total_inp_length, token_size as i64));
         }
 
-        let head_combiner = nn::linear(vs, total_inp_length, head_combiner_node_size, Default::default());
+        let head_combiner = nn::linear(vs, total_inp_length, (token_size - max_num_tokens) as i64 , Default::default());
         
         DumbformerLayer {
             heads,
@@ -250,13 +251,43 @@ impl DumbformerLayer {
 }
 impl ModuleT for DumbformerLayer {
     fn forward_t(&self, xs: &Tensor, train: bool) -> Tensor {
-        let a = xs.view([-1, self.total_inp_length]);
+        let a = xs.view([-1, self.total_inp_length]); // should it be 1?
+        let extra_size = self.extra_size as i64;
+        let extra = a.i((.., 0..extra_size));
+        let sentence = a.i((.., extra_size..));
+        let chunks = sentence.chunk(self.total_inp_length - extra_size, 1);
+        let mut final_tokens = Vec::new();
+        for token in chunks {
+            let mut outs = vec![];
+            let inp = Tensor::cat(&[extra.copy(), token, sentence.copy()],1);
+            for head in &self.heads {
+                outs.push(head.forward_t(&inp, train));
+            }
+            let total_out = Tensor::cat(&outs, 1);
+            final_tokens.push(self.head_combiner.forward_t(&total_out, train));
+        }
+        let mut tokens_plus_pos = Vec::new();
+        tokens_plus_pos.push(extra);
+        for (i, token) in final_tokens.iter().enumerate() {
+            let pos = Tensor::of_slice(&(pos_to_encoding(i, self.max_num_tokens)));
+            tokens_plus_pos.push(Tensor::cat(&[token, &pos],1));
+        }
+        return Tensor::cat(&tokens_plus_pos, 1);
+        
+        // take out extra
+        // take out sentence.
+        // for each token: inp= extra + token + sentence 
+            // foreach head(inp) -> out
+                // concatenate outs
+            // obtain head_combiner out per token
+        // sentence = foreach token: token + position
+        // final out: extra + sentence.
+
         // let mut a = a.apply(&self.in_layer).leaky_relu();
         // for layer in &self.hidden_linears {
         //     a = a.apply(layer).leaky_relu();
         // }
         // a = a.apply(&self.out_layer);
-        a
     }
 }
 
