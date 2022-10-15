@@ -223,53 +223,70 @@ pub fn test_encode_decode() {
 struct DumbformerLayer {
     heads: Vec<LongNet>,
     head_combiner: nn::Linear,
-    token_size: usize,
+    token_size_no_pos: usize,
     max_num_tokens: usize,
     extra_size: usize,
-    total_inp_length: i64,
+    total_inp_length_to_head: i64,
+    sentence_length_with_extra: i64,
+    head_combiner_size: i64,
 }
 impl DumbformerLayer {
-    fn new(vs: &nn::Path, token_size: usize, max_num_tokens: usize, extra_size: usize, head_count: usize, head_hidden_layers: usize, head_hidden_node_size:i64) -> DumbformerLayer {
-        let total_inp_length: i64 = (extra_size + ((token_size+max_num_tokens) * (max_num_tokens + 1))) as i64;
+    fn new(vs: &nn::Path, token_size_no_pos: usize, max_num_tokens: usize, extra_size: usize, head_count: usize, head_hidden_layers: usize, head_hidden_node_size:i64) -> DumbformerLayer {
+        let pos_size = max_num_tokens;
         
+        let total_inp_length_to_head: i64 = (extra_size + ((token_size_no_pos+pos_size) * (max_num_tokens + 1))) as i64;
+        let sentence_length_with_extra = (extra_size + ((token_size_no_pos+pos_size) * (max_num_tokens))) as i64;
+
+        let head_combiner_size = (extra_size + (head_count * token_size_no_pos)) as i64;
+
         let mut heads = vec![];
         for _ in 0..head_count{
-            heads.push(LongNet::new(vs, head_hidden_layers, head_hidden_node_size, total_inp_length, token_size as i64));
+            heads.push(LongNet::new(vs, head_hidden_layers, head_hidden_node_size, total_inp_length_to_head, token_size_no_pos as i64));
         }
 
-        let head_combiner = nn::linear(vs, total_inp_length, (token_size - max_num_tokens) as i64 , Default::default());
+        let head_combiner = nn::linear(vs, head_combiner_size, (token_size_no_pos) as i64 , Default::default());
         
         DumbformerLayer {
             heads,
             head_combiner,
-            token_size,
+            token_size_no_pos,
             max_num_tokens,
             extra_size,
-            total_inp_length,
+            total_inp_length_to_head,
+            sentence_length_with_extra,
+            head_combiner_size,
         }
     }
 }
 impl ModuleT for DumbformerLayer {
+    /// Input should be: extra, sentence(token1, pos1, token2, pos2, token3, pos3 ...)
+    /// position should be after token in the sentence
     fn forward_t(&self, xs: &Tensor, train: bool) -> Tensor {
-        let a = xs.view([-1, self.total_inp_length]); // should it be 1?
+        let a = xs.view([-1, self.sentence_length_with_extra]); // should it be 1?
+        let row_count_real = a.size()[0];
+
         let extra_size = self.extra_size as i64;
         let extra = a.i((.., 0..extra_size));
         let sentence = a.i((.., extra_size..));
-        let chunks = sentence.chunk(self.total_inp_length - extra_size, 1);
+        let token_and_pos_size = (self.token_size_no_pos + self.max_num_tokens) as i64;
+
+        let chunks = sentence.chunk(self.max_num_tokens as i64, 1);
         let mut final_tokens = Vec::new();
         for token in chunks {
             let mut outs = vec![];
+            outs.push(extra.copy());
             let inp = Tensor::cat(&[extra.copy(), token, sentence.copy()],1);
             for head in &self.heads {
-                outs.push(head.forward_t(&inp, train));
+                outs.push(head.forward_t(&inp, train).leaky_relu());
             }
             let total_out = Tensor::cat(&outs, 1);
-            final_tokens.push(self.head_combiner.forward_t(&total_out, train));
+            final_tokens.push(self.head_combiner.forward_t(&total_out, train).leaky_relu());
         }
         let mut tokens_plus_pos = Vec::new();
         tokens_plus_pos.push(extra);
         for (i, token) in final_tokens.iter().enumerate() {
             let pos = Tensor::of_slice(&(pos_to_encoding(i, self.max_num_tokens)));
+            let pos = pos.repeat(&[row_count_real, 1]);
             tokens_plus_pos.push(Tensor::cat(&[token, &pos],1));
         }
         return Tensor::cat(&tokens_plus_pos, 1);
@@ -291,6 +308,113 @@ impl ModuleT for DumbformerLayer {
     }
 }
 
+
+#[test]
+fn test_transformations() {
+    let extra_size = 3;
+    let token_size_no_pos = 2;
+    let max_num_tokens = 2;
+    let pos_size = 1;
+
+    let head_count = 3;
+
+    let total_inp_length_to_head: i64 = (extra_size + ((token_size_no_pos+pos_size) * (max_num_tokens + 1))) as i64;
+    assert_eq!(total_inp_length_to_head, 12);
+
+    let sentence_length_with_extra = (extra_size + ((token_size_no_pos+pos_size) * (max_num_tokens))) as i64;
+    let head_combiner_size = (extra_size + (head_count * token_size_no_pos)) as i64;
+    let token_and_pos_size = (token_size_no_pos + pos_size) as i64;
+
+    let xs = Tensor::of_slice(&[
+        22,22,22,    0,1,2,3,4,44,
+        66,66,66,    5,6,7,8,9,99,
+        -22,-22,-22, -1, -2, -3, -4, -5, -55,]);
+    let row_count = 3;
+    let a = xs.view([-1, sentence_length_with_extra]); // should it be 1?
+    let row_count_real = a.size()[0];
+    assert_eq!(row_count, row_count_real);
+
+    let extra_size = extra_size as i64;
+    let extra = a.i((.., 0..extra_size));
+    println!("EXTRA:");
+    extra.print();
+    println!("EXTRA END");
+    assert_eq!(extra.internal_shape_as_tensor(), Tensor::of_slice(&[row_count, extra_size]));
+
+    let sentence = a.i((.., extra_size..));
+    println!("Sentence:");
+    sentence.print();
+    println!("Sentence END");
+    assert_eq!(sentence.internal_shape_as_tensor(), Tensor::of_slice(&[row_count, sentence_length_with_extra - extra_size]));
+
+    // NOTE first number in chunks is how many chunks there are so size of each chunk is: total_size/chunks
+    let chunks = sentence.chunk(max_num_tokens, 1);
+    assert_eq!(chunks.len(), max_num_tokens as usize);
+
+    let mut final_tokens = vec![];
+
+    println!("Each token:");
+    for token in chunks {
+        let mut outs = vec![];
+        outs.push(extra.copy());
+        println!("token:");
+        token.print();
+        assert_eq!(token.internal_shape_as_tensor(), Tensor::of_slice(&[row_count, token_and_pos_size]));
+
+        println!("total to head inp:");
+        let inp = Tensor::cat(&[extra.copy(), token.copy(), sentence.copy()],1);
+        inp.print();
+        assert_eq!(inp.internal_shape_as_tensor(), Tensor::of_slice(&[row_count, total_inp_length_to_head]));
+        println!("total to head inp END");
+
+        for i in 0..head_count {
+            outs.push(token.copy().i((.., 0..token_size_no_pos)));
+        }
+
+        let total_out = Tensor::cat(&outs, 1);
+        println!("total to head inp:");
+        total_out.print();
+        assert_eq!(token_size_no_pos * head_count + extra_size, head_combiner_size);
+        assert_eq!(total_out.size(), [row_count, head_combiner_size]);
+        println!("total to head inp END");
+
+        final_tokens.push(token.copy().i((.., 0..token_size_no_pos)));
+    }
+    println!("Each token END");
+
+    let mut tokens_plus_pos = Vec::new();
+    tokens_plus_pos.push(extra);
+    for (i, token) in final_tokens.iter().enumerate() {
+        let pos = Tensor::of_slice(&[i as i64]);
+        let pos = pos.repeat(&[row_count_real, 1]);
+        tokens_plus_pos.push(Tensor::cat(&[token, &pos],1));
+    }
+    let final_out = Tensor::cat(&tokens_plus_pos, 1);
+    println!("Final out:");
+    final_out.print();
+    assert_eq!(final_out.size(), a.size());
+
+    // let mut final_tokens = Vec::new();
+    // for token in chunks {
+    //     let mut outs = vec![];
+    //     let inp = Tensor::cat(&[extra.copy(), token, sentence.copy()],1);
+    //     for head in &self.heads {
+    //         outs.push(head.forward_t(&inp, train).leaky_relu());
+    //     }
+    //     let total_out = Tensor::cat(&outs, 1);
+    //     final_tokens.push(self.head_combiner.forward_t(&total_out, train).leaky_relu());
+    // }
+    // let mut tokens_plus_pos = Vec::new();
+    // tokens_plus_pos.push(extra);
+    // for (i, token) in final_tokens.iter().enumerate() {
+    //     let pos = Tensor::of_slice(&(pos_to_encoding(i, self.max_num_tokens)));
+    //     tokens_plus_pos.push(Tensor::cat(&[token, &pos],1));
+    // }
+    // return Tensor::cat(&tokens_plus_pos, 1);
+
+
+    assert!(true);
+}
 
 
 pub fn bert_test_on_math() {
