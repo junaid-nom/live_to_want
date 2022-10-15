@@ -73,6 +73,7 @@ pub struct LongNet {
     hidden_linears: Vec<nn::Linear>,
     in_layer: nn::Linear,
     out_layer: nn::Linear,
+    in_size: i64
 }
 impl LongNet {
     pub fn new(vs: &nn::Path, hidden_layers_count: usize, hidden_layer_dim: i64, in_dim :i64, out_dim: i64) -> LongNet {
@@ -85,6 +86,7 @@ impl LongNet {
             //fc1, fc2, fc3, fc4, fc5, fc6, fc7, fc8, fc9, fc10,
             in_layer: nn::linear(vs, in_dim, hidden_layer_dim, Default::default()),
             out_layer: nn::linear(vs, hidden_layer_dim, out_dim, Default::default()),
+            in_size: in_dim,
         };
 
         for lay in 0..hidden_layers_count{
@@ -97,7 +99,7 @@ impl LongNet {
 }
 impl ModuleT for LongNet {
     fn forward_t(&self, xs: &Tensor, train: bool) -> Tensor {
-        let a = xs.view([-1,1]);
+        let a = xs.view([-1, self.in_size]);
         let mut a = a.apply(&self.in_layer).leaky_relu();
         for layer in &self.hidden_linears {
             a = a.apply(layer).leaky_relu();
@@ -180,44 +182,6 @@ fn test_get_net_accuracy() {
         &Tensor::of_slice(&[1,2,3,4,5, 6]),
         &Tensor::of_slice(&[1,4,6,8,5, 6])
     ) / 6., 0.25);
-}
-
-
-#[derive(Debug)]
-struct AttentionNet {
-    hidden_linears: Vec<nn::Linear>,
-    in_layer: nn::Linear,
-    out_layer: nn::Linear,
-}
-impl AttentionNet {
-    fn new(vs: &nn::Path, hidden_layers_count: usize, hidden_layer_dim: i64, in_dim :i64, out_dim: i64) -> LongNet {
-        
-
-        let mut net = LongNet{ 
-            hidden_linears: vec![], 
-            //fc1, fc2, fc3, fc4, fc5, fc6, fc7, fc8, fc9, fc10,
-            in_layer: nn::linear(vs, in_dim, hidden_layer_dim, Default::default()),
-            out_layer: nn::linear(vs, hidden_layer_dim, out_dim, Default::default()),
-        };
-
-        for lay in 0..hidden_layers_count{
-            net.hidden_linears.push(nn::linear(vs, hidden_layer_dim, hidden_layer_dim, Default::default()));
-        }
-        //no_grad_guard();
-        //net.in_layer.ws = net.in_layer.ws.fill(1).requires_grad_(false);
-        net
-    }
-}
-impl ModuleT for AttentionNet {
-    fn forward_t(&self, xs: &Tensor, train: bool) -> Tensor {
-        let a = xs.view([-1,1]);
-        let mut a = a.apply(&self.in_layer).leaky_relu();
-        for layer in &self.hidden_linears {
-            a = a.apply(layer).leaky_relu();
-        }
-        a = a.apply(&self.out_layer);
-        a
-    }
 }
 
 
