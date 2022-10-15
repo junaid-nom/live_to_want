@@ -395,6 +395,7 @@ fn test_transformations() {
         tokens_plus_pos.push(Tensor::cat(&[token, &pos],1));
     }
     let final_out = Tensor::cat(&tokens_plus_pos, 1);
+    assert_eq!(final_out.requires_grad(), true);
     println!("Final out:");
     final_out.print();
     assert_eq!(final_out.size(), a.size());
