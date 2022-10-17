@@ -13,5 +13,6 @@ pub fn main() {
     
     //RunMNISTConvNet();
     //draw_graph().unwrap();
-    run_net_on_cos_func();
+    //run_net_on_cos_func();
+    dumbformer_test_on_identity();
 }

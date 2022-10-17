@@ -147,20 +147,28 @@ pub fn draw_graph() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 pub fn get_net_accuracy(net: &dyn ModuleT, x: &Tensor, true_y: &Tensor, batch_size: i64) -> f64 {
+    return get_net_accuracy_inner(net, x, true_y, batch_size, false);
+}
+
+pub fn get_net_accuracy_inner(net: &dyn ModuleT, x: &Tensor, true_y: &Tensor, batch_size: i64, print_outs: bool) -> f64 {
     let _no_grad = no_grad_guard();
     let mut sum_accuracy = 0f64;
     let mut sample_count = 0f64;
     for (xs, ys) in Iter2::new(x, true_y, batch_size).to_device(Device::cuda_if_available()).return_smaller_last_batch() {
         let y_out = net.forward_t(&xs, false);
+        if print_outs {
+            y_out.print();
+        }
         let size = xs.size()[0] as f64;
         sum_accuracy += get_accuracy_tensors(&y_out, &ys);
         sample_count += size;
     }
+    println!("Sum acc: {} Sample Count: {}", sum_accuracy,sample_count);
     (1. - (sum_accuracy / sample_count)).abs()
 }
 
 pub fn get_accuracy_tensors(y: &Tensor, true_y: &Tensor) -> f64 {
-    Vec::<f64>::from((y.true_divide(true_y).f_add_scalar(-1)).unwrap().abs().sum(tch::Kind::Double))[0]
+    Vec::<f64>::from((y.f_add_scalar(0.001).unwrap().true_divide(&true_y.f_add_scalar(0.001).unwrap()).f_add_scalar(-1)).unwrap().abs().sum(tch::Kind::Double))[0]
 }
 #[test]
 fn test_get_net_accuracy() {
