@@ -359,6 +359,27 @@ impl ModuleT for DumbformerLayer {
         // final out: extra + sentence.
 
     }
+
+}
+impl DumbformerLayer {
+    fn backward(&self) -> Tensor {
+        // final out
+        // -> final out.grad()
+        // split by token
+        // for each token, times it by the weights. so t1 * weights + t2 *weights etc
+        // this will be the gradient for the out layer of the head combiner.
+        // take that gradient and run it through headCombiner.backward_with_grad_data
+        // now u have the gradient for the head combiner. 
+        // take that gradient and split it by head output. so head1_gradient, head2_gradient...
+        // then for each head do backward_with_grad_data with its head1_gradient etc.
+        // this will give gradients for each extra + token + sentence.
+            // take out the gradient extra and sum it as extra gradient.
+            // take out sentence gradient for each one and sum it.
+            // take out each token's gradient and combine it into a sentence gradient and add that to the existing sentence gradient
+        // return extra -cat- sentence gradient
+        // apply to layer above in the calling code via backward_with_grad_data
+        Tensor::of_slice(&[0,2,3])
+    }
 }
 
 
