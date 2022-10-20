@@ -307,8 +307,6 @@ impl ModuleT for DumbformerLayer {
         if train {
             assert_eq!(a.requires_grad(), true);
         }
-        
-
         let row_count_real = a.size()[0];
 
         let extra_size = self.extra_size as i64;
@@ -382,6 +380,109 @@ impl DumbformerLayer {
     }
 }
 
+#[test]
+fn test_cat_and_copy() {
+    let vs = nn::VarStore::new(Device::cuda_if_available());
+
+    let leftLayer = nn::linear(&vs.root(), 9, 3 as i64 , Default::default());
+    let rightLayer = nn::linear(&vs.root(), 9, 3 as i64 , Default::default());
+    let combinedLayer = nn::linear(&vs.root(), 6, 6 as i64 , Default::default());
+
+    let x = Tensor::randint_low(1, 999, &[10000, 6], kind::FLOAT_CUDA);
+    let y = x.copy();
+    let mut opt = nn::Adam::default().build(&vs, 1e-4).unwrap();
+    let mut start_loss = 0;
+    let mut end_loss = 0;
+    for epoch in 0..100 {
+        let mut data = Iter2::new(&x,&y, 100);
+        let data = data.to_device(Device::cuda_if_available());
+        for (batch_xs, batch_ys) in data.shuffle() {
+            //println!("xs: {:#?}", batch_xs.size());
+            let xleft = batch_xs.i((.., 0..3));
+            let xright = batch_xs.i((.., 3..6));
+            let xleft_total = Tensor::cat(&[xleft, batch_xs.copy()], 1);
+            let xright_total = Tensor::cat(&[xright, batch_xs.copy()], 1);
+
+            let leftOut = leftLayer.forward_t(&xleft_total, true);
+            let rightOut = rightLayer.forward_t(&xright_total, true);
+            let out = Tensor::cat(&[leftOut, rightOut], 1).leaky_relu();
+            let afterOut = combinedLayer.forward_t(&out, true);
+            let loss = afterOut.mse_loss(&batch_ys, tch::Reduction::Mean);
+            // loss.backward();
+            // let out_grad = out.grad();
+            // out_grad.print();
+            // let left_out_grad = out_grad.i((.., 0..3));
+            // let right_out_grad = out_grad.i((.., 3..6));
+
+            // leftOut.backward_with_grad_data::<Tensor, _, _>(&left_out_grad, None, None, &[]);
+            // rightOut.backward_with_grad_data::<Tensor, _, _>(&right_out_grad, None, None, &[]);
+            loss.print();
+            if epoch == 0 {
+                start_loss = Vec::<i64>::from(&loss)[0];
+            } else if epoch == 99 {
+                end_loss = Vec::<i64>::from(&loss)[0];
+            }
+
+            opt.backward_step(&loss);
+        }
+    }
+    println!("start loss: {} end loss: {}", start_loss, end_loss);
+    assert!(start_loss > end_loss * 10);
+
+}
+
+#[test]
+fn test_chunk_and_single() {
+    let vs = nn::VarStore::new(Device::cuda_if_available());
+
+    let half_layer = nn::linear(&vs.root(), 11, 3 as i64 , Default::default());
+    let combinedLayer = nn::linear(&vs.root(), 6, 6 as i64 , Default::default());
+
+    // 3 extra, num1, pos1, num2, pos2... num6, pos6
+    let extra_size = 3;
+    let token_size = 2;
+    let pos_size = 1;
+    let token_count = 6;
+    let x = Tensor::randint_low(1, 999, &[10000, extra_size+((token_size + pos_size) * token_count)], kind::FLOAT_CUDA);
+    let y = x.copy();
+    let mut opt = nn::Adam::default().build(&vs, 1e-4).unwrap();
+    let mut start_loss = 0;
+    let mut end_loss = 0;
+    for epoch in 0..100 {
+        let mut data = Iter2::new(&x,&y, 100);
+        let data = data.to_device(Device::cuda_if_available());
+        let mut loss = Tensor::randint_low(1, 999, &[1], kind::FLOAT_CUDA);
+        for (batch_xs, batch_ys) in data.shuffle() {
+            let middle = batch_xs.i((.., 3..5));
+
+            let chunks = batch_xs.chunk(2, 1);
+            assert_eq!(chunks.len(), 2);
+            let mut outs = vec![];
+            for threes in chunks {
+                let combined = Tensor::cat(&[middle.copy(), threes, batch_xs.copy()], 1);
+                outs.push(half_layer.forward_t(&combined, true).leaky_relu());
+            }
+
+            let total_out = Tensor::cat(&outs, 1);
+            
+            let afterOut = combinedLayer.forward_t(&total_out, true);
+            loss = afterOut.mse_loss(&batch_ys, tch::Reduction::Mean);
+
+            //loss.print();
+            opt.backward_step(&loss);
+        }
+        if epoch == 0 {
+            start_loss = Vec::<i64>::from(&loss)[0];
+            half_layer.ws.print();
+        } else if epoch == 99 {
+            end_loss = Vec::<i64>::from(&loss)[0];
+            half_layer.ws.print();
+        }
+    }
+    println!("start loss: {} end loss: {}", start_loss, end_loss);
+    assert!(start_loss > end_loss * 10);
+
+}
 
 #[test]
 fn test_transformations() {
