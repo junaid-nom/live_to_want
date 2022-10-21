@@ -262,8 +262,8 @@ pub fn test_encode_decode() {
 
 #[derive(Debug)]
 struct DumbformerLayer {
-    heads: Vec<LongNet>,
-    head_combiner: nn::Linear,
+    pub heads: Vec<LongNet>,
+    pub head_combiner: nn::Linear,
     token_size_no_pos: usize,
     max_num_tokens: usize,
     extra_size: usize,
@@ -305,7 +305,8 @@ impl ModuleT for DumbformerLayer {
     fn forward_t(&self, xs: &Tensor, train: bool) -> Tensor {
         let mut a = xs.view([-1, self.sentence_length_with_extra]); // should it be 1?
         if train {
-            assert_eq!(a.requires_grad(), true);
+            //println!("Requires grad a: {:#?}", a.requires_grad());
+            //assert_eq!(a.requires_grad(), true);
         }
         let row_count_real = a.size()[0];
 
@@ -316,12 +317,15 @@ impl ModuleT for DumbformerLayer {
 
         let chunks = sentence.chunk(self.max_num_tokens as i64, 1);
         let mut final_tokens = Vec::new();
+        let mut positions = vec![];
         for token in chunks {
             let mut outs = vec![];
             outs.push(extra.copy());
-            let inp = Tensor::cat(&[extra.copy(), token, sentence.copy()],1);
+            let inp = Tensor::cat(&[extra.copy(), token.copy(), sentence.copy()],1);
             if train {
-                assert_eq!(inp.requires_grad(), true);
+                //println!("Requires grad inp: {:#?}", inp.requires_grad());
+
+                //assert_eq!(inp.requires_grad(), true);
             }
 
             for head in &self.heads {
@@ -329,20 +333,23 @@ impl ModuleT for DumbformerLayer {
             }
             let total_out = Tensor::cat(&outs, 1);
             if train {
+                //println!("Requires grad total_out: {:#?}", total_out.requires_grad());
                 assert_eq!(total_out.requires_grad(), true);
             }
+            positions.push(token.i((.., (self.token_size_no_pos as i64)..(self.token_size_no_pos+self.max_num_tokens) as i64)));
             final_tokens.push(self.head_combiner.forward_t(&total_out, train).leaky_relu());
         }
         let mut tokens_plus_pos = Vec::new();
         tokens_plus_pos.push(extra);
         for (i, token) in final_tokens.iter().enumerate() {
-            let pos = Tensor::of_slice(&(pos_to_encoding(i, self.max_num_tokens))).to_device(Device::cuda_if_available());
-            let pos = pos.repeat(&[row_count_real, 1]).to_device(Device::cuda_if_available());
-            tokens_plus_pos.push(Tensor::cat(&[token, &pos],1));
+            // let pos = Tensor::of_slice(&(pos_to_encoding(i, self.max_num_tokens))).to_device(Device::cuda_if_available());
+            // let pos = pos.repeat(&[row_count_real, 1]).to_device(Device::cuda_if_available());
+            tokens_plus_pos.push(Tensor::cat(&[token, &positions[i]],1));
         }
 
         let output = Tensor::cat(&tokens_plus_pos, 1);
         if train {
+            //println!("Requires grad output: {:#?}", output.requires_grad());
             assert_eq!(output.requires_grad(), true);
         }
         return output;
@@ -434,17 +441,26 @@ fn test_cat_and_copy() {
 #[test]
 fn test_chunk_and_single() {
     let vs = nn::VarStore::new(Device::cuda_if_available());
-
-    let half_layer = nn::linear(&vs.root(), 11, 3 as i64 , Default::default());
-    let combinedLayer = nn::linear(&vs.root(), 6, 6 as i64 , Default::default());
-
     // 3 extra, num1, pos1, num2, pos2... num6, pos6
+    // TODONEXT: make it so its almost the same as the real dumbformer.
+    // so it shud take extra, sentence, tokenenize sentence. for loop each one.
+    // and see if that works. if it does add more heads. and then maybe try the weird last part of catenating
+    // and the tokens.
     let extra_size = 3;
     let token_size = 2;
     let pos_size = 1;
     let token_count = 6;
     let x = Tensor::randint_low(1, 999, &[10000, extra_size+((token_size + pos_size) * token_count)], kind::FLOAT_CUDA);
     let y = x.copy();
+
+    println!("Requires grad x: {:#?}", x.requires_grad());
+
+    let head_1 = nn::linear(&vs.root(), extra_size+ ((token_size + pos_size) * (token_count + 1)), token_size as i64 , Default::default());
+    let head_2 = nn::linear(&vs.root(), extra_size+ ((token_size + pos_size) * (token_count + 1)), token_size as i64 , Default::default());
+
+    let heads = vec![head_1, head_2];
+    let head_combiner = nn::linear(&vs.root(), token_size * heads.len() as i64 + extra_size, token_size as i64 , Default::default());
+
     let mut opt = nn::Adam::default().build(&vs, 1e-4).unwrap();
     let mut start_loss = 0;
     let mut end_loss = 0;
@@ -453,30 +469,110 @@ fn test_chunk_and_single() {
         let data = data.to_device(Device::cuda_if_available());
         let mut loss = Tensor::randint_low(1, 999, &[1], kind::FLOAT_CUDA);
         for (batch_xs, batch_ys) in data.shuffle() {
-            let middle = batch_xs.i((.., 3..5));
+            //println!("Requires grad batch_xs: {:#?}", batch_xs.requires_grad());
 
-            let chunks = batch_xs.chunk(2, 1);
-            assert_eq!(chunks.len(), 2);
-            let mut outs = vec![];
-            for threes in chunks {
-                let combined = Tensor::cat(&[middle.copy(), threes, batch_xs.copy()], 1);
-                outs.push(half_layer.forward_t(&combined, true).leaky_relu());
+            let train = true;
+            let extra = batch_xs.i((.., 0..extra_size));
+            let sentence = batch_xs.i((.., extra_size..));
+
+            let tokens = sentence.chunk(token_count as i64, 1);
+
+            let mut final_tokens = Vec::new();
+
+            let mut positions = vec![];
+            for token in tokens {
+                let mut outs = vec![];
+                outs.push(extra.copy());
+                let inp = Tensor::cat(&[extra.copy(), token.copy(), sentence.copy()],1);
+                //println!("Requires grad inp: {:#?}", inp.requires_grad());
+                
+                positions.push(token.i((.., token_size..)));
+
+                for head in &heads {
+                    outs.push(head.forward_t(&inp, train).leaky_relu());
+                }
+                let total_out = Tensor::cat(&outs, 1);
+                //println!("Requires grad total_out: {:#?}", total_out.requires_grad());
+
+                //println!("total heads out size: {:#?}", total_out.size());
+                final_tokens.push(head_combiner.forward_t(&total_out, train).leaky_relu());
             }
-
-            let total_out = Tensor::cat(&outs, 1);
+            let mut tokens_plus_pos = Vec::new();
+            tokens_plus_pos.push(extra);
+            for (i, token) in final_tokens.iter().enumerate() {
+                tokens_plus_pos.push(Tensor::cat(&[token, &positions[i]],1));
+            }
             
-            let afterOut = combinedLayer.forward_t(&total_out, true);
-            loss = afterOut.mse_loss(&batch_ys, tch::Reduction::Mean);
+            let final_out = Tensor::cat(&tokens_plus_pos, 1);
+            //println!("Requires grad final_out: {:#?}", final_out.requires_grad());
+            
+            loss = final_out.mse_loss(&batch_ys, tch::Reduction::Mean);
 
             //loss.print();
             opt.backward_step(&loss);
         }
         if epoch == 0 {
             start_loss = Vec::<i64>::from(&loss)[0];
-            half_layer.ws.print();
+            heads[0].ws.print();
         } else if epoch == 99 {
             end_loss = Vec::<i64>::from(&loss)[0];
-            half_layer.ws.print();
+            heads[0].ws.print();
+        }
+    }
+    println!("start loss: {} end loss: {}", start_loss, end_loss);
+    assert!(start_loss > end_loss * 10);
+
+}
+
+#[test]
+fn test_simple_dumbformer() {
+    // DOESNT WORK BECAUSE NEED REAL POSITION VECTORS.
+
+    let vs = nn::VarStore::new(Device::cuda_if_available());
+    // 3 extra, num1, pos1, num2, pos2... num6, pos6
+    // TODONEXT: make it so its almost the same as the real dumbformer.
+    // so it shud take extra, sentence, tokenenize sentence. for loop each one.
+    // and see if that works. if it does add more heads. and then maybe try the weird last part of catenating
+    // and the tokens.
+    let extra_size = 3;
+    let token_size = 2;
+    let pos_size = 1;
+    let token_count = 6;
+    let x = Tensor::randint_low(1, 999, &[10000, extra_size+((token_size + pos_size) * token_count)], kind::FLOAT_CUDA);
+    let y = x.copy();
+
+    println!("Requires grad x: {:#?}", x.requires_grad());
+
+    let inp_head_legnth = extra_size+ ((token_size + pos_size) * (token_count + 1));
+    let head_count = 2;
+    let inp_head_combiner = token_size * head_count as i64 + extra_size;
+
+    let dumbformer = DumbformerLayer::new(&vs.root(), token_size as usize, token_count as usize, extra_size as usize, head_count, 0, inp_head_legnth);
+
+    let mut opt = nn::Adam::default().build(&vs, 1e-4).unwrap();
+    let mut start_loss = 0;
+    let mut end_loss = 0;
+    for epoch in 0..100 {
+        let mut data = Iter2::new(&x,&y, 100);
+        let data = data.to_device(Device::cuda_if_available());
+        let mut loss = Tensor::randint_low(1, 999, &[1], kind::FLOAT_CUDA);
+        for (batch_xs, batch_ys) in data.shuffle() {
+            //println!("Requires grad batch_xs: {:#?}", batch_xs.requires_grad());
+
+            let train = true;
+            let final_out = dumbformer.forward_t(&batch_xs, true);
+            
+            loss = final_out.mse_loss(&batch_ys, tch::Reduction::Mean);
+
+            //loss.print();
+            opt.backward_step(&loss);
+        }
+        if epoch == 0 {
+            start_loss = Vec::<i64>::from(&loss)[0];
+            dumbformer.heads[0].in_layer.ws.print();
+        } else if epoch == 99 {
+            end_loss = Vec::<i64>::from(&loss)[0];
+            dumbformer.heads[0].in_layer.ws.print();
         }
     }
     println!("start loss: {} end loss: {}", start_loss, end_loss);
@@ -594,6 +690,10 @@ fn test_transformations() {
     assert!(true);
 }
 
+#[test]
+pub fn test_dumbformer() {
+    dumbformer_test_on_identity();
+}
 
 pub fn dumbformer_test_on_identity() {
     /* 
@@ -638,47 +738,90 @@ pub fn dumbformer_test_on_identity() {
     */
 
     let vs = nn::VarStore::new(Device::cuda_if_available());
-    
     for _ in 0..1 {
-        for layer_count in 0..1 {
+        for _ in 0..1 {
             let hidden_layers_count = 2;
             let hidden_layer_neurons = 100;
-            
-            let net = DumbformerLayer::new(&vs.root(), EMBEDDING_LEN, 20,0,2, hidden_layers_count, hidden_layer_neurons);
+
+            let net = DumbformerLayer::new(&vs.root(), EMBEDDING_LEN, max_token_num,0,2, hidden_layers_count, hidden_layer_neurons);
             let mut opt = nn::Adam::default().build(&vs, 1e-4).unwrap();
-            let batch_size = 20001;
-            let epoch_default = 1000;
-            let epochs = batch_size / 256 / 1 * epoch_default;
-            let epochs = 1000;
+            let batch_size = 100;
+            let epochs = 10000;
             let mut epochs_occured = 0;
             let mut test_accuracy = 0.;
+
+            let mut start_loss = Tensor::zeros(&[1], kind::FLOAT_CUDA);
+            let mut end_loss = Tensor::zeros(&[1], kind::FLOAT_CUDA);
+
+            println!("weights b4 0: {:#?}", Vec::<f64>::from(net.heads[0].in_layer.ws.copy())[0]);
+            let mut final_out = Tensor::zeros(&[1], kind::FLOAT_CUDA);
+            let mut final_in = Tensor::zeros(&[1], kind::FLOAT_CUDA);
+
             for epoch in 1..epochs+1 {
                 epochs_occured += 1;
                 let mut data = Iter2::new(&x,&y,batch_size);
                 let data = data.to_device(Device::cuda_if_available());
+                let mut loss = Tensor::zeros(&[1], kind::FLOAT_CUDA);
+
                 for (batch_xs, batch_ys) in data.shuffle() {
+                    final_in = batch_xs.copy();
                     //println!("xs: {:#?}", batch_xs.size());
-                    let loss = net.forward_t(&batch_xs, true);
-                    let loss = loss.mse_loss(&batch_ys, tch::Reduction::Mean);
+                    let out = net.forward_t(&batch_xs, true);
+                    final_out = out.copy();
+                    loss = out.mse_loss(&batch_ys, tch::Reduction::Mean);
                     //loss.print();
+                    
                     opt.backward_step(&loss);
                 }
-                
-                test_accuracy = get_net_accuracy(&net, &x, &y, batch_size);
-                println!("epoch: {:4} test acc: {:5.2}%", epoch, 100. * test_accuracy,);
-                if test_accuracy > 0.98 && test_accuracy < 1.02 {
-                    break;
+                if epoch == 1 {
+                    start_loss = loss;
+                } else if epoch == epochs {
+                    end_loss = loss;
                 }
+
+                println!("epoch: {:#?}", epoch);
+                // test_accuracy = get_net_accuracy(&net, &x, &y, batch_size);
+                // println!("epoch: {:4} test acc: {:5.2}%", epoch, 100. * test_accuracy,);
+                // if test_accuracy > 0.98 && test_accuracy < 1.02 {
+                //     break;
+                // }
             }
-    
+            
+            println!("weights end 0: {:#?}", Vec::<f64>::from(net.heads[0].in_layer.ws.copy())[0]);
+
+            println!("Start loss:");
+            start_loss.print();
+            println!("End loss:");
+            end_loss.print();
+
             println!("batch_size: {} epochs {} LayerCount: {}, Nuerons per layer: {} accuracy final: {}", batch_size, epochs_occured, hidden_layers_count + 2, hidden_layer_neurons, test_accuracy);
     
+            println!("Final out");
+            let fout = final_out.i((0, 0..));
+            let fin = final_in.i((0, 0..));
+            //fout.print();
+            //fin.print();
+            let chunks = fout.chunk(max_token_num as i64, 0);
+            let chunks_inp = fin.chunk(max_token_num as i64, 0);
+            for i in 0..chunks.len() {
+                let out = decode(Vec::<f32>::from(&chunks[i]), true);
+                let inp = decode(Vec::<f32>::from(&chunks_inp[i]), true);
+
+                println!("{} Out: {:#?} inp: {:#?}", i, out, inp);
+            }
+            //fout.print();
+            
+
             let mut data = Iter2::new(&x,&y,256);
             let data = data.to_device(Device::cuda_if_available());
             let mut total_vec = Vec::<Vec<(f32,f32)>>::new();
             for (batch_xs, batch_ys) in data {
                 //println!("xs: {:#?}", batch_xs.size());
                 let out = net.forward_t(&batch_xs, false);
+
+                let loss = out.mse_loss(&batch_ys, tch::Reduction::Mean);
+                loss.print();
+                break;
                 //out.print();
                 let part_iter= Vec::<f32>::from(&out).into_iter().zip(Vec::<f32>::from(&batch_ys));
                 total_vec.push(part_iter.collect());

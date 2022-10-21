@@ -70,10 +70,10 @@ pub fn RunMNISTConvNet() {
 
 #[derive(Debug)]
 pub struct LongNet {
-    hidden_linears: Vec<nn::Linear>,
-    in_layer: nn::Linear,
-    out_layer: nn::Linear,
-    in_size: i64
+    pub hidden_linears: Vec<nn::Linear>,
+    pub in_layer: nn::Linear,
+    pub out_layer: nn::Linear,
+    pub in_size: i64
 }
 impl LongNet {
     pub fn new(vs: &nn::Path, hidden_layers_count: usize, hidden_layer_dim: i64, in_dim :i64, out_dim: i64) -> LongNet {
