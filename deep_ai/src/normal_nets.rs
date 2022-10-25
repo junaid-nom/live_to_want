@@ -69,8 +69,16 @@ pub fn RunMNISTConvNet() {
 
 }
 
+#[test]
+pub fn mutate_test() {
+    let b = Tensor::of_slice(&[5., 5., 5., 5.]);
+    mutate_tensor(&b).print();
+}
+
 pub fn mutate_tensor(inp: &Tensor) -> Tensor {
-    inp.rand_like().multiply_scalar(0.2).f_add_scalar(0.9).unwrap()
+    let range = 0.02;
+    let sub = 1.0 - (range / 2.0);
+    inp.multiply(&inp.rand_like().multiply_scalar(range).f_add_scalar(sub).unwrap())
 }
 pub fn mutate_linear(copy_from: &nn::Linear, to_mutate: &mut nn::Linear) {
     if let Some(bs) = &copy_from.bs {
@@ -82,12 +90,12 @@ pub fn mutate_linear(copy_from: &nn::Linear, to_mutate: &mut nn::Linear) {
 
 #[derive(Debug)]
 pub struct LongNet {
-    hidden_linears: Vec<nn::Linear>,
-    in_layer: nn::Linear,
-    out_layer: nn::Linear,
-    in_size: i64,
-    out_size: i64,
-    hidden_layer_node_count: i64,
+    pub hidden_linears: Vec<nn::Linear>,
+    pub in_layer: nn::Linear,
+    pub out_layer: nn::Linear,
+    pub in_size: i64,
+    pub out_size: i64,
+    pub hidden_layer_node_count: i64,
 }
 impl LongNet {
     pub fn new(vs: &nn::Path, hidden_layers_count: usize, hidden_layer_dim: i64, in_dim :i64, out_dim: i64) -> LongNet {
@@ -203,7 +211,7 @@ pub fn get_net_accuracy_inner(net: &dyn ModuleT, x: &Tensor, true_y: &Tensor, ba
         sum_accuracy += get_accuracy_tensors(&y_out, &ys);
         sample_count += size;
     }
-    println!("Sum acc: {} Sample Count: {}", sum_accuracy,sample_count);
+    //println!("Sum acc: {} Sample Count: {}", sum_accuracy,sample_count);
     (1. - (sum_accuracy / sample_count)).abs()
 }
 
@@ -230,6 +238,12 @@ fn test_get_net_accuracy() {
         &Tensor::of_slice(&[1,2,3,4,5, 6]),
         &Tensor::of_slice(&[1,4,6,8,5, 6])
     ) / 6., 0.25);
+}
+
+
+#[test]
+pub fn test_run_cos_net() {
+    run_net_on_cos_func();
 }
 
 
@@ -289,8 +303,8 @@ pub fn run_net_on_cos_func() {
     // and why is the graph totally fucked
 
     let vs = nn::VarStore::new(Device::cuda_if_available());
-    for _ in 0..10 {
-        for layer_count in 0..9 {
+    for _ in 0..1 {
+        for layer_count in 8..9 {
             let hidden_layers_count = layer_count;
             let hidden_layer_neurons = 10;
             
@@ -310,10 +324,11 @@ pub fn run_net_on_cos_func() {
                     //println!("xs: {:#?}", batch_xs.size());
                     let loss = net.forward_t(&batch_xs, true);
                     let loss = loss.mse_loss(&batch_ys, tch::Reduction::Mean);
-                    //loss.print();
+                    loss.print();
+                    break;
                     opt.backward_step(&loss);
                 }
-                
+                break;
                 test_accuracy = get_net_accuracy(&net, &x, &y, batch_size);
                 // println!("epoch: {:4} test acc: {:5.2}%", epoch, 100. * test_accuracy,);
                 if test_accuracy > 0.99 {
@@ -419,7 +434,7 @@ pub fn run_net_on_cos_func_evolution() {
     let vs = nn::VarStore::new(Device::cuda_if_available());
     for _ in 0..1 {
         for layer_count in 0..1 {
-            let hidden_layers_count = 7;
+            let hidden_layers_count = 8;
             let hidden_layer_neurons = 10;
             
             let mut net = LongNet::new(&vs.root(), hidden_layers_count, hidden_layer_neurons, 1, 1);
@@ -431,36 +446,51 @@ pub fn run_net_on_cos_func_evolution() {
             let mut epochs_occured = 0;
             let mut test_accuracy = 0.;
 
-            let pop_count = 10000;
+            let pop_count = 1000;
 
             let mut prev_loss = f64::MAX;
+            let mut first_loss = true;
             for _ in 1..epochs+1 {
                 epochs_occured += 1;
                 let mut data = Iter2::new(&x,&y, batch_size);
                 let data = data.to_device(Device::cuda_if_available());
+
+                //let mut prev_loss = f64::MAX; // Always force change to force net to get outta local minima
                 for (batch_xs, batch_ys) in data.shuffle() {
                     // for pop count-> mutate net.
                     // if new net is better -> replace net
+                    let mut best_net = None;
                     for _ in 0..pop_count {
                         let new_net = net.mutate(&vs.root());
                         let loss = new_net.forward_t(&batch_xs, false);
-                        let loss = loss.mse_loss(&batch_ys, tch::Reduction::Mean).sum(tch::Kind::Double).double_value(&[0]);
+                        let loss = loss.mse_loss(&batch_ys, tch::Reduction::Mean);
+                        // loss.print();
+                        let loss = Vec::<f64>::from(loss.sum(tch::Kind::Double))[0];
+                        if first_loss {
+                            println!("first loss: {:#?}", loss);
+                            first_loss = false;
+                        }
                         if loss < prev_loss {
                             prev_loss = loss;
-                            net = new_net;
+                            best_net = Some(new_net);
+                            let net = best_net.unwrap();
                         }
                     }
-                    
+                    //let net = best_net.unwrap();
                     break;
                 }
-                
-                test_accuracy = get_net_accuracy(&net, &x, &y, batch_size);
-                // println!("epoch: {:4} test acc: {:5.2}%", epoch, 100. * test_accuracy,);
-                if test_accuracy > 0.99 {
-                    break;
-                }
+                println!("epoch: {:#?} loss: {:#?}", epochs_occured, prev_loss);
+                // test_accuracy = get_net_accuracy(&net, &x, &y, batch_size);
+                // // println!("epoch: {:4} test acc: {:5.2}%", epoch, 100. * test_accuracy,);
+                // if test_accuracy > 0.99 {
+                //     break;
+                // }
             }
-    
+            test_accuracy = get_net_accuracy(&net, &x, &y, batch_size);
+            // println!("epoch: {:4} test acc: {:5.2}%", epoch, 100. * test_accuracy,);
+            if test_accuracy > 0.99 {
+                break;
+            }
             println!("batch_size: {} epochs {} LayerCount: {}, Nuerons per layer: {} accuracy final: {}", batch_size, epochs_occured, hidden_layers_count + 2, hidden_layer_neurons, test_accuracy);
     
             let mut data = Iter2::new(&x,&y,256);
