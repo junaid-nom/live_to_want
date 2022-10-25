@@ -1,6 +1,8 @@
 extern crate tch;
 extern crate rust_bert;
 
+use std::f32::consts::E;
+
 use self::tch::kind;
 
 use self::tch::data::Iter2;
@@ -67,19 +69,31 @@ pub fn RunMNISTConvNet() {
 
 }
 
+pub fn mutate_tensor(inp: &Tensor) -> Tensor {
+    inp.rand_like().multiply_scalar(0.2).f_add_scalar(0.9).unwrap()
+}
+pub fn mutate_linear(copy_from: &nn::Linear, to_mutate: &mut nn::Linear) {
+    if let Some(bs) = &copy_from.bs {
+        to_mutate.bs = Some(mutate_tensor(bs));
+    }
+    to_mutate.ws = mutate_tensor(&copy_from.ws);
+}
+
 
 #[derive(Debug)]
 pub struct LongNet {
     hidden_linears: Vec<nn::Linear>,
     in_layer: nn::Linear,
     out_layer: nn::Linear,
-    in_size: i64
+    in_size: i64,
+    out_size: i64,
+    hidden_layer_node_count: i64,
 }
 impl LongNet {
     pub fn new(vs: &nn::Path, hidden_layers_count: usize, hidden_layer_dim: i64, in_dim :i64, out_dim: i64) -> LongNet {
-        let lconfig = LinearConfig{
-            ..Default::default()
-        };
+        // let lconfig = LinearConfig{
+        //     ..Default::default()
+        // };
         
         let mut net = LongNet{ 
             hidden_linears: vec![], 
@@ -87,6 +101,8 @@ impl LongNet {
             in_layer: nn::linear(vs, in_dim, hidden_layer_dim, Default::default()),
             out_layer: nn::linear(vs, hidden_layer_dim, out_dim, Default::default()),
             in_size: in_dim,
+            hidden_layer_node_count: hidden_layer_dim,
+            out_size: out_dim,
         };
 
         for lay in 0..hidden_layers_count{
@@ -94,6 +110,30 @@ impl LongNet {
         }
         //no_grad_guard();
         //net.in_layer.ws = net.in_layer.ws.fill(1).requires_grad_(false);
+        net
+    }
+
+    pub fn mutate(&self, vs: &nn::Path) -> LongNet {
+        let mut net = LongNet{ 
+            hidden_linears: vec![], 
+            //fc1, fc2, fc3, fc4, fc5, fc6, fc7, fc8, fc9, fc10,
+            in_layer: nn::linear(vs, self.in_size, self.hidden_layer_node_count, Default::default()),
+            out_layer: nn::linear(vs, self.hidden_layer_node_count, self.out_size, Default::default()),
+            in_size: self.in_size,
+            hidden_layer_node_count: self.hidden_layer_node_count,
+            out_size: self.out_size,
+        };
+        for lay in 0..self.hidden_linears.len() {
+            net.hidden_linears.push(nn::linear(vs, self.hidden_layer_node_count, self.hidden_layer_node_count, Default::default()));
+        }
+
+        mutate_linear(&self.in_layer, &mut net.in_layer);
+        mutate_linear(&self.out_layer, &mut net.out_layer);
+
+        for layer_idx in 0..self.hidden_linears.len() {
+            mutate_linear(&self.hidden_linears[layer_idx], &mut net.hidden_linears[layer_idx]);
+        }
+
         net
     }
 }
@@ -264,6 +304,146 @@ pub fn run_net_on_cos_func() {
                     let loss = loss.mse_loss(&batch_ys, tch::Reduction::Mean);
                     //loss.print();
                     opt.backward_step(&loss);
+                }
+                
+                test_accuracy = get_net_accuracy(&net, &x, &y, batch_size);
+                // println!("epoch: {:4} test acc: {:5.2}%", epoch, 100. * test_accuracy,);
+                if test_accuracy > 0.99 {
+                    break;
+                }
+            }
+    
+            println!("batch_size: {} epochs {} LayerCount: {}, Nuerons per layer: {} accuracy final: {}", batch_size, epochs_occured, hidden_layers_count + 2, hidden_layer_neurons, test_accuracy);
+    
+            let mut data = Iter2::new(&x,&y,256);
+            let data = data.to_device(Device::cuda_if_available());
+            let mut total_vec = Vec::<(f32,f32)>::new();
+            for (batch_xs, _) in data {
+                //println!("xs: {:#?}", batch_xs.size());
+                let out = net.forward_t(&batch_xs, false);
+                //out.print();
+                let part_iter= Vec::<f32>::from(&batch_xs).into_iter().zip(Vec::<f32>::from(&out));
+                total_vec.extend(part_iter);
+            }
+    
+            chart
+                .draw_series(LineSeries::new(
+                    //true_iter.clone(),
+                    total_vec.clone(),
+                    &BLUE,
+                )).unwrap()
+                .label(String::from(format!("net L: {} N: {}", hidden_layers_count, hidden_layer_neurons)))
+                .legend(|(x, y)| PathElement::new(vec![(x, y), (x + 20, y)], &BLUE));
+        }
+    }
+    
+    chart
+        .configure_series_labels()
+        .background_style(&WHITE.mix(0.8))
+        .border_style(&BLACK)
+        .draw().unwrap();
+
+    root.present().unwrap();
+    
+}
+
+
+#[test]
+pub fn test_evo() {
+    run_net_on_cos_func_evolution();
+}
+
+pub fn run_net_on_cos_func_evolution() {
+    // Easily make a tensor:
+    // let vec = [3.0, 1.0, 4.0, 1.0, 5.0].to_vec();
+    // let t1 = Tensor::of_slice(&vec);
+
+    let root = BitMapBackend::new("plotters-doc-data/0.png", (640, 480)).into_drawing_area();
+    root.fill(&WHITE).unwrap();
+
+    let mut chart = ChartBuilder::on(&root)
+        .caption("cos(sin(10*(x^2))^3)", ("sans-serif", 50).into_font())
+        .margin(5)
+        .x_label_area_size(30)
+        .y_label_area_size(30)
+        .build_cartesian_2d(-1f32..1f32, -1f32..1f32).unwrap();
+
+    chart.configure_mesh().draw().unwrap();
+
+    // Make a dataset using the cosine func: cos(sin(10*(x^2))^3)
+    // from -1 to 1 as x input. 1/10000 - 1/10000, 20k data points
+    let mut x = Tensor::range_step(-10000,10000, kind::FLOAT_CUDA);
+    x = x / 10000;
+    let x = x.reshape(&[20001, 1]);
+    //x.print();
+    println!("x: {:#?}", x.size());
+    let y = (x.square() * 10).sin().pow_(3.0).cos();
+    let y = y.reshape(&[20001, 1]);
+    //y.print();
+    println!("y: {:#?}", y.size());
+    //println!("x, 15000: {:#?}", x.view([20001]).double_value(&[15000]));
+    //println!("vec x {:#?}", Vec::<f64>::from(&x));
+
+    //let og_iter = (-50..=50).map(|x| x as f32 / 50.0).map(|x| (x, x * x));
+    //let true_iter = Vec::<f64>::from(&x).into_iter().zip(Vec::<f64>::from(&y));
+    let true_iter2= Vec::<f32>::from(&x).into_iter().zip(Vec::<f32>::from(&y));
+
+    //println!("example {:#?}", og_iter);
+    //println!("v {:#?}", true_iter);
+    chart
+        .draw_series(LineSeries::new(
+            //true_iter.clone(),
+            true_iter2.clone(),
+            &RED,
+        )).unwrap()
+        .label("real")
+        .legend(|(x, y)| PathElement::new(vec![(x, y), (x + 20, y)], &RED));
+
+    //println!("collected: {:#?}",true_iter.collect::<Vec<(f64,f64)>>());
+    //println!("vec from y: {:#?}",Vec::<f64>::from(&y));
+    //println!("y: -3 {:#?} -4 {:#?} -5 {:#?}", y.view([20001]).double_value(&[20001-3]), y.view([20001]).double_value(&[20001-4]), y.view([20001]).double_value(&[20001-5]));
+    //println!("collected: {:#?}", true_iter2.collect::<Vec<(f32,f32)>>());
+    //y.print();
+
+    // TODONEXT: Why does the function result for y KEEP CHANGING???
+    // and why is the graph totally fucked
+
+    let vs = nn::VarStore::new(Device::cuda_if_available());
+    for _ in 0..1 {
+        for layer_count in 0..1 {
+            let hidden_layers_count = 7;
+            let hidden_layer_neurons = 10;
+            
+            let mut net = LongNet::new(&vs.root(), hidden_layers_count, hidden_layer_neurons, 1, 1);
+            let mut opt = nn::Adam::default().build(&vs, 1e-4).unwrap();
+            //let batch_size = 20001; // full dataset size
+            let batch_size = 20001 / 100;
+            let epochs = 1000;
+            //let epochs = 1;
+            let mut epochs_occured = 0;
+            let mut test_accuracy = 0.;
+
+            let pop_count = 10000;
+
+            let mut prev_loss = f64::MAX;
+            for _ in 1..epochs+1 {
+                epochs_occured += 1;
+                let mut data = Iter2::new(&x,&y, batch_size);
+                let data = data.to_device(Device::cuda_if_available());
+                for (batch_xs, batch_ys) in data.shuffle() {
+                    // for pop count-> mutate net.
+                    // if new net is better -> replace net
+                    for _ in 0..pop_count {
+                        let new_net = net.mutate(&vs.root());
+                        let loss = new_net.forward_t(&batch_xs, false);
+                        let loss = loss.mse_loss(&batch_ys, tch::Reduction::Mean).sum(tch::Kind::Double).double_value(&[0]);
+                        if loss < prev_loss {
+                            prev_loss = loss;
+                            net = new_net;
+                        }
+                    }
+                    
+                    break;
                 }
                 
                 test_accuracy = get_net_accuracy(&net, &x, &y, batch_size);
