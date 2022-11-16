@@ -77,6 +77,14 @@ impl CreatureState {
         self.components.evolving_traits.as_ref().unwrap().get_if_child(frame)
     }
 
+    pub fn get_adult_percent(&self, frame: u128) -> f32 {
+        if self.components.evolving_traits.as_ref().is_none() {
+            return 1.;
+        }
+
+        self.components.evolving_traits.as_ref().unwrap().get_adult_percent(frame)
+    }
+
     pub fn can_sex(&self, other_id: u64, other_species: i32, other_location: Location, frame: u128) -> bool {
         let dist = self.get_location().distance_in_region(&other_location);
         match dist {
@@ -140,7 +148,7 @@ impl CreatureState {
         // setup movement stuff
         if self.components.movement_component.is_some() {
             self.components.movement_component.as_mut().unwrap().frames_to_move = self.components.evolving_traits.as_ref().unwrap().get_frames_to_move();
-        }        
+        }
     }
 
     // for reproduction via budding mostly

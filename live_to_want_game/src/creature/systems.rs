@@ -1,6 +1,6 @@
 use rand::Rng;
 
-use crate::{EventTarget, Location, Vu2, map_state::MapState, tasks::Event, tasks::EventChain, tasks::EventType, MOVING_INCREASED_METABOLISM_FACTOR, EvolvingTraitsComponent, EvolvingTraits, REPRODUCE_STARTING_CALORIES_MULTIPLIER, STANDARD_METABOLISM, STANDARD_PREGNANCY_LIVE_WEIGHT};
+use crate::{EventTarget, Location, Vu2, map_state::MapState, tasks::Event, tasks::EventChain, tasks::EventType, MOVING_INCREASED_METABOLISM_FACTOR, EvolvingTraitsComponent, EvolvingTraits, REPRODUCE_STARTING_CALORIES_MULTIPLIER, STANDARD_METABOLISM, STANDARD_PREGNANCY_LIVE_WEIGHT, THICK_HIDE_METABOLISM_MULTIPLIER, FAST_GROWER_CALORIE_MULTIPLIER, MOVE_SPEED_METABOLISM_MULTIPLIER, STANDARD_PREGNANCY_METABOLISM_MULTIPLIER, LITTER_SIZE_METABOLISM_MULTIPLIER};
 
 use super::{CreatureState, STARVING_SLOW_METABOLISM_FACTOR};
 
@@ -95,7 +95,10 @@ pub fn budding_system(m: &MapState, c: &CreatureState) -> Vec<EventChain> {
     
 }
 
-pub fn starvation_system(c: &mut CreatureState) {
+pub fn starvation_system(c: &mut CreatureState, frame: u128) {
+    let is_child = c.get_if_child(frame);
+    let adult_percent = c.get_adult_percent(frame);
+    // TODO: Maybe faster metabolism if you are healing, but kinda silly cause if your starving you lose health?
     if let Some(s) = c.components.starvation_component.as_mut() {
         if let Some(h) = c.components.health_component.as_mut() {
             let starving = s.calories <= 0;
@@ -109,13 +112,36 @@ pub fn starvation_system(c: &mut CreatureState) {
             }
             // If you have evo traits, use that to determine penalty for moving, otherwise use the flat constant
             if let Some(traits) = c.components.evolving_traits.as_ref() {
-                multiplier *= traits.get_total_metabolism_multiplier(is_moving);
+                // TODONEXT: integrate move_speed, fast_grower, thick_hide, is_pregnant and litter_size
+                let is_pregnant = if let Some(sex) = c.components.sexual_reproduction.as_ref() {
+                    sex.is_pregnant
+                } else {
+                    false
+                };
+                
+                if is_pregnant {
+                    multiplier *= STANDARD_PREGNANCY_METABOLISM_MULTIPLIER;
+                    multiplier *= LITTER_SIZE_METABOLISM_MULTIPLIER * traits.traits.litter_size as f32;
+                }
+
+                if is_child {
+                    multiplier *= traits.traits.fast_grower as f32 * FAST_GROWER_CALORIE_MULTIPLIER;
+                    // Children need less calories than adults by the percent they are adults.
+                    multiplier *= adult_percent;
+                }
+
+                multiplier *= traits.traits.thick_hide as f32 * THICK_HIDE_METABOLISM_MULTIPLIER;
+
+                if is_moving {
+                    multiplier *= MOVING_INCREASED_METABOLISM_FACTOR;
+                    multiplier *= traits.traits.move_speed as f32 * MOVE_SPEED_METABOLISM_MULTIPLIER;
+                }
             } else if is_moving {
                 multiplier *= MOVING_INCREASED_METABOLISM_FACTOR;
+                // Pregnant?
             }
             s.calories -= (s.metabolism as f32 * multiplier) as i32;
 
-            // TODONEXT: integrate move_speed, fast_grower, thick_hide, is_pregnant and others
         } else {
             panic!("All starvation components require health component for: {}", c)
         }

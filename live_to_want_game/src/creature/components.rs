@@ -6,12 +6,13 @@ pub static DEBUG_EVENTS: bool = true;
 
 pub static STANDARD_HP: i32 = 10000;
 pub static SIMPLE_ATTACK_BASE_DMG: i32 = 1000;
-pub static STANDARD_FRAMES_TO_MOVE: usize = 10;
+pub static STANDARD_FRAMES_TO_MOVE: i32 = 10;
 pub static STANDARD_PREGNANCY_TIME: u128 = 20 * STANDARD_FRAMES_TO_MOVE as u128;
 pub static STANDARD_CHILD_TIME: u128 = STANDARD_PREGNANCY_TIME * 2 as u128; // Should be atleast double preg time to make maxing out pregnancy worthwhile?
 pub static BASE_PREGNANCY_CHANCE_WEIGHT: i32 = 100;
 pub static STANDARD_METABOLISM: i32 = 100;
 pub static STANDARD_PREGNANCY_LIVE_WEIGHT: i32 = 100;
+pub static STANDARD_PREGNANCY_METABOLISM_MULTIPLIER: f32 = 1.3;
 
 pub static STARVING_SLOW_METABOLISM_FACTOR: f32 = 0.5;
 pub static REPRODUCE_STARTING_CALORIES_MULTIPLIER: i32 = 150;
@@ -20,18 +21,21 @@ pub static MOVING_INCREASED_METABOLISM_FACTOR: f32 = 1.5;
 pub static MUTATION_CHANGE: i32 = 10;
 pub static SPECIES_SEX_RANGE: i32 = MUTATION_CHANGE * 5;// Shouldnt be too high because the expected value of species changing is 0, and its rarely mutated.
 
-pub static THICK_HIDE_METABOLISM_MULTIPLIER: f32 = 0.2 / 100.0;
+pub static THICK_HIDE_METABOLISM_MULTIPLIER: f32 = 1. + (0.2 / 100.0);
 pub static THICK_HIDE_DMG_REDUCE_MULTIPLIER: f32 = SIMPLE_ATTACK_BASE_DMG as f32 * 1.0 / 100.0; // For every 100 thick hide, decrease dmg by 1
 
 pub static SHARP_CLAWS_DMG_INCREASE: f32 = SIMPLE_ATTACK_BASE_DMG as f32 * 0.7 / 100.0; // for every 100 sharp claws, increase dmg by 1.7x simple attack (rounds down)
 
 pub static GIRTH_HEALTH_INCREASE: f32 = (STANDARD_HP as f32 * 0.7) / 100.0;
 
-pub static MOVE_SPEED_FRAME_REDUCTION: f32 = 0.1; // Every 10 pts = 1 frame less movement
+pub static MOVE_SPEED_FRAME_REDUCTION: f32 = 0.1; // Every 10 pts = 1 frame less movement. so need 100 to get to 1 frame move. SEEMS OVERPOWERED. it probably is. but want a change in speed for every mutation in this (10). Maybe should just increase the default frames to move from 10 to higher. but that would fuck with everything because you could have things reproducing by the time a deer walks a little lol.
+pub static MOVE_SPEED_METABOLISM_MULTIPLIER: f32 = 3. * MOVE_SPEED_FRAME_REDUCTION; // 3 * .1 * 10 = 3 so basically 3x metabolism for every 10 points in this stat. 
 
-pub static BASE_PREGNANCY_TIME_ADDER: i32 = 1;
+pub static BASE_PREGNANCY_TIME_ADDER: i32 = 1; // for every point in this trait, increase pregnancy time.
 pub static FAST_GROWER_MULTIPLIER: f32 = 0.005; // each point in fast grower reduces total time by .5%
+pub static FAST_GROWER_CALORIE_MULTIPLIER: f32 = 1.005; // each point in fast grower increases total calories by .5%
 pub static LITTER_SIZE_TRAIT_NEEDED_FOR_ONE_BABY: i32 = 100;
+pub static LITTER_SIZE_METABOLISM_MULTIPLIER: f32 = 1. + (1. / LITTER_SIZE_TRAIT_NEEDED_FOR_ONE_BABY as f32);
 pub static CANNIBAL_PREGNANCY_CHILD_CALORIES_MULTIPLIER: f32 = 0.1; // so 100 would give u 10x starting calories!
 pub static CANNIBAL_PREGNANCY_DEATH_WEIGHT_MULTIPLIER: f32 = 1.0; // so 100 would give u 10x starting calories!
 
@@ -334,9 +338,11 @@ pub struct EvolvingTraits {
     pub cannibal_childbirth: i32, // chance to die in childbirth, but babies born with a lot of calories
 
     //Unimplemented:
+    //move_speed, make it increase metabolism while doing
+
     pub hamstring: i32, // lowers speed of victim after attacksimple? need to make a whole status effect component for this? or add to movement componenet (prob that?)? how to do duration though and magnitude? debug stack shud prob make a whoel component then for status conditions?
-    pub graceful: i32, // higher this value the less ur metabolism consumed when moving
-    pub more_mutations: i32, // Higher the number more mutations that will happen, similar to litter_size
+    pub more_mutations: i32, // Higher the number more mutations that will happen, similar to litter_size in terms of probability and guarantees after 100
+    // pub graceful: i32, // higher this value the less ur metabolism consumed when moving. BAD because move_speed is OP as fuck and its cost is food so fuck buffing it by making this exist.
     // pub anti_rape: i32, // increases chance of sex failing when other creatures try to sex you.
 }
 impl EvolvingTraits {
@@ -345,7 +351,6 @@ impl EvolvingTraits {
             thick_hide: (self.thick_hide as f32 * multiplier) as i32,
             sharp_claws: (self.sharp_claws as f32 * multiplier) as i32,
             hamstring: (self.hamstring as f32 * multiplier) as i32,
-            graceful: (self.graceful as f32 * multiplier) as i32,
             move_speed: (self.move_speed as f32 * multiplier) as i32,
             species: (self.species as f32 * multiplier) as i32,
             litter_size: (self.litter_size as f32 * multiplier) as i32,
@@ -381,7 +386,6 @@ impl EvolvingTraits {
             thick_hide: EvolvingTraits::mix_traits(self.thick_hide, mate.thick_hide),
             sharp_claws: EvolvingTraits::mix_traits(self.sharp_claws, mate.sharp_claws),
             hamstring: EvolvingTraits::mix_traits(self.hamstring, mate.hamstring),
-            graceful: EvolvingTraits::mix_traits(self.graceful, mate.graceful),
             move_speed: EvolvingTraits::mix_traits(self.move_speed, mate.move_speed),
             species: EvolvingTraits::mix_traits(self.species, mate.species),
             litter_size: EvolvingTraits::mix_traits(self.litter_size, mate.litter_size),
@@ -440,6 +444,15 @@ impl EvolvingTraitsComponent {
         total as u32
     }
 
+    pub fn get_adult_percent(&self, frame: u128) -> f32 {
+        if frame >= self.child_until_frame {
+            return 1.;
+        }
+        let total_time = self.child_until_frame - self.born_on_frame;
+        let percent_done = (frame - self.born_on_frame) as f32 / total_time as f32;
+        return percent_done;
+    }
+
     pub fn update_stats_based_on_childness(&mut self, frame: u128 ) {
         if frame > self.child_until_frame {
             // if below assertion fails make sure child_until_frame was set to at least 1 to give a frame to update
@@ -465,7 +478,7 @@ impl EvolvingTraitsComponent {
     }
 
     pub fn get_frames_to_move(&self) -> usize {
-        return STANDARD_FRAMES_TO_MOVE - (MOVE_SPEED_FRAME_REDUCTION * self.traits.move_speed as f32) as usize;
+        return std::cmp::max(STANDARD_FRAMES_TO_MOVE - (MOVE_SPEED_FRAME_REDUCTION * self.traits.move_speed as f32) as i32, 1) as usize;
     }
 
     pub fn get_max_health(&self) -> i32 {
@@ -478,20 +491,6 @@ impl EvolvingTraitsComponent {
 
     pub fn get_pregnancy_length(&self) -> u128 {
         return std::cmp::max(STANDARD_PREGNANCY_TIME as i32 + (self.traits.pregnancy_time * BASE_PREGNANCY_TIME_ADDER) as i32, 1) as u128;
-    }
-
-    pub fn get_total_metabolism_multiplier(&self, is_moving: bool) -> f32 {
-        let mut total: f32 = 1.0;
-        total += self.traits.thick_hide as f32 * THICK_HIDE_METABOLISM_MULTIPLIER;
-        if is_moving {
-            total += MOVING_INCREASED_METABOLISM_FACTOR;
-        }
-
-        // TODO: Get if pregnant and use that as well to determine metabolism
-
-        // TODO Should probably move this OUT of this function and just put it in the starvation system since it involves multiple components: moving, pregnant, maybe status conditions and health (heal when injured auto but consume more calories slightly) later on too etc.
-
-        total
     }
 
     pub fn get_mutated(&self, mutations: u32) -> EvolvingTraitsComponent {

@@ -265,7 +265,7 @@ pub fn run_frame_with_input(mut game_state: GameState, root: &GoalNode, msgs: Ve
                         cit.for_each(
                             |c| {
                                 child_growth_system(c, current_frame);
-                                starvation_system(c);
+                                starvation_system(c, current_frame);
                                 movement_system_iterate(current_frame, c, location);
                             }
                         );

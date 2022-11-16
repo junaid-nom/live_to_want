@@ -92,6 +92,11 @@ Sub tasks:
 Long term later on:
  - Maybe eventually use UDP instead of TCP? It would be nice to use a UDP but TCP for some messages thing.
 
+# TODONEXT:
+I just added stuff to the starvation system for metabolism.
+Need to make tests to make sure it works. Requires pregnancy and a bunch of shit so kind of a pain.
+Maybe easier to just make many small tests for it IDK.
+
 
 # Systems in place
 

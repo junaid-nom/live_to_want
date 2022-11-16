@@ -62,7 +62,7 @@ fn run_frames_test_starvation_and_death() {
 // TODO: Make test for metabolism that checks to see if traits and if moving stuff works.
 // Prob can just postpone for awhile and do 1 test that uses EVERY trait that changes them and make 1 big calculation.
 
-// TODONEXT: Test sex, and then reproduction. Make sure the sex related stuff like species, multithreads, mutating, inheritance, litter size, pregnancy time, and childness work.
+// Test sex, and then reproduction. Make sure the sex related stuff like species, multithreads, mutating, inheritance, litter size, pregnancy time, and childness work.
 #[test]
 fn test_sex_reproduction<'a>() {
     // make a mapstate with some deer
