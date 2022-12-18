@@ -746,7 +746,7 @@ pub fn dumbformer_test_on_identity() {
             let net = DumbformerLayer::new(&vs.root(), EMBEDDING_LEN, max_token_num,0,2, hidden_layers_count, hidden_layer_neurons);
             let mut opt = nn::Adam::default().build(&vs, 1e-4).unwrap();
             let batch_size = 100;
-            let epochs = 10000;
+            let epochs = 200;
             let mut epochs_occured = 0;
             let mut test_accuracy = 0.;
 
