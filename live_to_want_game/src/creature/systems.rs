@@ -95,10 +95,10 @@ pub fn budding_system(m: &MapState, c: &CreatureState) -> Vec<EventChain> {
     
 }
 
+
 pub fn starvation_system(c: &mut CreatureState, frame: u128) {
     let is_child = c.get_if_child(frame);
     let adult_percent = c.get_adult_percent(frame);
-    // TODO: Maybe faster metabolism if you are healing, but kinda silly cause if your starving you lose health?
     if let Some(s) = c.components.starvation_component.as_mut() {
         if let Some(h) = c.components.health_component.as_mut() {
             let starving = s.calories <= 0;
@@ -121,16 +121,16 @@ pub fn starvation_system(c: &mut CreatureState, frame: u128) {
                 
                 if is_pregnant {
                     multiplier *= STANDARD_PREGNANCY_METABOLISM_MULTIPLIER;
-                    multiplier *= LITTER_SIZE_METABOLISM_MULTIPLIER * traits.traits.litter_size as f32;
+                    multiplier *= 1. + (LITTER_SIZE_METABOLISM_MULTIPLIER * traits.traits.litter_size as f32);
                 }
 
                 if is_child {
-                    multiplier *= traits.traits.fast_grower as f32 * FAST_GROWER_CALORIE_MULTIPLIER;
+                    multiplier *= 1. + (traits.traits.fast_grower as f32 * FAST_GROWER_CALORIE_MULTIPLIER);
                     // Children need less calories than adults by the percent they are adults.
                     multiplier *= adult_percent;
                 }
 
-                multiplier *= traits.traits.thick_hide as f32 * THICK_HIDE_METABOLISM_MULTIPLIER;
+                multiplier *= 1. + (traits.traits.thick_hide as f32 * THICK_HIDE_METABOLISM_MULTIPLIER);
 
                 if is_moving {
                     multiplier *= MOVING_INCREASED_METABOLISM_FACTOR;

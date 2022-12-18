@@ -59,8 +59,249 @@ fn run_frames_test_starvation_and_death() {
     ], gs.map_state.regions[start_loc].items);
 }
 
-// TODO: Make test for metabolism that checks to see if traits and if moving stuff works.
+// tests for metabolism that checks to see if traits and if moving stuff works.
 // Prob can just postpone for awhile and do 1 test that uses EVERY trait that changes them and make 1 big calculation.
+// test: 
+// traits that influence metabolism:
+// starving (already losing health from hunger) STARVING_SLOW_METABOLISM_FACTOR
+// moving: MOVING_INCREASED_METABOLISM_FACTOR: traits.traits.move_speed as f32 * MOVE_SPEED_METABOLISM_MULTIPLIER;
+// pregnant: STANDARD_PREGNANCY_METABOLISM_MULTIPLIER * LITTER_SIZE_METABOLISM_MULTIPLIER * traits.traits.litter_size
+// is child: adult_percent
+//   - fast grower: traits.traits.fast_grower as f32 * FAST_GROWER_CALORIE_MULTIPLIER
+// thick_hide: traits.traits.thick_hide as f32 * THICK_HIDE_METABOLISM_MULTIPLIER
+// So two tests, one is: pregnant + moving + thick_hide. Other is: child + staying still + thick hide?
+// maybe also mini test for is starvig?
+#[test]
+fn test_metabolism_basic<'a>() {
+    let mut deer1 = CreatureState{
+        components: ComponentMap::default(),
+        inventory: Vec::new(),
+        memory: CreatureMemory::default(),
+    };
+    deer1.components.starvation_component = Some(StarvationComponent { 
+        calories: 1000, 
+        metabolism: 100,
+    });
+    deer1.components.health_component = Some(HealthComponent {
+        health:  SIMPLE_ATTACK_BASE_DMG * 10,
+        max_health: SIMPLE_ATTACK_BASE_DMG * 10,
+    });
+    deer1.components.evolving_traits = Some(EvolvingTraitsComponent {
+        adult_traits: EvolvingTraits{
+            species: 0,
+            litter_size: LITTER_SIZE_TRAIT_NEEDED_FOR_ONE_BABY * 3 + 50,
+            pregnancy_time: 100,
+            maleness: 0,
+            fast_grower: 100,
+            ..Default::default()
+        },
+        child_until_frame: 1,
+        ..Default::default()
+    });
+    deer1.components.movement_component = Some(MovementComponent {
+        frames_to_move: 5,
+        destination: Location { region: Vu2{x: 1, y: 1}, position: Vu2{x: 1, y: 1}, },
+        frame_ready_to_move: 5,
+        moving: false,
+    });
+    deer1.setup_creature(1, false);// must use frame become adult if you want adult or assert fails
+    starvation_system(&mut deer1, 10);
+    let calories = deer1.components.starvation_component.unwrap().calories;
+    println!("Calories: {}", calories);
+    assert_eq!(calories, 900);
+}
+
+#[test]
+fn starvation_starving() {
+    let mut deer1 = CreatureState{
+        components: ComponentMap::default(),
+        inventory: Vec::new(),
+        memory: CreatureMemory::default(),
+    };
+    deer1.components.starvation_component = Some(StarvationComponent { 
+        calories: 0, 
+        metabolism: 100,
+    });
+    deer1.components.health_component = Some(HealthComponent {
+        health:  SIMPLE_ATTACK_BASE_DMG * 10,
+        max_health: SIMPLE_ATTACK_BASE_DMG * 10,
+    });
+    deer1.components.evolving_traits = Some(EvolvingTraitsComponent {
+        adult_traits: EvolvingTraits{
+            species: 0,
+            litter_size: 50,
+            pregnancy_time: 100,
+            maleness: 0,
+            fast_grower: 100,
+            ..Default::default()
+        },
+        child_until_frame: 1,
+        ..Default::default()
+    });
+    deer1.components.movement_component = Some(MovementComponent {
+        frames_to_move: 5,
+        destination: Location { region: Vu2{x: 1, y: 1}, position: Vu2{x: 1, y: 1}, },
+        frame_ready_to_move: 5,
+        moving: false,
+    });
+    deer1.setup_creature(1, false); // must use frame become adult
+    starvation_system(&mut deer1, 10);
+    let calories = deer1.components.starvation_component.unwrap().calories;
+    println!("Calories: {}", calories);
+    assert_eq!(calories, 0 - (100. * STARVING_SLOW_METABOLISM_FACTOR) as i32);
+}
+
+#[test]
+fn starvation_pregnant() {
+    let mut deer1 = CreatureState{
+        components: ComponentMap::default(),
+        inventory: Vec::new(),
+        memory: CreatureMemory::default(),
+    };
+    deer1.components.starvation_component = Some(StarvationComponent { 
+        calories: 1000, 
+        metabolism: 100,
+    });
+    deer1.components.health_component = Some(HealthComponent {
+        health:  SIMPLE_ATTACK_BASE_DMG * 10,
+        max_health: SIMPLE_ATTACK_BASE_DMG * 10,
+    });
+    deer1.components.evolving_traits = Some(EvolvingTraitsComponent {
+        adult_traits: EvolvingTraits{
+            species: 0,
+            litter_size: 50,
+            pregnancy_time: 100,
+            maleness: 0,
+            fast_grower: 100,
+            ..Default::default()
+        },
+        child_until_frame: 1,
+        ..Default::default()
+    });
+    deer1.components.movement_component = Some(MovementComponent {
+        frames_to_move: 5,
+        destination: Location { region: Vu2{x: 1, y: 1}, position: Vu2{x: 1, y: 1}, },
+        frame_ready_to_move: 5,
+        moving: false,
+    });
+    deer1.components.sexual_reproduction = Some(SexualReproduction { is_pregnant: true, pregnancy_completion_frame: 200, litter_size: 1, partner_genes: EvolvingTraits::default() });
+    deer1.setup_creature(1, false); // must use frame become adult
+    starvation_system(&mut deer1, 10);
+    let calories = deer1.components.starvation_component.unwrap().calories;
+    println!("Calories: {}", calories);
+    assert_eq!(calories, (1000. - (100. * STANDARD_PREGNANCY_METABOLISM_MULTIPLIER * 1.5)) as i32 ); // 1.5 is: 1/100 * 50, the litter_size formula
+}
+#[test]
+fn starvation_moving() {
+    // Should test moving is true and also the move_speed trait
+    let mut deer1 = CreatureState{
+        components: ComponentMap::default(),
+        inventory: Vec::new(),
+        memory: CreatureMemory::default(),
+    };
+    deer1.components.starvation_component = Some(StarvationComponent { 
+        calories: 1000, 
+        metabolism: 100,
+    });
+    deer1.components.health_component = Some(HealthComponent {
+        health:  SIMPLE_ATTACK_BASE_DMG * 10,
+        max_health: SIMPLE_ATTACK_BASE_DMG * 10,
+    });
+    deer1.components.evolving_traits = Some(EvolvingTraitsComponent {
+        adult_traits: EvolvingTraits{
+            species: 0,
+            move_speed: 60,
+            ..Default::default()
+        },
+        child_until_frame: 1,
+        ..Default::default()
+    });
+    deer1.components.movement_component = Some(MovementComponent {
+        frames_to_move: 5,
+        destination: Location { region: Vu2{x: 1, y: 1}, position: Vu2{x: 1, y: 1}, },
+        frame_ready_to_move: 5,
+        moving: true,
+    });
+    deer1.setup_creature(1, false);// must use frame become adult
+    starvation_system(&mut deer1, 10);
+    let calories = deer1.components.starvation_component.unwrap().calories;
+    println!("Calories: {}", calories);
+    assert_eq!(calories, (1000. - (100. * MOVING_INCREASED_METABOLISM_FACTOR * (0.3 * 60.))) as i32);
+}
+#[test]
+fn starvation_child() {
+    // test ur a child but also fast_grower
+    let mut deer1 = CreatureState{
+        components: ComponentMap::default(),
+        inventory: Vec::new(),
+        memory: CreatureMemory::default(),
+    };
+    deer1.components.starvation_component = Some(StarvationComponent { 
+        calories: 1000, 
+        metabolism: 100,
+    });
+    deer1.components.health_component = Some(HealthComponent {
+        health:  SIMPLE_ATTACK_BASE_DMG * 10,
+        max_health: SIMPLE_ATTACK_BASE_DMG * 10,
+    });
+    deer1.components.evolving_traits = Some(EvolvingTraitsComponent {
+        adult_traits: EvolvingTraits{
+            species: 0,
+            fast_grower: 100,
+            ..Default::default()
+        },
+        born_on_frame: 0,
+        child_until_frame: 10,
+        ..Default::default()
+    });
+    deer1.components.movement_component = Some(MovementComponent {
+        frames_to_move: 5,
+        destination: Location { region: Vu2{x: 1, y: 1}, position: Vu2{x: 1, y: 1}, },
+        frame_ready_to_move: 5,
+        moving: false,
+    });
+    deer1.setup_creature(2, false); // 1/5 way to adult
+    starvation_system(&mut deer1, 2);
+    let calories = deer1.components.starvation_component.unwrap().calories;
+    println!("Calories: {}", calories);
+    assert_eq!(calories, 1000 - (100. * 1.5 * 0.2) as i32); // 1.5 because fast grower, .2 because child
+}
+#[test]
+fn starvation_thick_hide() {
+    let mut deer1 = CreatureState{
+        components: ComponentMap::default(),
+        inventory: Vec::new(),
+        memory: CreatureMemory::default(),
+    };
+    deer1.components.starvation_component = Some(StarvationComponent { 
+        calories: 1000, 
+        metabolism: 100,
+    });
+    deer1.components.health_component = Some(HealthComponent {
+        health:  SIMPLE_ATTACK_BASE_DMG * 10,
+        max_health: SIMPLE_ATTACK_BASE_DMG * 10,
+    });
+    deer1.components.evolving_traits = Some(EvolvingTraitsComponent {
+        adult_traits: EvolvingTraits{
+            species: 0,
+            thick_hide: 200,
+            ..Default::default()
+        },
+        child_until_frame: 1,
+        ..Default::default()
+    });
+    deer1.components.movement_component = Some(MovementComponent {
+        frames_to_move: 5,
+        destination: Location { region: Vu2{x: 1, y: 1}, position: Vu2{x: 1, y: 1}, },
+        frame_ready_to_move: 5,
+        moving: false,
+    });
+    deer1.setup_creature(1, false);// must use frame become adult if you want adult or assert fails
+    starvation_system(&mut deer1, 10);
+    let calories = deer1.components.starvation_component.unwrap().calories;
+    println!("Calories: {}", calories);
+    assert_eq!(calories, (1000. - 100. * 1.4) as i32); //thick hide is 1+ .2 per 100 so 1.4 with 200
+}
 
 // Test sex, and then reproduction. Make sure the sex related stuff like species, multithreads, mutating, inheritance, litter size, pregnancy time, and childness work.
 #[test]

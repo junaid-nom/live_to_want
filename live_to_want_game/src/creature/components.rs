@@ -21,7 +21,7 @@ pub static MOVING_INCREASED_METABOLISM_FACTOR: f32 = 1.5;
 pub static MUTATION_CHANGE: i32 = 10;
 pub static SPECIES_SEX_RANGE: i32 = MUTATION_CHANGE * 5;// Shouldnt be too high because the expected value of species changing is 0, and its rarely mutated.
 
-pub static THICK_HIDE_METABOLISM_MULTIPLIER: f32 = 1. + (0.2 / 100.0);
+pub static THICK_HIDE_METABOLISM_MULTIPLIER: f32 = 0.2 / 100.0;
 pub static THICK_HIDE_DMG_REDUCE_MULTIPLIER: f32 = SIMPLE_ATTACK_BASE_DMG as f32 * 1.0 / 100.0; // For every 100 thick hide, decrease dmg by 1
 
 pub static SHARP_CLAWS_DMG_INCREASE: f32 = SIMPLE_ATTACK_BASE_DMG as f32 * 0.7 / 100.0; // for every 100 sharp claws, increase dmg by 1.7x simple attack (rounds down)
@@ -33,9 +33,9 @@ pub static MOVE_SPEED_METABOLISM_MULTIPLIER: f32 = 3. * MOVE_SPEED_FRAME_REDUCTI
 
 pub static BASE_PREGNANCY_TIME_ADDER: i32 = 1; // for every point in this trait, increase pregnancy time.
 pub static FAST_GROWER_MULTIPLIER: f32 = 0.005; // each point in fast grower reduces total time by .5%
-pub static FAST_GROWER_CALORIE_MULTIPLIER: f32 = 1.005; // each point in fast grower increases total calories by .5%
+pub static FAST_GROWER_CALORIE_MULTIPLIER: f32 = 0.005; // each point in fast grower increases total calories by .5%
 pub static LITTER_SIZE_TRAIT_NEEDED_FOR_ONE_BABY: i32 = 100;
-pub static LITTER_SIZE_METABOLISM_MULTIPLIER: f32 = 1. + (1. / LITTER_SIZE_TRAIT_NEEDED_FOR_ONE_BABY as f32);
+pub static LITTER_SIZE_METABOLISM_MULTIPLIER: f32 = 1. / LITTER_SIZE_TRAIT_NEEDED_FOR_ONE_BABY as f32;
 pub static CANNIBAL_PREGNANCY_CHILD_CALORIES_MULTIPLIER: f32 = 0.1; // so 100 would give u 10x starting calories!
 pub static CANNIBAL_PREGNANCY_DEATH_WEIGHT_MULTIPLIER: f32 = 1.0; // so 100 would give u 10x starting calories!
 
@@ -346,7 +346,7 @@ pub struct EvolvingTraits {
     // pub anti_rape: i32, // increases chance of sex failing when other creatures try to sex you.
 }
 impl EvolvingTraits {
-    pub fn clone_with_multiplier(&self, multiplier :f32) -> EvolvingTraits {
+    pub fn clone_with_multiplier_and_exceptions(&self, multiplier :f32, ignore_child_exceptions: bool) -> EvolvingTraits {
         EvolvingTraits {
             thick_hide: (self.thick_hide as f32 * multiplier) as i32,
             sharp_claws: (self.sharp_claws as f32 * multiplier) as i32,
@@ -356,7 +356,7 @@ impl EvolvingTraits {
             litter_size: (self.litter_size as f32 * multiplier) as i32,
             pregnancy_time: (self.pregnancy_time as f32 * multiplier) as i32,
             maleness: (self.maleness as f32 * multiplier) as i32,
-            fast_grower: (self.fast_grower as f32 * multiplier) as i32,
+            fast_grower: if ignore_child_exceptions {self.fast_grower } else { (self.fast_grower as f32 * multiplier) as i32}, // childness should not affect fast_grower as it affects childness which is weird.
             girth: (self.girth as f32 * multiplier) as i32,
             more_mutations: (self.more_mutations as f32 * multiplier) as i32,
             cannibal_childbirth: (self.cannibal_childbirth as f32 * multiplier) as i32,
@@ -461,7 +461,7 @@ impl EvolvingTraitsComponent {
         }
         let total_time = self.child_until_frame - self.born_on_frame;
         let percent_done = (frame - self.born_on_frame) as f32 / total_time as f32;
-        self.traits = self.adult_traits.clone_with_multiplier(percent_done);
+        self.traits = self.adult_traits.clone_with_multiplier_and_exceptions(percent_done, true);
         // TODO whatever calls this should remove child component when this is done?
         // TODO: Fuck this is gonna be really complicated for stuff like healthcomponent, movement etc that set their own stats at startup.
         // For example, max hp is set when creature is born, so will have to fucking update max hp every frame as child grows.
@@ -631,7 +631,7 @@ impl Clone for MovementComponent {
 #[derive(Deserialize, Serialize)]
 pub struct StarvationComponent {
     pub calories: i32,
-    pub metabolism: usize,
+    pub metabolism: usize, // is the base calories spent per frame
 }
 impl Component for StarvationComponent {
     fn get_visible() -> bool {
