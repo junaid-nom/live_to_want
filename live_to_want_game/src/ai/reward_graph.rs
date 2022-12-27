@@ -18,6 +18,14 @@ pub fn get_count_of_variable(m: &MapState, c: &CreatureState, v: Variable) -> i3
     0
 }
 
+pub fn get_global_reward_for_connection(node: &Node, global_reward: f32, counts: &Vec<i32>, m: &MapState, c: &CreatureState, c_target: Option<&CreatureState>) -> f32 {
+    match node {
+        Node::Reward(n) => n.reward_connection.as_ref()(m, c, counts) * global_reward,
+        Node::CreatureList(nl) => nl.reward_connection.as_ref()(m, c, counts, c_target.unwrap()) * global_reward,
+    }
+}
+
+
 pub struct RootNode {
     pub description: String,  // just for debugging/comments
     pub nodes: Vec<Node>,
@@ -46,7 +54,7 @@ impl RootNode {
                     // For example if it takes 5 wood to make a plank, and 1 plank and 1 stone to make a spear,
                     // then if you already have 5 wood, the reward of gathering more wood should be as if we already 
                     // have +1 spear than we have because we already have wood to make +1 spear.
-                    let mut child_counts: Vec<i32> = effects.iter().map(|e| get_count_of_variable(map_state, c_state, e.variable)).collect();
+                    let mut this_counts: Vec<i32> = effects.iter().map(|e| get_count_of_variable(map_state, c_state, e.variable)).collect();
 
                     // Need to do custom bonus_counts for EACH child count.
                     // get current amount of this node by checking its effects.
@@ -56,8 +64,16 @@ impl RootNode {
                     // adding another wood is for example, but first we need to see how much "wood" we 
                     // would allocate to each connection already.
 
-                    // TODONEXT:
-                    // first, separate all connections into separate lists based on their category Variable.
+                    // Wait a minute, every variable change should have its own node.
+                    // and so nodes that have effects: +1 wood +1 fiber, would simply connect
+                    // to that node. SO WE SHOULD NEVER HAVE A NODE THAT HAS MULTIPLE woods, AND multiple some other.
+                    // So Count should always be a single i32.
+                    // So chopTree-> (Wood->Many wood items), (Fiber-> many fiber items),
+                    // so chopTree only has 1 item per category. Wood has many items for wood category but 
+                    // only 1 category.
+
+                    // below must be done AFTER all global rewards of children have been calculated!
+                    // first, separate all connections into separate lists based on their Variable.
                     // we get the variable count for that category
                     // we also make a list of i32 of bonuses given to each child conn. starting at 0
                     // now, 0..VariableCount we get the reward for each connection for each VariableCount, 
@@ -68,6 +84,55 @@ impl RootNode {
                     // then sum up the Maxs for each category.
                     // that will then be used in the global reward.
                     // these partial results can be saved in the connection results for debugging.
+                    let mut conn_by_categories: Vec<Vec<&RewardNodeConnection>> = vec![];
+                    (&n.children).into_iter().for_each(|conn| {
+                        let mut existing = false;
+                        for cvec in conn_by_categories.iter_mut() {
+                            if cvec.len() > 0 && cvec[0].requirement == conn.requirement {
+                                existing = true;
+                                cvec.push(conn);
+                                break;
+                            }
+                        }
+                        if !existing {
+                            conn_by_categories.push(vec![conn]);
+                        }
+                    });
+
+                    let mut conn_results: Vec<Vec<ConnectionResult>> = Vec::new();
+                    // get actual counts of the variable change outputs of the child.
+                    // so if a child of this node has: +2wood +3fiber. and we have 4 wood/fiber already
+                    // and we have 
+                    // reward should be per effect...
+                    // so reward func should be -> Vec<VariableChange?, Reward?>
+
+                    // to actually get hypothetical rewardd if more need recurse alot For every parent!!
+                    // This would be way too expensive so instead just ESTIMATE with that connection multiplier func. Also to get super accurate count can take the local reward for that requirement/total reward and multiply that but the count for that requirement to get "how many of this node do we already have" and add that with "how many do we more because of how many of that requirement part we fulfilled."
+                    // Still need to make all rewards split on per connection. Then can get a rough estimate of "count"
+                    // by looking at each reward type and multiplying it by conn_reward/total_reward
+                    let counts_default = vec![];
+                    for conn_list in conn_by_categories.iter() {
+                        let mut cat_results: Vec<ConnectionResult> = vec![];
+                        for c in conn_list {
+                            cat_results.push(ConnectionResult{
+                                multiplier: c.base_multiplier,
+                                global_reward: Some(
+                                    get_global_reward_for_connection(
+                                        (&self).nodes.get((*c).child_index).unwrap(), 
+                                        root.nodes[(*c).child_index].global_reward.unwrap(), 
+                                        &counts_default, 
+                                        map_state, 
+                                        c_state,
+                                        None)
+                                    ),
+                                bonus_count: 0,
+                            });
+                        }
+                        let count = get_count_of_variable(map_state, c_state, conn_list[0].requirement);
+                        for i in 0..count {
+                            // get the Max reward of them all, increase its count by 1 and recompute it.
+                        }
+                    }
 
                     let mut new = NodeResult{
                         requirement_result: requirement,
@@ -79,7 +144,7 @@ impl RootNode {
                         connection_results: (&n.children).into_iter().map(|c| {
                             // Get if requirements met.
                             match self.nodes.get(c.child_index).unwrap() {
-                                Node::Reward(r) => r.reward_connection.as_ref()(map_state, c_state, &child_counts),
+                                Node::Reward(r) => r.reward_connection.as_ref()(map_state, c_state, &this_counts),
                                 Node::CreatureList(_) => todo!(),
                             }
                         }).collect(), // need to wait for global results of children to compute this
@@ -128,7 +193,7 @@ pub struct RewardNode {
     pub children: Vec<RewardNodeConnection>,
     //pub parents: Vec<NodeIndex>,
     pub reward: Box<fn(&MapState, &CreatureState, &RequirementResult) -> RewardResult>,
-    pub reward_connection: Box<fn(&MapState, &CreatureState, &Vec<i32>) -> ConnectionResult>,
+    pub reward_connection: Box<fn(&MapState, &CreatureState, &Vec<i32>) -> f32>,
     pub requirement: Box<fn(&MapState, &CreatureState) -> RequirementResult>,
     pub cost: Box<fn(&MapState, &CreatureState, &RequirementResult) -> CostResult>,
     pub get_command: Option<Box<for<'f> fn(&'f MapState, &'f CreatureState, &RewardResult, &RequirementResult) -> CreatureCommand<'f>>>, // Is None if this node does not lead to a category and is more of an organizing node
@@ -140,7 +205,7 @@ pub struct RewardNodeCreatureList {
     pub children: Vec<RewardNodeConnection>,
     //pub parents: Vec<usize>,
     pub reward: Box<fn(&MapState, &CreatureState, &RequirementResult, &CreatureState) -> RewardResult>,
-    pub reward_connection: Box<fn(&MapState, &CreatureState, &Vec<i32>, &CreatureState) -> ConnectionResult>,
+    pub reward_connection: Box<fn(&MapState, &CreatureState, &Vec<i32>, &CreatureState) -> f32>,
     pub requirement: Box<fn(&MapState, &CreatureState, &CreatureState) -> RequirementResult>,
     pub cost: Box<fn(&MapState, &CreatureState, &RequirementResult, &CreatureState) -> CostResult>,
     pub get_command: Option<Box<for<'f> fn(&'f MapState, &'f CreatureState, &RewardResult, &RequirementResult, &'f CreatureState) -> CreatureCommand<'f>>>, // Is None if this node does not lead to a category and is more of an organizing node
@@ -165,7 +230,7 @@ pub struct CostResult{
 }
 pub struct ConnectionResult {
     pub multiplier: f32, // base multiplier * child's Count based multiplier
-    pub global_reward: f32,
+    pub global_reward: Option<f32>, // None when not set yet
     pub bonus_count: i32, // used to compute the final reward multiplier for the child for his connection
 }
 
