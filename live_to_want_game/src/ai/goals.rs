@@ -12,9 +12,14 @@ use std::borrow::Borrow;
 // ACTUALLY can make it work if just have a new struct, that takes in each node invididually
 // since the graph is basically static this is possible. See: tests::graph_without_vec_test
 // though requires a lil unsafe
+
+// TODO: Reward for parent from child should actually be: Reward/remaining needed to Build item. So if you have 4/5 wood to build big item, then value of 1 wood is very high. If you need 50 wood remaining then its low, this way if you need 5 more clay (total 20)  but only need 1 more wood (total 100) then value of 1 more wood is very high compared to clay even though normally it isn't.
+// But what about the case of SUPER RARE diamond ore is around, and 1 wood. Also, wood reward will be high even you only need 1 of it and the other requirement is super rare diamond.
+// So, maybe need Rarity idea? But I guess you can accomplish this by just setting the Base-local reward for rare items High? Shouldn't discount easy to get items or the AI might never try to get them.
+// Not the biggest deal because eventually the AI will get alot of wood and stop once it has enough for most recipes.
 pub struct GoalNode<'a> {
     pub get_want_local: Box<fn(&MapState, &CreatureState) -> u32>,
-    pub get_effort_local: Box<fn(&MapState, &CreatureState) -> u32>,
+    pub get_effort_local: Box<fn(&MapState, &CreatureState) -> u32>, // should be minimum of 1
     pub children: Vec<GoalConnection<'a>>,
     pub name: &'a str,  // just for debugging really
     pub get_command: Option<Box<for<'f, 'c> fn(&'f MapState, &'f CreatureState) -> CreatureCommand<'f>>>, // Is None if this node does not lead to a category and is more of a organizing node
@@ -58,6 +63,7 @@ impl GoalCacheNode<'_> {
             requirement_met: (goal.get_requirements_met)(map_state, c_state),
             motivation_global: None,
         };
+        assert!(new.effort_local >= 1);
         new
         // NOTE: Could make an outer struct "GoalCacheNetwork", that holds a root_node and the existing_cache and auto create network?
     }
