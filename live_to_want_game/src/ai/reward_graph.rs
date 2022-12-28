@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-
+use std::collections::HashSet;
 use crate::{UID, MapState, CreatureState, CreatureCommand, Location};
 
 pub type NodeIndex = usize;
@@ -25,6 +25,16 @@ pub fn get_global_reward_for_connection(node: &Node, global_reward: f32, counts:
     }
 }
 
+pub fn get_variable_change_from_vec_vec(changes :&Vec<Vec<VariableChange>>, variable: Variable) -> Option<VariableChange> {
+    for vc_list in changes {
+        for vc in vc_list {
+            if vc.variable == variable {
+                return Some(*vc);
+            }
+        }
+    }
+    None
+}
 
 pub struct RootNode {
     pub description: String,  // just for debugging/comments
@@ -49,12 +59,53 @@ impl RootNode {
                         None => vec![],
                     };
 
+                    let new = NodeResult{
+                        original_node_description: n.description.clone(), // NOTE: Is this worth? Every frame copying over the description. All to make debug print easier?
+                        requirement_result: requirement,
+                        reward_result: reward,
+                        cost_result: cost,
+                        global_reward: NodeRewardGlobal { rewards_per_requirement: vec![], reward_sum_total: None, reward_global_with_costs: None },
+                        children: (&n.children).into_iter().map(|c| c.child_index).collect(),
+                        effects: effects,
+                        connection_results: None, // need to wait for global results of children to compute this
+                        original_node: n.index,
+                        creature_target: None,
+                    };
+                    root.nodes.push(new);
+                },
+                Node::CreatureList(nl) => todo!(),
+            }
+        }
+
+
+        // Now how to get the reward of everything...
+        // I guess: go through from root, if node doesn't have global reward set yet, then, calculate the global reward on it.
+        // First step of that is to calculate it on its children recurssively
+        for i in 0..root.children.len() {
+            let mut indexs_processed = HashSet::new();
+            // TODO: Converting the UID of creature target, to the creature state itself
+            // is gonna be REALLY confusing. Should probably just be a reference to 
+            // a COPY of the CreatureState in the MEMORY of the Creature doing this AI.
+            // but then will need to update the memory for all creatures currently in view... wtf?
+            // ok so can't do that copy idea.
+            // instead need to make a new helper function in map_state that can take a UID
+            // and output a creature State (option) or whatever.
+            // creature memory just stores UID and last location seen? only of important friendly stuff?
+            // might be able to make a dictionary of UID->CreatureState within mapstate itself and save it? or maybe its just input to this function.
+            root.calculate_global_reward( &self, map_state, c_state, None, i, &mut indexs_processed);
+        }
+
+        for node in &self.nodes {
+            match node{
+                Node::Reward(n) => {
+                    let node_result = &mut root.nodes[n.index];
+
                     // If there is an inbetween material to make something, and we have enough to make it already.
                     // then we should add 1 to the actual count of the child object, because we already have enough to make one more of it for this ingredient.
                     // For example if it takes 5 wood to make a plank, and 1 plank and 1 stone to make a spear,
                     // then if you already have 5 wood, the reward of gathering more wood should be as if we already 
                     // have +1 spear than we have because we already have wood to make +1 spear.
-                    let mut this_counts: Vec<i32> = effects.iter().map(|e| get_count_of_variable(map_state, c_state, e.variable)).collect();
+                    let mut this_counts: Vec<i32> = node_result.effects.iter().map(|e| get_count_of_variable(map_state, c_state, e.variable)).collect();
 
                     // Need to do custom bonus_counts for EACH child count.
                     // get current amount of this node by checking its effects.
@@ -88,7 +139,7 @@ impl RootNode {
                     (&n.children).into_iter().for_each(|conn| {
                         let mut existing = false;
                         for cvec in conn_by_categories.iter_mut() {
-                            if cvec.len() > 0 && cvec[0].requirement == conn.requirement {
+                            if cvec.len() > 0 && cvec[0].requirement.variable == conn.requirement.variable {
                                 existing = true;
                                 cvec.push(conn);
                                 break;
@@ -110,54 +161,35 @@ impl RootNode {
                     // This would be way too expensive so instead just ESTIMATE with that connection multiplier func. Also to get super accurate count can take the local reward for that requirement/total reward and multiply that but the count for that requirement to get "how many of this node do we already have" and add that with "how many do we more because of how many of that requirement part we fulfilled."
                     // Still need to make all rewards split on per connection. Then can get a rough estimate of "count"
                     // by looking at each reward type and multiplying it by conn_reward/total_reward
-                    let counts_default = vec![];
+                    let counts_default: Vec<i32> = vec![];
                     for conn_list in conn_by_categories.iter() {
                         let mut cat_results: Vec<ConnectionResult> = vec![];
                         for c in conn_list {
-                            cat_results.push(ConnectionResult{
-                                multiplier: c.base_multiplier,
-                                global_reward: Some(
-                                    get_global_reward_for_connection(
-                                        (&self).nodes.get((*c).child_index).unwrap(), 
-                                        root.nodes[(*c).child_index].global_reward.unwrap(), 
-                                        &counts_default, 
-                                        map_state, 
-                                        c_state,
-                                        None)
-                                    ),
-                                bonus_count: 0,
-                            });
+                            // cat_results.push(ConnectionResult{
+                            //     multiplier: c.base_multiplier,
+                            //     conn_reward: Some(
+                            //         get_global_reward_for_connection(
+                            //             (&self).nodes.get((*c).child_index).unwrap(), 
+                            //             root.nodes[(*c).child_index].global_reward.unwrap(), 
+                            //             &counts_default, 
+                            //             map_state, 
+                            //             c_state,
+                            //             None)
+                            //         ),
+                            //     bonus_count: 0,
+                            // });
                         }
-                        let count = get_count_of_variable(map_state, c_state, conn_list[0].requirement);
+                        let count = get_count_of_variable(map_state, c_state, conn_list[0].requirement.variable);
                         for i in 0..count {
                             // get the Max reward of them all, increase its count by 1 and recompute it.
                         }
                     }
-
-                    let mut new = NodeResult{
-                        requirement_result: requirement,
-                        reward_result: reward,
-                        cost_result: cost,
-                        global_reward: None,
-                        children: (&n.children).into_iter().map(|c| c.child_index).collect(),
-                        effects: effects,
-                        connection_results: (&n.children).into_iter().map(|c| {
-                            // Get if requirements met.
-                            match self.nodes.get(c.child_index).unwrap() {
-                                Node::Reward(r) => r.reward_connection.as_ref()(map_state, c_state, &this_counts),
-                                Node::CreatureList(_) => todo!(),
-                            }
-                        }).collect(), // need to wait for global results of children to compute this
-                        original_node: n.index,
-                    };
-                    root.nodes.push(new);
                 },
                 Node::CreatureList(nl) => todo!(),
             }
-
-           
-            
         }
+
+                    
 
         root
     }
@@ -175,17 +207,20 @@ pub enum Variable {
     None,
     Bone,
     Skin,
+    // NOTE inbetween ingredients will need to be variables. Anything that is an inner OR. For example, if  (wood OR clay) AND glue makes a wall, then (wood OR clay) must be its own node and variable.
 }
+#[derive(Debug)]
+#[derive(Copy, Clone, Hash, PartialEq, Eq)]
+#[derive(Deserialize, Serialize)]
 pub struct VariableChange {
     pub variable: Variable,
     pub change: i32,
 }
 
 pub struct RewardNodeConnection {
-    pub base_multiplier: f32, // for example if 5 wood is needed for a spear, the multiplier should be 1/5
     pub child_index: NodeIndex,
     pub parent_index: NodeIndex,
-    pub requirement: Variable,
+    pub requirement: VariableChange, // multiplier is: 1/requirement.change * effect(for that variable)
 }
 pub struct RewardNode {
     pub description: String,  // just for debugging/comments
@@ -215,11 +250,12 @@ pub struct RewardNodeCreatureList {
 
 pub struct RequirementResult{
     pub valid: bool,
+    pub requirements: Vec<Vec<VariableChange>>, //requirements split by OR
     pub target_id: Option<UID>,
     pub target_location: Option<Location>,
 }
 pub struct RewardResult{
-    pub base_reward: f32,
+    pub reward_local: f32,
     // below can be used by other functions to do interesting stuff
     pub target_id: Option<UID>,
     pub target_location: Option<Location>,
@@ -230,8 +266,20 @@ pub struct CostResult{
 }
 pub struct ConnectionResult {
     pub multiplier: f32, // base multiplier * child's Count based multiplier
-    pub global_reward: Option<f32>, // None when not set yet
+    pub conn_reward: Option<f32>, // None when not set yet
     pub bonus_count: i32, // used to compute the final reward multiplier for the child for his connection
+}
+
+// Is typically just connectionResult, but with computed 
+pub struct VariableReward{
+    pub reward: f32, // for None category, this will be sum of all conn_results otherwise is the max for that category
+    pub category: Variable,
+}
+pub struct NodeRewardGlobal{
+    // local reward is stored in the RewardResult
+    rewards_per_requirement: Vec<VariableReward>,
+    reward_sum_total: Option<f32>, // includes local reward
+    reward_global_with_costs: Option<f32>,
 }
 
 pub struct NodeResultRoot {
@@ -239,13 +287,109 @@ pub struct NodeResultRoot {
     pub children: Vec<NodeIndex>,
     pub original_node_descriptor: String,
 }
+impl NodeResultRoot {
+    pub fn calculate_global_reward(&mut self, root_node: &RootNode, map_state: &MapState, c_state: &CreatureState, c_target: Option<&CreatureState>, index_to_process: usize, indexes_processed: &mut HashSet<usize>) -> bool {
+        if self.nodes[index_to_process].global_reward.reward_global_with_costs.is_some() {
+            return true;
+        }
+        if indexes_processed.contains(&index_to_process) {
+            eprintln!("There is a cycle in the graph (a nested child has a parent as their child), this means its impossible to compute! Last Node {} Nodes processed(random order): {:#?}", self.nodes[index_to_process].original_node_description.clone(), indexes_processed.iter().map(|i| {
+                self.nodes[*i].original_node_description.clone()
+            }));
+            return false;
+        }
+        indexes_processed.insert(index_to_process);
+        // go through all children and make sure they are calculated first.
+        // depth first basically.
+        for child in self.nodes[index_to_process].children.clone() {
+            self.calculate_global_reward(root_node, map_state, c_state, c_target, child, indexes_processed);
+        }
+
+        // all children must have been processed now.
+        // global reward sum is: reward_local + Sum(rewards_per_requirement)
+        // final global reward with cost is: global_sum - cost_base / cost_multiplier
+        
+        let mut conn_by_categories: Vec<Vec<&RewardNodeConnection>> = vec![];
+        let child_iter: &Vec<RewardNodeConnection> = match &root_node.nodes[index_to_process] {
+            Node::Reward(r) => &r.children,
+            Node::CreatureList(_) => todo!(),
+        };
+        
+        child_iter.iter().for_each(|conn| {
+            let mut existing = false;
+            for cvec in conn_by_categories.iter_mut() {
+                if cvec.len() > 0 && cvec[0].requirement.variable == conn.requirement.variable {
+                    existing = true;
+                    cvec.push(conn);
+                    break;
+                }
+            }
+            if !existing {
+                conn_by_categories.push(vec![conn]);
+            }
+        });
+
+        let mut conn_results: Vec<Vec<ConnectionResult>> = Vec::new();
+        for conn_list in conn_by_categories.iter() {
+            let mut cat_results: Vec<ConnectionResult> = vec![];
+            let variable = conn_list[0].requirement.variable;
+
+            if variable == Variable::None {
+                // if its None, just get the reward and the multiplier calculation is with count 0 always?
+                todo!();
+            }
+
+            let actual_count = get_count_of_variable(map_state, c_state, variable);
+            for c in conn_list {
+                let requirement_needed_in_child = get_variable_change_from_vec_vec(&self.nodes[c.child_index].requirement_result.requirements, variable);
+                if requirement_needed_in_child == None {
+                    eprintln!("have a Variable connection but child requirement does not actually have this Variable as its requirement. Graph is wrong! parent:{} child:{} variable:{:#?}", index_to_process, c.child_index, variable);
+                    panic!("have a Variable connection but child requirement does not have requirement.");
+                }
+                let actual_child_count = actual_count as f32 / requirement_needed_in_child.unwrap().change as f32;
+                // TODONEXT:
+                // now just need to get "actually exists" of the child. this can be done by
+                // for each of its effects, get their count, then for each variable get its 
+                // reward proportion by finding its rewards_per_requirement/reward_sum_total
+
+                // if its none that means that node doesn't actually require this category?
+                // or its None category?
+
+                // cat_results.push(ConnectionResult{
+                //     multiplier: c.base_multiplier,
+                //     conn_reward: Some(
+                //         get_global_reward_for_connection(
+                //             (&self).nodes.get((*c).child_index).unwrap(), 
+                //             root.nodes[(*c).child_index].global_reward.unwrap(), 
+                //             &counts_default, 
+                //             map_state, 
+                //             c_state,
+                //             None)
+                //         ),
+                //     bonus_count: 0,
+                // });
+            }
+            let count = get_count_of_variable(map_state, c_state, variable);
+            for i in 0..count {
+                // get the Max reward of them all, increase its count by 1 and recompute it.
+            }
+
+            conn_results.push(cat_results);
+        }
+
+        return true;
+    }
+}
 pub struct NodeResult {
-    pub reward_result: RewardResult,
+    pub original_node: NodeIndex,
+    pub original_node_description: String,
+    pub reward_result: RewardResult, //contains local reward
     pub cost_result: CostResult,
     pub requirement_result: RequirementResult,
-    pub global_reward: Option<f32>, // none is not calculated yet
-    pub children: Vec<NodeIndex>,
     pub effects: Vec<VariableChange>,
-    pub connection_results: Vec<ConnectionResult>, // indexs should match children
-    pub original_node: NodeIndex,
+    pub children: Vec<NodeIndex>,
+    // Filled out as you do global reward:
+    pub connection_results: Option<Vec<Vec<ConnectionResult>>>, // indexs should match children
+    pub global_reward: NodeRewardGlobal,
+    pub creature_target: Option<UID>,
 }
