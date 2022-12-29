@@ -18,10 +18,10 @@ pub fn get_count_of_variable(m: &MapState, c: &CreatureState, v: Variable) -> i3
     0
 }
 
-pub fn get_global_reward_for_connection(node: &Node, global_reward: f32, counts: &Vec<i32>, m: &MapState, c: &CreatureState, c_target: Option<&CreatureState>) -> f32 {
+pub fn get_global_reward_for_connection(node: &Node, global_reward: f32, base_multiplier: f32, count: i32, m: &MapState, c: &CreatureState, c_target: Option<&CreatureState>) -> f32 {
     match node {
-        Node::Reward(n) => n.reward_connection.as_ref()(m, c, counts) * global_reward,
-        Node::CreatureList(nl) => nl.reward_connection.as_ref()(m, c, counts, c_target.unwrap()) * global_reward,
+        Node::Reward(n) => n.reward_connection.as_ref()(m, c, count) * global_reward,
+        Node::CreatureList(nl) => nl.reward_connection.as_ref()(m, c, count, c_target.unwrap()) * global_reward,
     }
 }
 
@@ -33,6 +33,16 @@ pub fn get_variable_change_from_vec_vec(changes :&Vec<Vec<VariableChange>>, vari
             }
         }
     }
+    None
+}
+
+pub fn get_variable_change_from_effects(category: Variable, effects: &Vec<VariableChange>) -> Option<VariableChange> {
+    for vc in effects.iter() {
+        if vc.variable == category {
+            return Some(*vc);
+        }
+    }
+
     None
 }
 
@@ -228,7 +238,7 @@ pub struct RewardNode {
     pub children: Vec<RewardNodeConnection>,
     //pub parents: Vec<NodeIndex>,
     pub reward: Box<fn(&MapState, &CreatureState, &RequirementResult) -> RewardResult>,
-    pub reward_connection: Box<fn(&MapState, &CreatureState, &Vec<i32>) -> f32>,
+    pub reward_connection: Box<fn(&MapState, &CreatureState, i32) -> f32>,
     pub requirement: Box<fn(&MapState, &CreatureState) -> RequirementResult>,
     pub cost: Box<fn(&MapState, &CreatureState, &RequirementResult) -> CostResult>,
     pub get_command: Option<Box<for<'f> fn(&'f MapState, &'f CreatureState, &RewardResult, &RequirementResult) -> CreatureCommand<'f>>>, // Is None if this node does not lead to a category and is more of an organizing node
@@ -240,7 +250,7 @@ pub struct RewardNodeCreatureList {
     pub children: Vec<RewardNodeConnection>,
     //pub parents: Vec<usize>,
     pub reward: Box<fn(&MapState, &CreatureState, &RequirementResult, &CreatureState) -> RewardResult>,
-    pub reward_connection: Box<fn(&MapState, &CreatureState, &Vec<i32>, &CreatureState) -> f32>,
+    pub reward_connection: Box<fn(&MapState, &CreatureState, i32, &CreatureState) -> f32>,
     pub requirement: Box<fn(&MapState, &CreatureState, &CreatureState) -> RequirementResult>,
     pub cost: Box<fn(&MapState, &CreatureState, &RequirementResult, &CreatureState) -> CostResult>,
     pub get_command: Option<Box<for<'f> fn(&'f MapState, &'f CreatureState, &RewardResult, &RequirementResult, &'f CreatureState) -> CreatureCommand<'f>>>, // Is None if this node does not lead to a category and is more of an organizing node
@@ -265,9 +275,11 @@ pub struct CostResult{
     pub cost_divider: f32,
 }
 pub struct ConnectionResult {
-    pub multiplier: f32, // base multiplier * child's Count based multiplier
+    pub base_multiplier: f32, // multiplier based on just the requirements of child and effects of parent
+    pub multiplier_child: f32, // child's Count based multiplier
     pub conn_reward: Option<f32>, // None when not set yet
-    pub bonus_count: i32, // used to compute the final reward multiplier for the child for his connection
+    pub computed_count: i32, // used to compute the final reward multiplier for the child for his connection combined with bonus_count
+    pub bonus_count: i32,
 }
 
 // Is typically just connectionResult, but with computed 
@@ -346,33 +358,41 @@ impl NodeResultRoot {
                     eprintln!("have a Variable connection but child requirement does not actually have this Variable as its requirement. Graph is wrong! parent:{} child:{} variable:{:#?}", index_to_process, c.child_index, variable);
                     panic!("have a Variable connection but child requirement does not have requirement.");
                 }
-                let actual_child_count = actual_count as f32 / requirement_needed_in_child.unwrap().change as f32;
+                let conn_requirement_needed = requirement_needed_in_child.unwrap().change as f32;
+                let actual_parent_count = actual_count as f32 / conn_requirement_needed;
                 // TODONEXT:
                 // now just need to get "actually exists" of the child. this can be done by
                 // for each of its effects, get their count, then for each variable get its 
                 // reward proportion by finding its rewards_per_requirement/reward_sum_total
-
+                let total_count = actual_parent_count + &self.nodes[c.child_index].get_count(map_state, c_state);
+                assert!(total_count >= 0.);
                 // if its none that means that node doesn't actually require this category?
-                // or its None category?
+                // or its None category? AGG maybe None requirement shouldn't exist!
+                let base_multiplier = get_variable_change_from_effects(variable, &self.nodes[index_to_process].effects).unwrap().change as f32 / conn_requirement_needed;
 
-                // cat_results.push(ConnectionResult{
-                //     multiplier: c.base_multiplier,
-                //     conn_reward: Some(
-                //         get_global_reward_for_connection(
-                //             (&self).nodes.get((*c).child_index).unwrap(), 
-                //             root.nodes[(*c).child_index].global_reward.unwrap(), 
-                //             &counts_default, 
-                //             map_state, 
-                //             c_state,
-                //             None)
-                //         ),
-                //     bonus_count: 0,
-                // });
+                cat_results.push(ConnectionResult{
+                    base_multiplier: base_multiplier,
+                    multiplier_child: 1.,
+                    conn_reward: Some(
+                        get_global_reward_for_connection(
+                            (&self).nodes.get((*c).child_index).unwrap(), 
+                            root.nodes[(*c).child_index].global_reward.unwrap(),
+                            base_multiplier,
+                            total_count as i32, 
+                            map_state, 
+                            c_state,
+                            None)
+                        ),
+                    computed_count: total_count as i32,
+                    bonus_count: 0,
+                });
+                for i in 0..total_count as i32 {
+                    // get the Max reward of them all, increase its count by 1 and recompute it.
+
+                }
             }
             let count = get_count_of_variable(map_state, c_state, variable);
-            for i in 0..count {
-                // get the Max reward of them all, increase its count by 1 and recompute it.
-            }
+            
 
             conn_results.push(cat_results);
         }
@@ -393,3 +413,21 @@ pub struct NodeResult {
     pub global_reward: NodeRewardGlobal,
     pub creature_target: Option<UID>,
 }
+impl NodeResult {
+    pub fn get_count(&self, map_state: &MapState, c_state: &CreatureState) -> f32 {
+        if self.global_reward.reward_sum_total.is_none() {
+            panic!("Trying to get count when global reward has not been calculated yet!");
+        }
+
+        let total_sum = self.global_reward.reward_sum_total.unwrap();
+        let mut total_count = 0.;
+        for req_result in &self.global_reward.rewards_per_requirement {
+            if req_result.category != Variable::None {
+                total_count += (req_result.reward/total_sum) * get_count_of_variable(map_state, c_state, req_result.category) as f32;
+            }
+        }
+
+        total_count
+    }
+}
+
