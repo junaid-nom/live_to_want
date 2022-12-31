@@ -251,7 +251,15 @@ impl std::fmt::Display for CreatureState {
 #[derive(Debug, Clone)]
 #[derive(Default, Hash, PartialEq, Eq)]
 #[derive(Deserialize, Serialize)]
-pub struct CreatureMemory {
-    
+pub struct CreatureRemembered {
+    pub location: Location,
+    pub frame_updated: u128,
+    pub id: UID,
 }
 
+#[derive(Debug, Clone)]
+#[derive(Default, Hash, PartialEq, Eq)]
+#[derive(Deserialize, Serialize)]
+pub struct CreatureMemory {
+    pub creatures_remembered: Vec<CreatureRemembered>,
+}

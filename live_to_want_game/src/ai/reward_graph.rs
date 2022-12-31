@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use std::collections::{HashSet, BinaryHeap};
+use std::collections::{HashSet, BinaryHeap, HashMap};
 use crate::{UID, MapState, CreatureState, CreatureCommand, Location};
 
 pub type NodeIndex = usize;
@@ -55,6 +55,16 @@ impl RootNode {
             original_node_descriptor: self.description.clone(),
             nodes: vec![],
         };
+
+        let uid_map = map_state.get_creatures_hashmap();
+        // TODO: Eventually the creatures remembered list should be culled based on frame
+        // last updated, creatures memory (Trait to add) and distance. Also allow friendlies
+        // to share each others remembered creatures.
+        let creatures_remembered: Vec<&CreatureState> = c_state.memory.creatures_remembered.iter().map(|cr| {
+            *uid_map.get(&cr.id).unwrap()
+        }).collect();
+        // TODO also add creatures currently visible to the creatures to this list
+
         for node in &self.nodes {
             match node{
                 Node::Reward(n) => {
@@ -66,7 +76,7 @@ impl RootNode {
                         None => vec![],
                     };
 
-                    let new = NodeResult{
+                    let new = NodeResult {
                         original_node_description: n.description.clone(), // NOTE: Is this worth? Every frame copying over the description. All to make debug print easier?
                         requirement_result: requirement,
                         reward_result: reward,
@@ -80,10 +90,44 @@ impl RootNode {
                     };
                     root.nodes.push(new);
                 },
-                Node::CreatureList(nl) => todo!(),
-            }
-        }
+                Node::CreatureList(nl) => {
+                    // get the filtered list of targets. then make a NodeResult for all of them
+                    let filter = |target: &CreatureState| -> bool {
+                        nl.filter.as_ref()(map_state, c_state, target)
+                    };
+                    let mut targets = vec![];
+                    for c in &creatures_remembered {
+                        if filter(c) {
+                            targets.push(*c);
+                        }
+                    }
+                    for target in targets {
+                        // make a NodeResult for em
+                        let requirement = nl.requirement.as_ref()(map_state, c_state, target);
+                        let reward = nl.reward.as_ref()(map_state, c_state, &requirement, target);
+                        let cost = nl.cost.as_ref()(map_state, c_state, &requirement, target);
+                        let effects = match &nl.effect {
+                            Some(e) => e.as_ref()(map_state, c_state, &reward, &requirement, target),
+                            None => vec![],
+                        };
 
+                        let new = NodeResult {
+                            original_node_description: nl.description.clone(), // NOTE: Is this worth? Every frame copying over the description. All to make debug print easier?
+                            requirement_result: requirement,
+                            reward_result: reward,
+                            cost_result: cost,
+                            global_reward: NodeRewardGlobal { rewards_per_requirement: vec![], reward_sum_total: None, reward_global_with_costs: None },
+                            children: (&nl.children).into_iter().map(|c| c.child_index).collect(),
+                            effects: effects,
+                            connection_results: None, // need to wait for global results of children to compute this
+                            original_node: nl.index,
+                            creature_target: Some(target.get_id()),
+                        };
+                        root.nodes.push(new);
+                    }
+                },
+            }
+        }  
 
         // Now how to get the reward of everything...
         // I guess: go through from root, if node doesn't have global reward set yet, then, calculate the global reward on it.
@@ -99,7 +143,7 @@ impl RootNode {
             // and output a creature State (option) or whatever.
             // creature memory just stores UID and last location seen? only of important friendly stuff?
             // might be able to make a dictionary of UID->CreatureState within mapstate itself and save it? or maybe its just input to this function.
-            root.calculate_global_reward( &self, map_state, c_state, None, i, &mut indexs_processed);
+            root.calculate_global_reward( &self, map_state, c_state, &uid_map, i, &mut indexs_processed);
         }
 
         root
@@ -245,7 +289,7 @@ pub struct NodeResultRoot {
     pub original_node_descriptor: String,
 }
 impl NodeResultRoot {
-    pub fn calculate_global_reward(&mut self, root_node: &RootNode, map_state: &MapState, c_state: &CreatureState, c_target: Option<&CreatureState>, index_to_process: usize, indexes_processed: &mut HashSet<usize>) -> bool {
+    pub fn calculate_global_reward(&mut self, root_node: &RootNode, map_state: &MapState, c_state: &CreatureState, c_targets: &HashMap<UID, &CreatureState>, index_to_process: usize, indexes_processed: &mut HashSet<usize>) -> bool {
         if self.nodes[index_to_process].global_reward.reward_global_with_costs.is_some() {
             return true;
         }
@@ -259,18 +303,19 @@ impl NodeResultRoot {
         // go through all children and make sure they are calculated first.
         // depth first basically.
         for child in self.nodes[index_to_process].children.clone() {
-            self.calculate_global_reward(root_node, map_state, c_state, c_target, child, indexes_processed);
+            self.calculate_global_reward(root_node, map_state, c_state, c_targets, child, indexes_processed);
         }
 
+        let c_target = match self.nodes[index_to_process].creature_target  {
+            Some(target) => Some(*c_targets.get(&target).unwrap()),
+            None => None,
+        };
         // all children must have been processed now.
         // global reward sum is: reward_local + Sum(rewards_per_requirement)
         // final global reward with cost is: global_sum - cost_base / cost_multiplier
         
         let mut conn_by_categories: Vec<Vec<&RewardNodeConnection>> = vec![];
-        let child_iter: &Vec<RewardNodeConnection> = match &root_node.nodes[index_to_process] {
-            Node::Reward(r) => &r.children,
-            Node::CreatureList(_) => todo!(),
-        };
+        let child_iter: &Vec<RewardNodeConnection> = root_node.nodes[index_to_process].get_children();
         
         child_iter.iter().for_each(|conn| {
             let mut existing = false;
@@ -365,7 +410,7 @@ impl NodeResultRoot {
                     child_count, 
                     map_state, 
                     c_state, 
-                    None
+                    c_target
                 );
                 cat_results.push(ConnectionResult{
                     category: variable,
@@ -390,7 +435,7 @@ impl NodeResultRoot {
                     top.child_count + top.parent_count, 
                     map_state,
                     c_state, 
-                    None
+                    c_target
                 );
                 top
             };

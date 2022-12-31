@@ -496,6 +496,15 @@ impl MapState {
         ret
     }
 
+    pub fn get_creatures_hashmap(&self) -> HashMap<UID, &CreatureState> {
+        let mut uid_map = HashMap::new();
+        let c_vec = self.get_creature_list();
+        for c in c_vec {
+            uid_map.insert(c.get_id(), c);
+        }
+        uid_map
+    }
+
     pub fn get_ground_item_list(&self) -> Vec<(&Item, Location)> {
         let mut ret = vec![];
         let xlen = self.regions.len();
