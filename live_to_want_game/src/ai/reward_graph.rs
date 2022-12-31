@@ -134,15 +134,13 @@ impl RootNode {
         // First step of that is to calculate it on its children recurssively
         for i in 0..root.children.len() {
             let mut indexs_processed = HashSet::new();
-            // TODO: Converting the UID of creature target, to the creature state itself
-            // is gonna be REALLY confusing. Should probably just be a reference to 
-            // a COPY of the CreatureState in the MEMORY of the Creature doing this AI.
-            // but then will need to update the memory for all creatures currently in view... wtf?
+            // Converting the UID of creature target, to the creature state itself
+            // is gonna be REALLY confusing. Couldn't just be a reference to 
+            // a COPY of the CreatureState in the MEMORY of the Creature doing this AI,
+            // because then will need to update the memory for all creatures currently in view constantly.
             // ok so can't do that copy idea.
-            // instead need to make a new helper function in map_state that can take a UID
-            // and output a creature State (option) or whatever.
+            // instead make a hashmap of UID->CreatureState from map_state
             // creature memory just stores UID and last location seen? only of important friendly stuff?
-            // might be able to make a dictionary of UID->CreatureState within mapstate itself and save it? or maybe its just input to this function.
             root.calculate_global_reward( &self, map_state, c_state, &uid_map, i, &mut indexs_processed);
         }
 
