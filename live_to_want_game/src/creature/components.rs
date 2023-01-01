@@ -66,6 +66,7 @@ pub struct ComponentMap {
     pub user_component: Option<UserComponent>,
     pub evolving_traits: Option<EvolvingTraitsComponent>,
     pub sexual_reproduction: Option<SexualReproduction>,
+    pub vision_component: Option<VisionComponent>,
 } 
 impl ComponentMap {
     pub fn copy_from_other(self, other:&ComponentMap) -> Self {
@@ -89,6 +90,7 @@ impl ComponentMap {
             user_component: other.user_component.or(self.user_component),
             evolving_traits: other.evolving_traits.or(self.evolving_traits),
             sexual_reproduction: other.sexual_reproduction.or(self.sexual_reproduction),
+            vision_component: other.vision_component.or(self.vision_component),
         }
     }
     // Only meant to be used for budding component and similar. Should never put a fake_clone onto a real creature because no UID
@@ -110,6 +112,7 @@ impl ComponentMap {
             user_component: self.user_component.clone(),
             evolving_traits: self.evolving_traits.clone(),
             sexual_reproduction: self.sexual_reproduction.clone(),
+            vision_component: self.vision_component.clone(),
         }
     }
     pub fn fake_default() -> Self {
@@ -130,6 +133,7 @@ impl ComponentMap {
             user_component: None,
             evolving_traits: None,
             sexual_reproduction: None,
+            vision_component: None,
         }
     }
 }
@@ -285,6 +289,19 @@ pub struct CreatureTypeComponent {
 
 }
 impl Component for CreatureTypeComponent {
+    fn get_visible() -> bool {
+        true
+    }
+}
+
+
+#[derive(Debug, Hash, PartialEq, Eq, Clone)]
+#[derive(Deserialize, Serialize)]
+pub struct VisionComponent {
+    pub visible_creatures: Vec<UID>,
+    // TODONEXT: need to make a system for this. think it has to be an event thing.
+}
+impl Component for VisionComponent {
     fn get_visible() -> bool {
         true
     }
