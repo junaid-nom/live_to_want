@@ -1,6 +1,6 @@
 use rand::Rng;
 
-use crate::{EventTarget, Location, Vu2, map_state::MapState, tasks::Event, tasks::EventChain, tasks::EventType, MOVING_INCREASED_METABOLISM_FACTOR, EvolvingTraitsComponent, EvolvingTraits, REPRODUCE_STARTING_CALORIES_MULTIPLIER, STANDARD_METABOLISM, STANDARD_PREGNANCY_LIVE_WEIGHT, THICK_HIDE_METABOLISM_MULTIPLIER, FAST_GROWER_CALORIE_MULTIPLIER, MOVE_SPEED_METABOLISM_MULTIPLIER, STANDARD_PREGNANCY_METABOLISM_MULTIPLIER, LITTER_SIZE_METABOLISM_MULTIPLIER};
+use crate::{EventTarget, Location, Vu2, map_state::MapState, tasks::Event, tasks::EventChain, tasks::EventType, MOVING_INCREASED_METABOLISM_FACTOR, EvolvingTraitsComponent, EvolvingTraits, REPRODUCE_STARTING_CALORIES_MULTIPLIER, STANDARD_METABOLISM, STANDARD_PREGNANCY_LIVE_WEIGHT, THICK_HIDE_METABOLISM_MULTIPLIER, FAST_GROWER_CALORIE_MULTIPLIER, MOVE_SPEED_METABOLISM_MULTIPLIER, STANDARD_PREGNANCY_METABOLISM_MULTIPLIER, LITTER_SIZE_METABOLISM_MULTIPLIER, UID};
 
 use super::{CreatureState, STARVING_SLOW_METABOLISM_FACTOR};
 
@@ -267,6 +267,33 @@ pub fn movement_system_move(m: &MapState, c: &CreatureState) -> Option<EventChai
                 });
             }
         }
+    }
+    
+    None
+}
+
+pub fn vision_system_clear(c: &mut CreatureState, frame: u128) { // TODO? Eventually only clear ones you can't see for a few frames?
+    if let Some(vc) = &mut c.components.vision_component {
+        vc.visible_creatures.clear();
+    }
+}
+
+pub fn vision_system_add(m: &MapState, c: &CreatureState) -> Option<EventChain> {
+    if let Some(vs) = c.components.vision_component.as_ref() {
+        let ids: Vec<UID> = m.find_creatures_in_range_to_creature(c, c.get_vision_range()).iter().map(|c| c.get_id()).collect();
+
+        let events: Vec<Event> = ids.iter().map(|id| Event{
+                event_type: todo!(), // TODONEXT: Make a event for adding something to vision list. should be pretty simple
+                get_requirements: Box::new(|_,_| true),
+                on_fail: None,
+                target: c.get_id(),
+        }).collect();
+
+        return Some(EventChain {
+            events: events,
+            debug_string: format!("vision update for {}", c.components.id_component.id()),
+            creature_list_targets: true
+        });
     }
     
     None

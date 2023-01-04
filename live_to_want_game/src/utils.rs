@@ -116,6 +116,13 @@ impl Vu2 {
         }
         ret
     }
+    pub fn get_distance(&self, other: Vu2) -> f32 {
+        let mut x2 = self.x - other.x;
+        x2 = x2 * x2;
+        let mut y2 = self.y - other.y;
+        y2 = y2 * y2;
+        f32::sqrt(x2 as f32 + y2 as f32)
+    }
 }
 
 

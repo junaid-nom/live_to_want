@@ -39,6 +39,8 @@ pub static LITTER_SIZE_METABOLISM_MULTIPLIER: f32 = 1. / LITTER_SIZE_TRAIT_NEEDE
 pub static CANNIBAL_PREGNANCY_CHILD_CALORIES_MULTIPLIER: f32 = 0.1; // so 100 would give u 10x starting calories!
 pub static CANNIBAL_PREGNANCY_DEATH_WEIGHT_MULTIPLIER: f32 = 1.0; // so 100 would give u 10x starting calories!
 
+pub static DEFAULT_VISION_RANGE: f32 = 5.;
+
 pub trait Component: Sync + Send + Clone {
     fn get_visible() -> bool {
         false
@@ -508,6 +510,12 @@ impl EvolvingTraitsComponent {
 
     pub fn get_pregnancy_length(&self) -> u128 {
         return std::cmp::max(STANDARD_PREGNANCY_TIME as i32 + (self.traits.pregnancy_time * BASE_PREGNANCY_TIME_ADDER) as i32, 1) as u128;
+    }
+
+    pub fn get_vision_range(&self) -> f32 {
+        // TODO: make a trait for vision range
+        // maybe encorporate different senses like smell and stuff eventually
+        DEFAULT_VISION_RANGE
     }
 
     pub fn get_mutated(&self, mutations: u32) -> EvolvingTraitsComponent {

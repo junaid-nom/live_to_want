@@ -1,6 +1,6 @@
 use std::{fmt::Formatter, cmp::max};
 use serde::{Deserialize, Serialize};
-use crate::{Location, RegionComponent, UID, map_state::Item, utils::Vector2, utils::Vu2, UserComponent, STANDARD_PREGNANCY_TIME, STANDARD_CHILD_TIME, FAST_GROWER_MULTIPLIER, SPECIES_SEX_RANGE, MAX_ATTACK_DISTANCE};
+use crate::{Location, RegionComponent, UID, map_state::Item, utils::Vector2, utils::Vu2, UserComponent, STANDARD_PREGNANCY_TIME, STANDARD_CHILD_TIME, FAST_GROWER_MULTIPLIER, SPECIES_SEX_RANGE, MAX_ATTACK_DISTANCE, DEFAULT_VISION_RANGE};
 
 use super::{ComponentMap, IDComponent, LocationComponent, HealthComponent, NameComponent, StarvationComponent, REPRODUCE_STARTING_CALORIES_MULTIPLIER};
 
@@ -75,6 +75,14 @@ impl CreatureState {
         }
 
         self.components.evolving_traits.as_ref().unwrap().get_if_child(frame)
+    }
+
+    pub fn get_vision_range(&self) -> f32 {
+        if self.components.evolving_traits.as_ref().is_none() {
+            return DEFAULT_VISION_RANGE;
+        }
+
+        self.components.evolving_traits.as_ref().unwrap().get_vision_range()
     }
 
     pub fn get_adult_percent(&self, frame: u128) -> f32 {

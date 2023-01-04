@@ -252,8 +252,8 @@ pub fn run_frame_with_input(mut game_state: GameState, root: &GoalNode, msgs: Ve
     process_events_from_mapstate(&mut m, event_chains);
 
     // Can run MUTABLE multiple systems here so far:
-    // Starvation system
-    // nav system
+    // These only need the creature state that is being modified, no map state or state of other creatures
+    // ex: Starvation, the part of movement that just increases counters, child growth, 
     m.regions.par_iter_mut().for_each(|x| {
         x.par_iter_mut().for_each(|y| {
             let region_loc = y.location;
@@ -267,6 +267,7 @@ pub fn run_frame_with_input(mut game_state: GameState, root: &GoalNode, msgs: Ve
                                 child_growth_system(c, current_frame);
                                 starvation_system(c, current_frame);
                                 movement_system_iterate(current_frame, c, location);
+                                vision_system_clear(c, current_frame);
                             }
                         );
                     }

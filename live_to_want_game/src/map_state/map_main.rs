@@ -219,6 +219,36 @@ impl MapState {
         None
     }
 
+    pub fn find_creatures_in_range_to_creature<'a>(&'a self, src_creature: &'a CreatureState, range: f32) -> Vec<&'a CreatureState> {
+        let loc = src_creature.get_location();
+        let region = &self.regions[loc.region.x as usize][loc.region.y as usize];
+        let mut to_check: Vec<Vu2> = Vec::new();
+        to_check.push(loc.position);
+        let mut idx = 0;
+        let mut ret = Vec::new();
+        while idx < to_check.len() {
+            let checking  = &region.grid[to_check[idx].x as usize][to_check[idx].y as usize];
+            if checking.creatures.holds_creatures() {
+                checking.creatures.creatures.as_ref().unwrap().iter().for_each(|c| {
+                    if c.components.id_component.id() != src_creature.components.id_component.id() {
+                        ret.push(c);
+                    }
+                });
+            }
+            // add vector2s to to_check of locations next to this one if they exist
+            // and if they aren't already in the list
+            let neighbors = to_check[idx].get_neighbors_vu2();
+            for n in neighbors {
+                if loc.position.get_distance(n) <= range && self.location_exists_and_holds_creatures(&loc.region, &n) && !to_check.contains(&n) {
+                    to_check.push(n);
+                }
+            }
+
+            idx += 1;
+        }
+        ret
+    }
+
     pub fn location_exists_and_holds_creatures(&self, region: &Vu2, position: &Vu2) -> bool {
         if self.regions.len() > region.x as usize && self.regions[region.x as usize].len() > region.y as usize { 
             let r = &self.regions[region.x as usize][region.y as usize].grid;
