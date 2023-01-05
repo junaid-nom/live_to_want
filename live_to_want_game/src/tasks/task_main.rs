@@ -95,6 +95,15 @@ impl Event {
 
     pub fn mutate(self, effected: &mut EventTarget) -> Option<Event> {
         match self.event_type {
+            EventType::AddVisible(target) => {
+                match effected {
+                    EventTarget::CreatureTarget(c) => {
+                        c.components.vision_component.as_mut().unwrap().visible_creatures.push(target);
+                        None
+                    }
+                    _ => panic!("Wrong event target for budding"),
+                }
+            },
             EventType::RemoveCreature(id, next_op, current_frame) => match effected {
                 EventTarget::LocationCreaturesTarget(v, _) => {
                     let rmed = v.drain_specific_creature(id, current_frame);
@@ -359,6 +368,7 @@ pub enum EventType {
     AddBattle(Battle),
     RemoveBattle(UID),
     Impregnate(EvolvingTraits, u128), // mate_traits, pregnancy_completion_frame
+    AddVisible(UID),
 }
 
 pub fn process_events_from_mapstate(m: &mut MapState, event_chains: Vec<EventChain>) {

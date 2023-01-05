@@ -283,7 +283,7 @@ pub fn vision_system_add(m: &MapState, c: &CreatureState) -> Option<EventChain> 
         let ids: Vec<UID> = m.find_creatures_in_range_to_creature(c, c.get_vision_range()).iter().map(|c| c.get_id()).collect();
 
         let events: Vec<Event> = ids.iter().map(|id| Event{
-                event_type: todo!(), // TODONEXT: Make a event for adding something to vision list. should be pretty simple
+                event_type: EventType::AddVisible(*id),
                 get_requirements: Box::new(|_,_| true),
                 on_fail: None,
                 target: c.get_id(),

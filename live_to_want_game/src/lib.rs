@@ -235,9 +235,12 @@ pub fn run_frame_with_input(mut game_state: GameState, root: &GoalNode, msgs: Ve
             y.grid.par_iter().flat_map(|xl| {
                 xl.par_iter().flat_map(|yl| {
                     if let Some(cit) = yl.creatures.get_par_iter() {
-                        let ret: Vec<Option<EventChain>> = cit.map(
+                        let ret: Vec<Option<EventChain>> = cit.flat_map(
                             |c| {
-                                movement_system_move(&m, c)
+                                let mut ret: Vec<Option<EventChain>> = vec![];
+                                ret.push(movement_system_move(&m, c));
+                                ret.push(vision_system_add(&m, c));
+                                ret
                             }
                         ).collect();
                         return ret;
