@@ -137,7 +137,7 @@ pub fn run_frame_with_input(mut game_state: GameState, root: &GoalNode, msgs: Ve
             })
         })
     }).collect();
-    let (mut blocked_blockers, mut blocked_nonblockers): (Vec<CreatureState>, Vec<CreatureState>) = blocked_creatures.into_par_iter().
+    let (blocked_blockers, mut blocked_nonblockers): (Vec<CreatureState>, Vec<CreatureState>) = blocked_creatures.into_par_iter().
     reduce(|| (Vec::new(), Vec::new()),|(mut tl1, mut tl2), (l1, l2)| {
         tl1.extend(l1.into_iter());
         tl2.extend(l2.into_iter());
@@ -251,7 +251,7 @@ pub fn run_frame_with_input(mut game_state: GameState, root: &GoalNode, msgs: Ve
             })
         })
     }).collect();
-    let mut event_chains: Vec<EventChain> = unwrap_option_list(mov_op_ecs);
+    let event_chains: Vec<EventChain> = unwrap_option_list(mov_op_ecs);
     process_events_from_mapstate(&mut m, event_chains);
 
     // Can run MUTABLE multiple systems here so far:
@@ -270,7 +270,6 @@ pub fn run_frame_with_input(mut game_state: GameState, root: &GoalNode, msgs: Ve
                                 child_growth_system(c, current_frame);
                                 starvation_system(c, current_frame);
                                 movement_system_iterate(current_frame, c, location);
-                                vision_system_clear(c, current_frame);
                             }
                         );
                     }
@@ -327,7 +326,7 @@ pub fn run_frame_with_input(mut game_state: GameState, root: &GoalNode, msgs: Ve
     }).collect();
     op_ecs.append(&mut battle_effects);
 
-    let mut event_chains = unwrap_option_list(op_ecs);
+    let event_chains = unwrap_option_list(op_ecs);
     process_events_from_mapstate(&mut m, event_chains);
 
     // Death system

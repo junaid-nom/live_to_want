@@ -272,27 +272,26 @@ pub fn movement_system_move(m: &MapState, c: &CreatureState) -> Option<EventChai
     None
 }
 
-pub fn vision_system_clear(c: &mut CreatureState, frame: u128) { // TODO? Eventually only clear ones you can't see for a few frames?
-    if let Some(vc) = &mut c.components.vision_component {
-        vc.visible_creatures.clear();
-    }
-}
-
 pub fn vision_system_add(m: &MapState, c: &CreatureState) -> Option<EventChain> {
-    if let Some(vs) = c.components.vision_component.as_ref() {
+    if let Some(_) = c.components.vision_component.as_ref() {
         let ids: Vec<UID> = m.find_creatures_in_range_to_creature(c, c.get_vision_range()).iter().map(|c| c.get_id()).collect();
 
-        let events: Vec<Event> = ids.iter().map(|id| Event{
+        let mut events: Vec<Event> = ids.iter().map(|id| Event{
                 event_type: EventType::AddVisible(*id),
                 get_requirements: Box::new(|_,_| true),
                 on_fail: None,
                 target: c.get_id(),
         }).collect();
-
+        events.insert(0, Event{
+            event_type: EventType::ClearVisible(),
+            get_requirements: Box::new(|_,_| true),
+            on_fail: None,
+            target: c.get_id(),
+        });
         return Some(EventChain {
             events: events,
             debug_string: format!("vision update for {}", c.components.id_component.id()),
-            creature_list_targets: true
+            creature_list_targets: false
         });
     }
     

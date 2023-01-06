@@ -1,6 +1,6 @@
 use fmt::Debug;
 
-use crate::{Battle, BattleList, CreatureList, Location, battle, creature::CreatureState, map_state::Item, map_state::ItemType, map_state::MapState, utils::UID, EvolvingTraits, DEBUG_EVENTS};
+use crate::{Battle, BattleList, CreatureList, Location, creature::CreatureState, map_state::Item, map_state::ItemType, map_state::MapState, utils::UID, EvolvingTraits, DEBUG_EVENTS};
 use core::fmt;
 use std::collections::HashMap;
 extern crate rayon;
@@ -101,7 +101,16 @@ impl Event {
                         c.components.vision_component.as_mut().unwrap().visible_creatures.push(target);
                         None
                     }
-                    _ => panic!("Wrong event target for budding"),
+                    _ => panic!("Wrong event target for visible add"),
+                }
+            },
+            EventType::ClearVisible() => {
+                match effected {
+                    EventTarget::CreatureTarget(c) => {
+                        c.components.vision_component.as_mut().unwrap().visible_creatures.clear();
+                        None
+                    }
+                    _ => panic!("Wrong event target for visible clear"),
                 }
             },
             EventType::RemoveCreature(id, next_op, current_frame) => match effected {
@@ -124,7 +133,7 @@ impl Event {
             },
             EventType::AddCreature(c, current_frame) => {
                 match effected {
-                    EventTarget::LocationCreaturesTarget(c_list, id) => {
+                    EventTarget::LocationCreaturesTarget(c_list, _) => {
                         c_list.add_creature(c, current_frame);
                     }
                     _ => {
@@ -188,7 +197,7 @@ impl Event {
             EventType::AddItem(q, t) => {
                 match effected {
                     EventTarget::LocationItemTarget(v, _) => {
-                        let mut inventory = v;
+                        let inventory = v;
                         for v in inventory.iter_mut() {
                             if v.item_type == t {
                                 v.quantity += q;
@@ -369,6 +378,7 @@ pub enum EventType {
     RemoveBattle(UID),
     Impregnate(EvolvingTraits, u128), // mate_traits, pregnancy_completion_frame
     AddVisible(UID),
+    ClearVisible(),
 }
 
 pub fn process_events_from_mapstate(m: &mut MapState, event_chains: Vec<EventChain>) {
@@ -402,7 +412,7 @@ fn process_events_from_mapstate_helper(
             x.par_iter_mut().flat_map(|y| {
                 y.grid.par_iter_mut().flat_map(|xl| {
                     xl.par_iter_mut().flat_map(|yl| {
-                        let mut creatures = &mut yl.creatures;
+                        let creatures = &mut yl.creatures;
                         let mut ret = Vec::new();
                         if creatures.holds_creatures() {
                             if creature_list_targets {
@@ -411,9 +421,9 @@ fn process_events_from_mapstate_helper(
                                     yl.id_component_creatures.id(),
                                 ));
                             } else {
-                                let mut creatures = if let Some(cit) = creatures.get_par_iter_mut()
+                                if let Some(cit) = creatures.get_par_iter_mut()
                                 {
-                                    let mut cc: Vec<EventTarget> =
+                                    let cc: Vec<EventTarget> =
                                         cit.map(|c| EventTarget::CreatureTarget(c)).collect();
                                     ret.extend(cc);
                                 };

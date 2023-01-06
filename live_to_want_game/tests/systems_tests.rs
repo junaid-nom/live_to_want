@@ -303,6 +303,163 @@ fn starvation_thick_hide() {
     assert_eq!(calories, (1000. - 100. * 1.4) as i32); //thick hide is 1+ .2 per 100 so 1.4 with 200
 }
 
+#[test]
+fn vision_system_test() {
+    let openr = RegionCreationStruct::new(9,9, 0, vec![]);
+    let rgrid = vec![
+        vec![openr.clone()],
+    ];
+    //create map
+    let mut map = MapState::new(rgrid, 0);
+    let  region: &mut MapRegion = &mut map.regions[0][0];
+
+    let mut deer1 = CreatureState{
+        components: ComponentMap::default(),
+        inventory: Vec::new(),
+        memory: CreatureMemory::default(),
+    };
+    deer1.components.region_component = RegionComponent {
+        region: Vu2{x: 0, y: 0},
+    };
+    deer1.components.location_component = LocationComponent {
+        location: Vu2{x:1, y: 1}
+    };
+    deer1.components.health_component = Some(HealthComponent {
+        health:  SIMPLE_ATTACK_BASE_DMG * 10,
+        max_health: SIMPLE_ATTACK_BASE_DMG * 10,
+    });
+    deer1.components.evolving_traits = Some(EvolvingTraitsComponent {
+        adult_traits: EvolvingTraits{
+            species: 0,
+            litter_size: LITTER_SIZE_TRAIT_NEEDED_FOR_ONE_BABY * 3 + 50,
+            pregnancy_time: 100,
+            maleness: 0,
+            fast_grower: 100,
+            ..Default::default()
+        },
+        child_until_frame: 1,
+        ..Default::default()
+    });
+    deer1.components.vision_component = Some(VisionComponent { visible_creatures: vec![] });
+
+    deer1.inventory.push(Item{
+        item_type: ItemType::Berry,
+        quantity: 1,
+    });
+
+    let mut deer2 =CreatureState{
+        components: ComponentMap::default(),
+        inventory: Vec::new(),
+        memory: CreatureMemory::default(),
+    };
+    deer2.components.region_component = RegionComponent {
+        region: Vu2{x: 0, y: 0},
+    };
+    deer2.components.location_component = LocationComponent {
+        location: Vu2{x: 6, y: 1}
+    };
+    deer2.components.health_component = Some(HealthComponent {
+        health:  SIMPLE_ATTACK_BASE_DMG * 10,
+        max_health: SIMPLE_ATTACK_BASE_DMG * 10,
+    });
+    deer2.components.evolving_traits = Some(EvolvingTraitsComponent {
+        adult_traits: EvolvingTraits{
+            species: 0,
+            thick_hide: 200,
+            litter_size: LITTER_SIZE_TRAIT_NEEDED_FOR_ONE_BABY * 3 + 50,
+            pregnancy_time: STANDARD_CHILD_TIME as i32, // Should be 0 as child 
+            maleness: 100,
+            fast_grower: 50,
+            ..Default::default()
+        },
+        child_until_frame: 1,
+        ..Default::default()
+    });
+    deer2.components.vision_component = Some(VisionComponent { visible_creatures: vec![] });
+
+    let mut deer3 = CreatureState{
+        components: ComponentMap::default(),
+        inventory: Vec::new(),
+        memory: CreatureMemory::default(),
+    };
+    deer3.components.region_component = RegionComponent {
+        region: Vu2{x: 0, y: 0},
+    };
+    deer3.components.location_component = LocationComponent {
+        location: Vu2{x: 6, y: 2}
+    };
+    deer3.components.health_component = Some(HealthComponent {
+        health:  10,
+        max_health: 10,
+    });
+    deer3.components.battle_component = Some(BattleComponent {
+        in_battle: None,
+    });
+    deer3.components.evolving_traits = Some(EvolvingTraitsComponent {
+        adult_traits: EvolvingTraits{
+            species: 0,
+            move_speed: 200,
+            litter_size: LITTER_SIZE_TRAIT_NEEDED_FOR_ONE_BABY * 2,
+            pregnancy_time: -200,
+            cannibal_childbirth: (STANDARD_PREGNANCY_LIVE_WEIGHT as f32 * CANNIBAL_PREGNANCY_DEATH_WEIGHT_MULTIPLIER) as i32,
+            maleness: 0,
+            fast_grower: 0,
+            ..Default::default()
+        },
+        child_until_frame: 1,
+        ..Default::default()
+    });
+    deer3.components.vision_component = Some(VisionComponent { visible_creatures: vec![] });
+
+    let deer1_id = deer1.components.id_component.id();
+    let deer2_id = deer2.components.id_component.id();
+    let deer3_id = deer3.components.id_component.id();
+
+    region.grid[deer1.components.location_component.location].creatures.add_creature(
+        deer1, 0
+    );
+    region.grid[deer2.components.location_component.location].creatures.add_creature(
+        deer2, 0
+    );
+    region.grid[deer3.components.location_component.location].creatures.add_creature(
+        deer3, 0
+    );
+    let mut game_state = GameState {
+        map_state:map
+    };
+    assert_eq!(game_state.map_state.get_creature_list().len(), 3);
+    assert_eq!(game_state.map_state.get_ground_item_list().len(), 0);
+    assert_eq!(game_state.map_state.get_creature_item_list().len(), 1);
+    println!("creatures: {}", game_state.map_state.get_creature_strings());
+
+    let goal_node = GoalNode::generate_single_node_graph();
+
+    for _ in 0..1 {
+        game_state = run_frame(game_state, &goal_node);
+        println!("creatures: {}", game_state.map_state.get_creature_strings());
+    }
+    assert_eq!(game_state.map_state.get_creature_list().len(), 3);
+    assert_eq!(game_state.map_state.get_ground_item_list().len(), 0);
+
+    game_state.map_state.get_creature_list().iter().for_each(|c| {
+        let id = c.get_id();
+        if id == deer1_id {
+            assert!(c.components.vision_component.as_ref().unwrap().visible_creatures.len() == 1);
+            assert!(c.components.vision_component.as_ref().unwrap().visible_creatures[0] == deer2_id);
+        }
+        if id == deer2_id {
+            assert!(c.components.vision_component.as_ref().unwrap().visible_creatures.len() == 2);
+            // too male to become pregnant (unless another super male was added)
+            assert!(c.components.vision_component.as_ref().unwrap().visible_creatures.contains(&deer1_id));
+            assert!(c.components.vision_component.as_ref().unwrap().visible_creatures.contains(&deer3_id));
+        }
+        if id == deer3_id {
+            assert!(c.components.vision_component.as_ref().unwrap().visible_creatures.len() == 1);
+            assert!(c.components.vision_component.as_ref().unwrap().visible_creatures[0] == deer2_id);
+        }
+    });
+}
+
 // Test sex, and then reproduction. Make sure the sex related stuff like species, multithreads, mutating, inheritance, litter size, pregnancy time, and childness work.
 #[test]
 fn test_sex_reproduction<'a>() {
