@@ -56,7 +56,7 @@ impl CreatureCommandUser {
 }
 
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum CreatureCommand<'b>{
     // str here is for debugging purposes and is usually just the name of the node
     MoveTo(&'static str, &'b CreatureState, Location, u128), // Assume this sets the destination not instantly move to

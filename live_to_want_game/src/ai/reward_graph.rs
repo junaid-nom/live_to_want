@@ -49,7 +49,7 @@ pub struct RootNode {
     pub children: Vec<RewardNodeConnection>,
 }
 impl RootNode {
-    pub fn generate_result_graph(&self, map_state :&MapState, c_state : &CreatureState) -> NodeResultRoot {
+    pub fn generate_result_graph<'a>(&self, map_state :&'a MapState, c_state : &'a CreatureState) -> NodeResultRoot<'a> {
         let mut root = NodeResultRoot{
             children: vec![],
             original_node_descriptor: self.description.clone(),
@@ -75,7 +75,10 @@ impl RootNode {
                         Some(e) => e.as_ref()(map_state, c_state, &reward, &requirement),
                         None => vec![],
                     };
-
+                    let cmd: Option<CreatureCommand> = match &n.get_command {
+                        Some(fun) => Some(fun.as_ref()(map_state, c_state,&reward, &requirement)),
+                        None => None,
+                    };
                     let new = NodeResult {
                         original_node_description: n.description.clone(), // NOTE: Is this worth? Every frame copying over the description. All to make debug print easier?
                         requirement_result: requirement,
@@ -87,6 +90,7 @@ impl RootNode {
                         connection_results: None, // need to wait for global results of children to compute this
                         original_node: n.index,
                         creature_target: None,
+                        command_result: cmd,
                     };
                     root.nodes.push(new);
                 },
@@ -110,7 +114,10 @@ impl RootNode {
                             Some(e) => e.as_ref()(map_state, c_state, &reward, &requirement, target),
                             None => vec![],
                         };
-
+                        let cmd: Option<CreatureCommand> = match &nl.get_command {
+                            Some(fun) => Some(fun.as_ref()(map_state, c_state,&reward, &requirement, target)),
+                            None => None,
+                        };
                         let new = NodeResult {
                             original_node_description: nl.description.clone(), // NOTE: Is this worth? Every frame copying over the description. All to make debug print easier?
                             requirement_result: requirement,
@@ -122,6 +129,7 @@ impl RootNode {
                             connection_results: None, // need to wait for global results of children to compute this
                             original_node: nl.index,
                             creature_target: Some(target.get_id()),
+                            command_result: cmd,
                         };
                         root.nodes.push(new);
                     }
@@ -281,12 +289,12 @@ pub struct NodeRewardGlobal{
     reward_global_with_costs: Option<f32>,
 }
 
-pub struct NodeResultRoot {
-    pub nodes: Vec<NodeResult>,
+pub struct NodeResultRoot<'f> {
+    pub nodes: Vec<NodeResult<'f>>,
     pub children: Vec<NodeIndex>,
     pub original_node_descriptor: String,
 }
-impl NodeResultRoot {
+impl NodeResultRoot<'_> {
     pub fn calculate_global_reward(&mut self, root_node: &RootNode, map_state: &MapState, c_state: &CreatureState, c_targets: &HashMap<UID, &CreatureState>, index_to_process: usize, indexes_processed: &mut HashSet<usize>) -> bool {
         if self.nodes[index_to_process].global_reward.reward_global_with_costs.is_some() {
             return true;
@@ -463,8 +471,20 @@ impl NodeResultRoot {
         self.nodes[index_to_process].global_reward.reward_global_with_costs = Some(final_reward);
         return true;
     }
+
+    pub fn get_final_command<'b, 'l>(&'l self) -> Option<CreatureCommand<'l>> { 
+        let best_node = self.nodes.iter().reduce(|accum, item| {
+            if item.requirement_result.valid && item.command_result.is_some() && item.global_reward.reward_global_with_costs.unwrap() >= accum.global_reward.reward_global_with_costs.unwrap() {
+                item
+            } else { accum }
+        });
+        if let Some(best_node) = best_node {
+            return Some(best_node.command_result.clone().unwrap());
+        }
+        None
+    }
 }
-pub struct NodeResult {
+pub struct NodeResult<'f> {
     pub original_node: NodeIndex,
     pub original_node_description: String,
     pub reward_result: RewardResult, //contains local reward
@@ -475,9 +495,10 @@ pub struct NodeResult {
     // Filled out as you do global reward:
     pub connection_results: Option<Vec<BinaryHeap<ConnectionResult>>>,
     pub global_reward: NodeRewardGlobal,
+    pub command_result: Option<CreatureCommand<'f>>,
     pub creature_target: Option<UID>,
 }
-impl NodeResult {
+impl NodeResult<'_> {
     pub fn get_count(&self, map_state: &MapState, c_state: &CreatureState) -> f32 {
         if self.global_reward.reward_sum_total.is_none() {
             panic!("Trying to get count when global reward has not been calculated yet!");
