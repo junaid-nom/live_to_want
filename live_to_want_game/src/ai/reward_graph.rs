@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 use std::collections::{HashSet, BinaryHeap, HashMap};
-use crate::{UID, MapState, CreatureState, CreatureCommand, Location};
+use crate::{UID, MapState, CreatureState, CreatureCommand, Location, ItemType};
 
 pub type NodeIndex = usize;
 
@@ -10,12 +10,11 @@ pub fn get_count_of_variable(m: &MapState, c: &CreatureState, v: Variable) -> i3
     // others could be result of a function for example "whats my power level"
     // could even be something like "my rank in power compared to creatures near me"
     match v {
-        _ => {
-            // TODO
-        },
+        Variable::None => 0,
+        Variable::Bone => c.get_inventory_of_item(ItemType::Bones) as i32,
+        Variable::Meat => c.get_inventory_of_item(ItemType::Meat) as i32,
+        Variable::Berry => c.get_inventory_of_item(ItemType::Berry) as i32,
     }
-
-    0
 }
 
 pub fn get_global_reward_for_connection(child_multiplier: f32, global_reward: f32, base_multiplier: f32) -> f32 {
@@ -180,7 +179,8 @@ pub enum Node {
 pub enum Variable {
     None,
     Bone,
-    Skin,
+    Meat,
+    Berry,
     // NOTE inbetween ingredients will need to be variables. Anything that is an inner OR. For example, if  (wood OR clay) AND glue makes a wall, then (wood OR clay) must be its own node and variable.
 }
 #[derive(Debug)]
@@ -190,11 +190,11 @@ pub struct VariableChange {
     pub variable: Variable,
     pub change: i32,
 }
-
+#[derive(Clone, Debug)]
 pub struct RewardNodeConnection {
     pub base_multiplier: Option<f32>, // Needed for variable None connections. should be None and auto calculated via effects of parent node and requirements of child node
     pub child_index: NodeIndex,
-    pub parent_index: NodeIndex,
+    pub parent_index: NodeIndex, // debug only
     pub requirement: VariableChange, // multiplier is: 1/requirement.change * effect(for that variable)
 }
 pub struct RewardNode {
@@ -223,22 +223,27 @@ pub struct RewardNodeCreatureList {
     pub filter: Box<fn(&MapState, &CreatureState, &CreatureState)->bool>, // will take all known CreatureStates, then use this filter on them, to produce one NodeResult for each one.
 }
 
+#[derive(Clone, Debug)]
 pub struct RequirementResult{
     pub valid: bool,
     pub requirements: Vec<Vec<VariableChange>>, //requirements split by OR
     pub target_id: Option<UID>,
     pub target_location: Option<Location>,
 }
+#[derive(Clone, Debug)]
 pub struct RewardResult{
     pub reward_local: f32,
     // below can be used by other functions to do interesting stuff
     pub target_id: Option<UID>,
     pub target_location: Option<Location>,
 }
+#[derive(Clone, Debug)]
 pub struct CostResult{
     pub cost_base: f32,
     pub cost_divider: f32,
 }
+
+#[derive(Clone, Debug)]
 pub struct ConnectionResult {
     pub child_index: NodeIndex,
     pub parent_index: NodeIndex,
@@ -277,18 +282,21 @@ impl Ord for ConnectionResult {
     }
 }
 
+#[derive(Clone, Debug, PartialEq)]
 // Is typically just connectionResult, but with computed 
 pub struct VariableReward{
     pub reward: f32, // for None category, this will be sum of all conn_results otherwise is the max for that category
     pub category: Variable,
 }
+#[derive(Clone, Debug, PartialEq)]
 pub struct NodeRewardGlobal{
     // local reward is stored in the RewardResult
-    rewards_per_requirement: Vec<VariableReward>,
-    reward_sum_total: Option<f32>, // includes local reward
-    reward_global_with_costs: Option<f32>,
+    pub rewards_per_requirement: Vec<VariableReward>,
+    pub reward_sum_total: Option<f32>, // includes local reward
+    pub reward_global_with_costs: Option<f32>,
 }
 
+#[derive(Clone, Debug)]
 pub struct NodeResultRoot<'f> {
     pub nodes: Vec<NodeResult<'f>>,
     pub children: Vec<NodeIndex>,
@@ -474,7 +482,11 @@ impl NodeResultRoot<'_> {
 
     pub fn get_final_command<'b, 'l>(&'l self) -> Option<CreatureCommand<'l>> { 
         let best_node = self.nodes.iter().reduce(|accum, item| {
-            if item.requirement_result.valid && item.command_result.is_some() && item.global_reward.reward_global_with_costs.unwrap() >= accum.global_reward.reward_global_with_costs.unwrap() {
+            if 
+                item.requirement_result.valid && 
+                item.command_result.is_some() && 
+                item.global_reward.reward_global_with_costs.unwrap() >= 
+                accum.global_reward.reward_global_with_costs.unwrap() {
                 item
             } else { accum }
         });
@@ -484,6 +496,8 @@ impl NodeResultRoot<'_> {
         None
     }
 }
+
+#[derive(Clone, Debug)]
 pub struct NodeResult<'f> {
     pub original_node: NodeIndex,
     pub original_node_description: String,

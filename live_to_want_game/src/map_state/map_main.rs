@@ -503,7 +503,13 @@ impl MapState {
     pub fn get_creature_list(&self) -> Vec<&CreatureState> {
         let mut ret = vec![];
         let xlen = self.regions.len();
+        if xlen == 0 {
+            return ret;
+        }
         let ylen = self.regions[0].len();
+        if ylen == 0 {
+            return ret;
+        }
         for yr in 0..ylen {
             for xr in 0..xlen {
                 let mr = &self.regions[xr][yr];

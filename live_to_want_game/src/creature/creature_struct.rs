@@ -1,6 +1,6 @@
 use std::{fmt::Formatter, cmp::max};
 use serde::{Deserialize, Serialize};
-use crate::{Location, RegionComponent, UID, map_state::Item, utils::Vector2, utils::Vu2, UserComponent, STANDARD_PREGNANCY_TIME, STANDARD_CHILD_TIME, FAST_GROWER_MULTIPLIER, SPECIES_SEX_RANGE, MAX_ATTACK_DISTANCE, DEFAULT_VISION_RANGE};
+use crate::{Location, RegionComponent, UID, map_state::Item, utils::Vector2, utils::Vu2, UserComponent, STANDARD_PREGNANCY_TIME, STANDARD_CHILD_TIME, FAST_GROWER_MULTIPLIER, SPECIES_SEX_RANGE, MAX_ATTACK_DISTANCE, DEFAULT_VISION_RANGE, ItemType};
 
 use super::{ComponentMap, IDComponent, LocationComponent, HealthComponent, NameComponent, StarvationComponent, REPRODUCE_STARTING_CALORIES_MULTIPLIER};
 
@@ -75,6 +75,15 @@ impl CreatureState {
         }
 
         self.components.evolving_traits.as_ref().unwrap().get_if_child(frame)
+    }
+
+    pub fn get_inventory_of_item(&self, item_type: ItemType) -> u32 {
+        for item in &self.inventory {
+            if item.item_type == item_type {
+                return item.quantity;
+            }
+        }
+        0
     }
 
     pub fn get_vision_range(&self) -> f32 {

@@ -2,7 +2,7 @@ extern crate rayon;
 use std::{rc::Rc, cell::RefCell};
 
 use rayon::prelude::*;
-use live_to_want_game::*;
+use live_to_want_game::{*, reward_graph::{RootNode, Node, RewardNode, RewardResult, RequirementResult, VariableChange, CostResult, RewardNodeConnection, Variable}};
 
 #[test]
 fn run_frames_test_starvation_and_death() {
@@ -458,6 +458,179 @@ fn vision_system_test() {
             assert!(c.components.vision_component.as_ref().unwrap().visible_creatures[0] == deer2_id);
         }
     });
+}
+
+#[test]
+fn test_1_tier_reward_graph() {
+    // have 3 options. only 2 are possible. 
+    // one has higher reward than other.
+
+    let cant_do_node = Node::Reward(RewardNode { 
+        description: "cant_do bone".to_string(),
+        index: 0, 
+        children: vec![], 
+        reward: Box::new(|_, _, _| {
+            RewardResult{
+                reward_local: 100.,
+                target_id: None,
+                target_location: None,
+            }
+        }),
+        reward_connection: Box::new(|_, _, _| {
+            1.
+        }), 
+        requirement: Box::new(|_, c| {
+            RequirementResult {
+                valid: c.get_inventory_of_item(ItemType::Bones) >= 2,
+                requirements: vec![vec![VariableChange{ 
+                    variable: reward_graph::Variable::Bone, 
+                    change: 2 
+                }]],
+                target_id: None,
+                target_location: None,
+            }
+        }), 
+        cost: Box::new(|_, _, _| { // total reward should be 10 with these costs
+            CostResult {
+                cost_base: 5.,
+                cost_divider: 5.,
+            }
+        }), 
+        get_command: Some(Box::new(|_, c,_,_| CreatureCommand::MoveTo("boneseat", c, Location::new0(), 0))), 
+        effect: None,
+        }
+    );
+
+    let can_do_low_reward = Node::Reward(RewardNode { 
+        description: "cant_do meat".to_string(),
+        index: 0, 
+        children: vec![], 
+        reward: Box::new(|_, _, _| {
+            RewardResult{
+                reward_local: 10.,
+                target_id: None,
+                target_location: None,
+            }
+        }),
+        reward_connection: Box::new(|_, _, _| {
+            1.
+        }), 
+        requirement: Box::new(|_, c| {
+            RequirementResult {
+                valid: c.get_inventory_of_item(ItemType::Meat) >= 2,
+                requirements: vec![vec![VariableChange{ 
+                    variable: reward_graph::Variable::Meat, 
+                    change: 2 
+                }]],
+                target_id: None,
+                target_location: None,
+            }
+        }), 
+        cost: Box::new(|_, _, _| { // total reward should be 1 with these costs
+            CostResult {
+                cost_base: 5.,
+                cost_divider: 5.,
+            }
+        }), 
+        get_command: Some(Box::new(|_, c,_,_| CreatureCommand::MoveTo("meateat", c, Location::new0(), 0))), 
+        effect: None,
+        }
+    );
+
+    let can_do_high_reward = Node::Reward(RewardNode { 
+        description: "cant_do Berry".to_string(),
+        index: 0, 
+        children: vec![], 
+        reward: Box::new(|_, _, _| {
+            RewardResult{
+                reward_local: 8.,
+                target_id: None,
+                target_location: None,
+            }
+        }),
+        reward_connection: Box::new(|_, _, _| {
+            1.
+        }), 
+        requirement: Box::new(|_, c| {
+            RequirementResult {
+                valid: c.get_inventory_of_item(ItemType::Berry) >= 2,
+                requirements: vec![vec![VariableChange{ 
+                    variable: reward_graph::Variable::Berry, 
+                    change: 2 
+                }]],
+                target_id: None,
+                target_location: None,
+            }
+        }), 
+        cost: Box::new(|_, _, _| { // total reward should be 2 with these costs
+            CostResult {
+                cost_base: 2.,
+                cost_divider: 3.,
+            }
+        }), 
+        get_command: Some(Box::new(|_, c,_,_| CreatureCommand::MoveTo("berryeat", c, Location::new0(), 0))), 
+        effect: None,
+        }
+    );
+
+    let root = RootNode{
+        description: "root".to_string(),
+        nodes: vec![cant_do_node, can_do_low_reward, can_do_high_reward],
+        children: vec![
+            RewardNodeConnection{ 
+                base_multiplier: Some(1.), 
+                child_index: 0, 
+                parent_index: 0,
+                requirement: VariableChange { variable: Variable::None, change: 0 } 
+            },
+            RewardNodeConnection{ 
+                base_multiplier: Some(1.), 
+                child_index: 0, 
+                parent_index: 0,
+                requirement: VariableChange { variable: Variable::None, change: 0 } 
+            },
+            RewardNodeConnection{ 
+                base_multiplier: Some(1.), 
+                child_index: 0, 
+                parent_index: 0,
+                requirement: VariableChange { variable: Variable::None, change: 0 } 
+            }
+        ],
+    };
+    let map = MapState::default();
+    let creature = CreatureState {
+        components: ComponentMap::default(),
+        memory: CreatureMemory { creatures_remembered: vec![] },
+        inventory: vec![
+            Item{ item_type: ItemType::Berry, quantity: 2 },
+            Item{ item_type: ItemType::Meat, quantity: 2 },
+        ],
+    };
+    let result_graph = root.generate_result_graph(&map, &creature);
+
+    // TODO: og node not set. global rewards not set
+    println!("{:#?}", result_graph);
+    assert_eq!(result_graph.nodes.len(), 3);
+    assert_eq!(result_graph.nodes[0].original_node, 0);
+    assert_eq!(result_graph.nodes[1].original_node, 1);
+    assert_eq!(result_graph.nodes[2].original_node, 2);
+
+
+    assert_eq!(result_graph.nodes[0].global_reward.reward_global_with_costs.unwrap(), 10.);
+    assert_eq!(result_graph.nodes[1].global_reward.reward_global_with_costs.unwrap(), 1.);
+    assert_eq!(result_graph.nodes[2].global_reward.reward_global_with_costs.unwrap(), 2.);
+
+    let cmd = result_graph.get_final_command();
+
+    match cmd.unwrap() {
+        CreatureCommand::MoveTo(name, _, _, _) => assert_eq!(name, "berryeat"),
+        _ => assert!(false)
+    }
+}
+
+#[test]
+fn test_creature_list_node_reward_graph() {
+
 }
 
 // Test sex, and then reproduction. Make sure the sex related stuff like species, multithreads, mutating, inheritance, litter size, pregnancy time, and childness work.
