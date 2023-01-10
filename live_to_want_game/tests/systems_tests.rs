@@ -503,7 +503,7 @@ fn test_1_tier_reward_graph() {
 
     let can_do_low_reward = Node::Reward(RewardNode { 
         description: "cant_do meat".to_string(),
-        index: 0, 
+        index: 1, 
         children: vec![], 
         reward: Box::new(|_, _, _| {
             RewardResult{
@@ -539,7 +539,7 @@ fn test_1_tier_reward_graph() {
 
     let can_do_high_reward = Node::Reward(RewardNode { 
         description: "cant_do Berry".to_string(),
-        index: 0, 
+        index: 2, 
         children: vec![], 
         reward: Box::new(|_, _, _| {
             RewardResult{
@@ -608,7 +608,7 @@ fn test_1_tier_reward_graph() {
     };
     let result_graph = root.generate_result_graph(&map, &creature);
 
-    // TODO: og node not set. global rewards not set
+    // TODO: og node not set. global rewards not set. move to new file
     println!("{:#?}", result_graph);
     assert_eq!(result_graph.nodes.len(), 3);
     assert_eq!(result_graph.nodes[0].original_node, 0);
@@ -616,7 +616,7 @@ fn test_1_tier_reward_graph() {
     assert_eq!(result_graph.nodes[2].original_node, 2);
 
 
-    assert_eq!(result_graph.nodes[0].global_reward.reward_global_with_costs.unwrap(), 10.);
+    assert_eq!(result_graph.nodes[0].global_reward.reward_global_with_costs.unwrap(), 19.);
     assert_eq!(result_graph.nodes[1].global_reward.reward_global_with_costs.unwrap(), 1.);
     assert_eq!(result_graph.nodes[2].global_reward.reward_global_with_costs.unwrap(), 2.);
 

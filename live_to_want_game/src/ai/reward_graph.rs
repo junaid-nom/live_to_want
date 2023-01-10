@@ -134,7 +134,10 @@ impl RootNode {
                     }
                 },
             }
-        }  
+        }
+
+        // setup children connections for root
+        root.children = self.children.iter().map(|c| c.child_index).collect();
 
         // Now how to get the reward of everything...
         // I guess: go through from root, if node doesn't have global reward set yet, then, calculate the global reward on it.
@@ -470,7 +473,7 @@ impl NodeResultRoot<'_> {
         }
         self.nodes[index_to_process].connection_results = Some(conn_results);
 
-        let mut reward_sum_total = 0.;
+        let mut reward_sum_total = self.nodes[index_to_process].reward_result.reward_local;
         for var_result in &self.nodes[index_to_process].global_reward.rewards_per_requirement {
             reward_sum_total += var_result.reward;
         }
@@ -481,15 +484,22 @@ impl NodeResultRoot<'_> {
     }
 
     pub fn get_final_command<'b, 'l>(&'l self) -> Option<CreatureCommand<'l>> { 
-        let best_node = self.nodes.iter().reduce(|accum, item| {
+        let mut best_node: Option<&NodeResult> = None;
+        for item in self.nodes.iter() {
             if 
                 item.requirement_result.valid && 
                 item.command_result.is_some() && 
-                item.global_reward.reward_global_with_costs.unwrap() >= 
-                accum.global_reward.reward_global_with_costs.unwrap() {
-                item
-            } else { accum }
-        });
+                (
+                    best_node.is_none()
+                    ||
+                    item.global_reward.reward_global_with_costs.unwrap() >= 
+                    best_node.unwrap().global_reward.reward_global_with_costs.unwrap()
+                )
+                 {
+                    best_node = Some(item);
+            }
+        }
+        
         if let Some(best_node) = best_node {
             return Some(best_node.command_result.clone().unwrap());
         }
