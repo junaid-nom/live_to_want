@@ -11,9 +11,16 @@ pub fn get_count_of_variable(m: &MapState, c: &CreatureState, v: Variable) -> i3
     // could even be something like "my rank in power compared to creatures near me"
     match v {
         Variable::None => 0,
-        Variable::Bone => c.get_inventory_of_item(ItemType::Bones) as i32,
+        Variable::Bone => c.get_inventory_of_item(ItemType::Bone) as i32,
         Variable::Meat => c.get_inventory_of_item(ItemType::Meat) as i32,
         Variable::Berry => c.get_inventory_of_item(ItemType::Berry) as i32,
+        Variable::Skin => c.get_inventory_of_item(ItemType::Skin) as i32,
+        Variable::Wood => c.get_inventory_of_item(ItemType::Wood) as i32,
+        Variable::Fiber => c.get_inventory_of_item(ItemType::Fiber) as i32,
+        Variable::Spear => c.get_inventory_of_item(ItemType::Spear) as i32,
+        Variable::Shield => c.get_inventory_of_item(ItemType::Shield) as i32,
+        Variable::Arrow => c.get_inventory_of_item(ItemType::Arrow) as i32,
+        Variable::Bow => c.get_inventory_of_item(ItemType::Bow) as i32,
     }
 }
 
@@ -183,7 +190,14 @@ pub enum Variable {
     None,
     Bone,
     Meat,
+    Skin,
     Berry,
+    Wood,
+    Fiber,
+    Spear,
+    Shield,
+    Arrow,
+    Bow,
     // NOTE inbetween ingredients will need to be variables. Anything that is an inner OR. For example, if  (wood OR clay) AND glue makes a wall, then (wood OR clay) must be its own node and variable.
 }
 #[derive(Debug)]

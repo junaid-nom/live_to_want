@@ -10,10 +10,17 @@ use super::MapLocation;
 #[derive(PartialEq, Hash, Eq)]
 #[derive(Deserialize, Serialize)]
 pub enum ItemType {
-    Berry,
     Meat,
-    Bones,
+    Bone,
+    Skin,
+    Berry,
+    Fiber,
     Wood,
+    
+    Spear,
+    Shield,
+    Arrow,
+    Bow,
 }
 impl Default for ItemType {
     fn default() -> Self { ItemType::Berry }

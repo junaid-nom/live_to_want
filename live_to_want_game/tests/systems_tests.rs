@@ -29,7 +29,7 @@ fn run_frames_test_starvation_and_death() {
         metabolism: 100,
     });
     c.components.death_items_component = Some(DeathItemsComponent{
-        items_to_drop: vec![Item::new(ItemType::Bones, 7)],
+        items_to_drop: vec![Item::new(ItemType::Bone, 7)],
     });
     c.inventory.push(Item::new(ItemType::Meat, 6));
     
@@ -49,7 +49,7 @@ fn run_frames_test_starvation_and_death() {
     assert_eq!(gs.map_state.regions[start_loc].creatures.get_length(), Some(0));
     assert_eq!(vec![
         Item {
-            item_type: ItemType::Bones,
+            item_type: ItemType::Bone,
             quantity: 7,
         },
         Item {
@@ -481,7 +481,7 @@ fn test_1_tier_reward_graph() {
         }), 
         requirement: Box::new(|_, c| {
             RequirementResult {
-                valid: c.get_inventory_of_item(ItemType::Bones) >= 2,
+                valid: c.get_inventory_of_item(ItemType::Bone) >= 2,
                 requirements: vec![vec![VariableChange{ 
                     variable: reward_graph::Variable::Bone, 
                     change: 2 
@@ -572,6 +572,229 @@ fn test_1_tier_reward_graph() {
         effect: None,
         }
     );
+
+    let root = RootNode{
+        description: "root".to_string(),
+        nodes: vec![cant_do_node, can_do_low_reward, can_do_high_reward],
+        children: vec![
+            RewardNodeConnection{ 
+                base_multiplier: Some(1.), 
+                child_index: 0, 
+                parent_index: 0,
+                requirement: VariableChange { variable: Variable::None, change: 0 } 
+            },
+            RewardNodeConnection{ 
+                base_multiplier: Some(1.), 
+                child_index: 0, 
+                parent_index: 0,
+                requirement: VariableChange { variable: Variable::None, change: 0 } 
+            },
+            RewardNodeConnection{ 
+                base_multiplier: Some(1.), 
+                child_index: 0, 
+                parent_index: 0,
+                requirement: VariableChange { variable: Variable::None, change: 0 } 
+            }
+        ],
+    };
+    let map = MapState::default();
+    let creature = CreatureState {
+        components: ComponentMap::default(),
+        memory: CreatureMemory { creatures_remembered: vec![] },
+        inventory: vec![
+            Item{ item_type: ItemType::Berry, quantity: 2 },
+            Item{ item_type: ItemType::Meat, quantity: 2 },
+        ],
+    };
+    let result_graph = root.generate_result_graph(&map, &creature);
+
+    // TODO: og node not set. global rewards not set. move to new file
+    println!("{:#?}", result_graph);
+    assert_eq!(result_graph.nodes.len(), 3);
+    assert_eq!(result_graph.nodes[0].original_node, 0);
+    assert_eq!(result_graph.nodes[1].original_node, 1);
+    assert_eq!(result_graph.nodes[2].original_node, 2);
+
+
+    assert_eq!(result_graph.nodes[0].global_reward.reward_global_with_costs.unwrap(), 19.);
+    assert_eq!(result_graph.nodes[1].global_reward.reward_global_with_costs.unwrap(), 1.);
+    assert_eq!(result_graph.nodes[2].global_reward.reward_global_with_costs.unwrap(), 2.);
+
+    let cmd = result_graph.get_final_command();
+
+    match cmd.unwrap() {
+        CreatureCommand::MoveTo(name, _, _, _) => assert_eq!(name, "berryeat"),
+        _ => assert!(false)
+    }
+}
+
+#[test]
+fn test_limit_algo_reward_graph() {
+    // have 3 options all require wood + other ingredients
+    // spear: req 2 wood: final reward (per wood): 12,6,0..
+    // shield: req 3. FinalReward: 10,7,4,1,0..
+    // arrow: req 1. finalReward: 9,9,9, 1..
+    // assume have 1 real arrow already. and 11 wood?
+    // reward for each wood should be:
+    // spear 12x2, shield 10x3, arrow 9, arrow 9, sheild 7x3, spearx2 6x2
+    // so final reward should be: spear: 0, shield 4, arrow 1 -> 4
+
+    // NOTE: THERE IS NO MECHANISM to prevent making an item you have requirements for
+    // even if the ingredients are better used for a different recipe that is missing something!
+    // not an issue if gathering of ingredient has same cost as using it,
+    // because then gathering will have higher reward than the not great item.
+    // maybe solved by having cost be - reward of all parents? but that's circular.
+    // could solve circular problem by making it so its a final "oppertunity cost step"?
+
+    let spear_node = Node::Reward(RewardNode { 
+        description: "spear".to_string(),
+        index: 0, 
+        children: vec![], 
+        reward: Box::new(|_, _, _| {
+            RewardResult{
+                reward_local: 24.,
+                target_id: None,
+                target_location: None,
+            }
+        }),
+        reward_connection: Box::new(|_, _, count| {
+            1. - (0.5 * count) // 1, .5, 0
+        }), 
+        requirement: Box::new(|_, c| {
+            RequirementResult {
+                valid: c.get_inventory_of_item(ItemType::Bone) >= 2,
+                requirements: vec![vec![
+                    VariableChange{ 
+                        variable: reward_graph::Variable::Bone, 
+                        change: 2
+                    },
+                    VariableChange{ 
+                        variable: reward_graph::Variable::Wood, 
+                        change: 2
+                    },
+                ]],
+                target_id: None,
+                target_location: None,
+            }
+        }), 
+        cost: Box::new(|_, _, _| { // total reward should be 10 with these costs
+            CostResult {
+                cost_base: 0.,
+                cost_divider: 1.,
+            }
+        }), 
+        get_command: Some(Box::new(|_, c,_,_| CreatureCommand::MoveTo("spear", c, Location::new0(), 0))), 
+        effect:  Some(Box::new(|_, _, _, _| vec![
+            VariableChange{ 
+                variable: reward_graph::Variable::Spear, 
+                change: 1
+            },
+        ])),
+        }
+    );
+
+    let shield_node = Node::Reward(RewardNode { 
+        description: "shield".to_string(),
+        index: 0, 
+        children: vec![], 
+        reward: Box::new(|_, _, _| {
+            RewardResult{
+                reward_local: 30.,
+                target_id: None,
+                target_location: None,
+            }
+        }),
+        reward_connection: Box::new(|_, _, count| {
+            1. - (0.3 * count) // 1, .7, .4, .1, -.2
+        }), 
+        requirement: Box::new(|_, c| {
+            RequirementResult {
+                valid: c.get_inventory_of_item(ItemType::Skin) >= 2,
+                requirements: vec![vec![
+                    VariableChange{ 
+                        variable: reward_graph::Variable::Skin, 
+                        change: 2
+                    },
+                    VariableChange{ 
+                        variable: reward_graph::Variable::Wood, 
+                        change: 3
+                    },
+                ]],
+                target_id: None,
+                target_location: None,
+            }
+        }), 
+        cost: Box::new(|_, _, _| { // total reward should be 10 with these costs
+            CostResult {
+                cost_base: 0.,
+                cost_divider: 1.,
+            }
+        }), 
+        get_command: Some(Box::new(|_, c,_,_| CreatureCommand::MoveTo("shield", c, Location::new0(), 0))), 
+        effect:  Some(Box::new(|_, _, _, _| vec![
+            VariableChange{ 
+                variable: reward_graph::Variable::Shield, 
+                change: 1
+            },
+        ])),
+        }
+    );
+
+    let arrow_node = Node::Reward(RewardNode { 
+        description: "arrow".to_string(),
+        index: 0, 
+        children: vec![], 
+        reward: Box::new(|_, _, _| {
+            RewardResult{
+                reward_local: 9.,
+                target_id: None,
+                target_location: None,
+            }
+        }),
+        reward_connection: Box::new(|_, _, count| {
+            if count < 3. {
+                1.
+            }
+            else {
+                1.0/9.0
+            }
+            // 9,9,9, 1
+        }), 
+        requirement: Box::new(|_, c| {
+            RequirementResult {
+                valid: c.get_inventory_of_item(ItemType::Fiber) >= 1,
+                requirements: vec![vec![
+                    VariableChange{ 
+                        variable: reward_graph::Variable::Fiber, 
+                        change: 1
+                    },
+                    VariableChange{ 
+                        variable: reward_graph::Variable::Wood, 
+                        change: 1
+                    },
+                ]],
+                target_id: None,
+                target_location: None,
+            }
+        }), 
+        cost: Box::new(|_, _, _| { // total reward should be 10 with these costs
+            CostResult {
+                cost_base: 0.,
+                cost_divider: 1.,
+            }
+        }), 
+        get_command: Some(Box::new(|_, c,_,_| CreatureCommand::MoveTo("arrow", c, Location::new0(), 0))), 
+        effect:  Some(Box::new(|_, _, _, _| vec![
+            VariableChange{ 
+                variable: reward_graph::Variable::Arrow, 
+                change: 1
+            },
+        ])),
+        }
+    );
+
+    // TODONEXT: make wood parent node, then a root node. then run it with 11 wood
+    // check the limit reward thingy for the wood node, and the final rewards for the childen nodes.
 
     let root = RootNode{
         description: "root".to_string(),
