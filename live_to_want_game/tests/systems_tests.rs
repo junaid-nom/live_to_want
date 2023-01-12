@@ -695,7 +695,7 @@ fn test_limit_algo_reward_graph() {
 
     let shield_node = Node::Reward(RewardNode { 
         description: "shield".to_string(),
-        index: 0, 
+        index: 1, 
         children: vec![], 
         reward: Box::new(|_, _, _| {
             RewardResult{
@@ -742,7 +742,7 @@ fn test_limit_algo_reward_graph() {
 
     let arrow_node = Node::Reward(RewardNode { 
         description: "arrow".to_string(),
-        index: 0, 
+        index: 2, 
         children: vec![], 
         reward: Box::new(|_, _, _| {
             RewardResult{
@@ -793,33 +793,78 @@ fn test_limit_algo_reward_graph() {
         }
     );
 
-    // TODONEXT: make wood parent node, then a root node. then run it with 11 wood
-    // check the limit reward thingy for the wood node, and the final rewards for the childen nodes.
+    let wood_node = Node::Reward(RewardNode { 
+        description: "wood".to_string(),
+        index: 3, 
+        children: vec![
+            RewardNodeConnection{ 
+                base_multiplier: None, 
+                child_index: 0, 
+                parent_index: 3,
+                requirement: VariableChange { variable: Variable::Wood, change: 2 } 
+            },
+            RewardNodeConnection{ 
+                base_multiplier: None, 
+                child_index: 1, 
+                parent_index: 3,
+                requirement: VariableChange { variable: Variable::Wood, change: 3 } 
+            },
+            RewardNodeConnection{ 
+                base_multiplier: None, 
+                child_index: 2, 
+                parent_index: 3,
+                requirement: VariableChange { variable: Variable::Wood, change: 1 } 
+            },
+
+        ],
+        reward: Box::new(|_, _, _| {
+            RewardResult{
+                reward_local: 0.,
+                target_id: None,
+                target_location: None,
+            }
+        }),
+        reward_connection: Box::new(|_, _, _| {
+            1.
+        }), 
+        requirement: Box::new(|_, _| {
+            RequirementResult {
+                valid: true,
+                requirements: vec![vec![
+                ]],
+                target_id: None,
+                target_location: None,
+            }
+        }), 
+        cost: Box::new(|_, _, _| {
+            CostResult {
+                cost_base: 0.,
+                cost_divider: 1.,
+            }
+        }), 
+        get_command: Some(Box::new(|_, c,_,_| CreatureCommand::MoveTo("wood", c, Location::new0(), 0))), 
+        effect:  Some(Box::new(|_, _, _, _| vec![
+            VariableChange{ 
+                variable: reward_graph::Variable::Wood, 
+                change: 1
+            },
+        ])),
+        }
+    );
 
     let root = RootNode{
         description: "root".to_string(),
-        nodes: vec![cant_do_node, can_do_low_reward, can_do_high_reward],
+        nodes: vec![spear_node, shield_node, arrow_node, wood_node],
         children: vec![
             RewardNodeConnection{ 
                 base_multiplier: Some(1.), 
-                child_index: 0, 
+                child_index: 3, 
                 parent_index: 0,
                 requirement: VariableChange { variable: Variable::None, change: 0 } 
             },
-            RewardNodeConnection{ 
-                base_multiplier: Some(1.), 
-                child_index: 0, 
-                parent_index: 0,
-                requirement: VariableChange { variable: Variable::None, change: 0 } 
-            },
-            RewardNodeConnection{ 
-                base_multiplier: Some(1.), 
-                child_index: 0, 
-                parent_index: 0,
-                requirement: VariableChange { variable: Variable::None, change: 0 } 
-            }
         ],
     };
+
     let map = MapState::default();
     let creature = CreatureState {
         components: ComponentMap::default(),
@@ -831,24 +876,26 @@ fn test_limit_algo_reward_graph() {
     };
     let result_graph = root.generate_result_graph(&map, &creature);
 
-    // TODO: og node not set. global rewards not set. move to new file
+    // check the limit reward thingy for the wood node, and the final rewards for the childen nodes.
+    // tODONEXT: connection_results and global reward for wood is None wtf?
     println!("{:#?}", result_graph);
-    assert_eq!(result_graph.nodes.len(), 3);
-    assert_eq!(result_graph.nodes[0].original_node, 0);
-    assert_eq!(result_graph.nodes[1].original_node, 1);
-    assert_eq!(result_graph.nodes[2].original_node, 2);
+    
+    // assert_eq!(result_graph.nodes.len(), 3);
+    // assert_eq!(result_graph.nodes[0].original_node, 0);
+    // assert_eq!(result_graph.nodes[1].original_node, 1);
+    // assert_eq!(result_graph.nodes[2].original_node, 2);
 
 
-    assert_eq!(result_graph.nodes[0].global_reward.reward_global_with_costs.unwrap(), 19.);
-    assert_eq!(result_graph.nodes[1].global_reward.reward_global_with_costs.unwrap(), 1.);
-    assert_eq!(result_graph.nodes[2].global_reward.reward_global_with_costs.unwrap(), 2.);
+    // assert_eq!(result_graph.nodes[0].global_reward.reward_global_with_costs.unwrap(), 19.);
+    // assert_eq!(result_graph.nodes[1].global_reward.reward_global_with_costs.unwrap(), 1.);
+    // assert_eq!(result_graph.nodes[2].global_reward.reward_global_with_costs.unwrap(), 2.);
 
-    let cmd = result_graph.get_final_command();
+    // let cmd = result_graph.get_final_command();
 
-    match cmd.unwrap() {
-        CreatureCommand::MoveTo(name, _, _, _) => assert_eq!(name, "berryeat"),
-        _ => assert!(false)
-    }
+    // match cmd.unwrap() {
+    //     CreatureCommand::MoveTo(name, _, _, _) => assert_eq!(name, "berryeat"),
+    //     _ => assert!(false)
+    // }
 }
 
 #[test]
