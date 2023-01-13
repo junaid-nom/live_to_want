@@ -90,7 +90,7 @@ impl RootNode {
                         requirement_result: requirement,
                         reward_result: reward,
                         cost_result: cost,
-                        global_reward: NodeRewardGlobal { rewards_per_requirement: vec![], reward_sum_total: None, reward_global_with_costs: None },
+                        global_reward: NodeRewardGlobal { rewards_per_result_change: vec![], reward_sum_total: None, reward_global_with_costs: None },
                         children: (&n.children).into_iter().map(|c| c.child_index).collect(),
                         effects: effects,
                         connection_results: None, // need to wait for global results of children to compute this
@@ -129,7 +129,7 @@ impl RootNode {
                             requirement_result: requirement,
                             reward_result: reward,
                             cost_result: cost,
-                            global_reward: NodeRewardGlobal { rewards_per_requirement: vec![], reward_sum_total: None, reward_global_with_costs: None },
+                            global_reward: NodeRewardGlobal { rewards_per_result_change: vec![], reward_sum_total: None, reward_global_with_costs: None },
                             children: (&nl.children).into_iter().map(|c| c.child_index).collect(),
                             effects: effects,
                             connection_results: None, // need to wait for global results of children to compute this
@@ -158,7 +158,7 @@ impl RootNode {
             // ok so can't do that copy idea.
             // instead make a hashmap of UID->CreatureState from map_state
             // creature memory just stores UID and last location seen? only of important friendly stuff?
-            root.calculate_global_reward( &self, map_state, c_state, &uid_map, i, &mut indexs_processed);
+            root.calculate_global_reward( &self, map_state, c_state, &uid_map, root.children[i], &mut indexs_processed);
         }
 
         root
@@ -266,36 +266,40 @@ pub struct ConnectionResult {
     pub parent_index: NodeIndex,
     pub base_multiplier: f32, // multiplier based on just the requirements of child and effects of parent
     pub multiplier_child: f32, // child's Count based multiplier
-    pub conn_reward: f32, // None when not set yet
+    pub total_reward: Vec<f32>, // empty when not set. will push to the top of list for every reward calculated. total_reward[0] is the final calculated one
     pub child_count: f32, // used to compute the final reward multiplier for the child for his connection combined with bonus_count
     pub parent_count: f32,
+    pub parent_count_total: i32,
     pub parent_to_child_count_ratio: f32,
     pub category: Variable,
 } 
 impl PartialEq for ConnectionResult {
     fn eq(&self, other: &Self) -> bool {
-        self.conn_reward == other.conn_reward
+        self.total_reward == other.total_reward
     }
 }
 impl Eq for ConnectionResult {}
 impl PartialOrd for ConnectionResult {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        return self.conn_reward.partial_cmp(&other.conn_reward);
+        return self.total_reward.partial_cmp(&other.total_reward);
     }
 }
 impl Ord for ConnectionResult {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        if self.conn_reward.is_nan() {
-            if other.conn_reward.is_nan() {
+        if self.total_reward.len() == 0 || self.total_reward[0].is_nan() {
+            if other.total_reward.len() == 0 || other.total_reward[0].is_nan() {
                 return std::cmp::Ordering::Equal;
             } else {
                 return std::cmp::Ordering::Less;
             }
-        } else if other.conn_reward.is_nan() {
+        } else if other.total_reward.len() == 0 || other.total_reward[0].is_nan() {
             return std::cmp::Ordering::Greater;
         }
 
-        return self.conn_reward.partial_cmp(&other.conn_reward).unwrap();
+        if self.total_reward[0] == other.total_reward[0] { 
+            return (-1 * self.child_index as i32).cmp(&(-1 * other.child_index as i32));
+        }
+        return self.total_reward[0].partial_cmp(&other.total_reward[0]).unwrap();
     }
 }
 
@@ -308,7 +312,7 @@ pub struct VariableReward{
 #[derive(Clone, Debug, PartialEq)]
 pub struct NodeRewardGlobal{
     // local reward is stored in the RewardResult
-    pub rewards_per_requirement: Vec<VariableReward>,
+    pub rewards_per_result_change: Vec<VariableReward>,
     pub reward_sum_total: Option<f32>, // includes local reward
     pub reward_global_with_costs: Option<f32>,
 }
@@ -379,21 +383,22 @@ impl NodeResultRoot<'_> {
                         category: variable,
                         base_multiplier: base_mult,
                         multiplier_child: 1.,
-                        conn_reward: get_global_reward_for_connection(1., self.nodes[(*c).child_index].global_reward.reward_global_with_costs.unwrap(), base_mult),
+                        total_reward: vec![get_global_reward_for_connection(1., self.nodes[(*c).child_index].global_reward.reward_global_with_costs.unwrap(), base_mult)],
                         child_count: 0.,
                         parent_count: 0.,
+                        parent_count_total: 0,
                         parent_to_child_count_ratio: 0.,
                         child_index: c.child_index,
                         parent_index: c.parent_index,
                     };
-                    total_sum+= conn_result.conn_reward;
+                    total_sum+= conn_result.total_reward[0];
                     cat_results.push(conn_result);
                 }
                 let final_max = VariableReward{
                     reward: total_sum,
                     category: variable,
                 };
-                self.nodes[index_to_process].global_reward.rewards_per_requirement.push(final_max);
+                self.nodes[index_to_process].global_reward.rewards_per_result_change.push(final_max);
                 conn_results.push(cat_results);
                 continue;
             }
@@ -447,13 +452,14 @@ impl NodeResultRoot<'_> {
                     category: variable,
                     base_multiplier: base_multiplier,
                     multiplier_child: multiplier_child,
-                    conn_reward: get_global_reward_for_connection(
+                    total_reward: vec![get_global_reward_for_connection(
                         multiplier_child, 
                         self.nodes[(*c).child_index].global_reward.reward_global_with_costs.unwrap(),
                         base_multiplier,
-                    ),
+                    )],
                     child_count: child_count,
                     parent_count: 0.,
+                    parent_count_total: parent_count,
                     parent_to_child_count_ratio: 1. / conn_requirement_needed,
                     child_index: c.child_index,
                     parent_index: c.parent_index,
@@ -462,12 +468,17 @@ impl NodeResultRoot<'_> {
 
             let increment_best_child = |mut top: ConnectionResult| -> ConnectionResult {
                 top.parent_count += var_effect * top.parent_to_child_count_ratio;
-                top.conn_reward = (&root_node).nodes.get(top.child_index).unwrap().get_child_multiplier(
+                top.multiplier_child = (&root_node).nodes.get(top.child_index).unwrap().get_child_multiplier(
                     top.child_count + top.parent_count, 
                     map_state,
                     c_state, 
                     c_target
                 );
+                top.total_reward.insert(0, get_global_reward_for_connection(
+                    top.multiplier_child, 
+                    self.nodes[top.child_index].global_reward.reward_global_with_costs.unwrap(),
+                    top.base_multiplier,
+                ));
                 top
             };
             for _ in 0..parent_count as i32 {
@@ -476,19 +487,20 @@ impl NodeResultRoot<'_> {
                 cat_results.push(best);
             }
             // Now add one more that's essentially the reward for "What happens if I get one more of this node's effects"
-            let best = increment_best_child(cat_results.pop().unwrap());
+            let best = cat_results.pop().unwrap();
             let final_max = VariableReward{
-                reward: best.conn_reward,
+                reward: best.total_reward[0],
                 category: best.category,
             };
-            self.nodes[index_to_process].global_reward.rewards_per_requirement.push(final_max);
+            cat_results.push(best);
+            self.nodes[index_to_process].global_reward.rewards_per_result_change.push(final_max);
 
             conn_results.push(cat_results);
         }
         self.nodes[index_to_process].connection_results = Some(conn_results);
 
         let mut reward_sum_total = self.nodes[index_to_process].reward_result.reward_local;
-        for var_result in &self.nodes[index_to_process].global_reward.rewards_per_requirement {
+        for var_result in &self.nodes[index_to_process].global_reward.rewards_per_result_change {
             reward_sum_total += var_result.reward;
         }
         self.nodes[index_to_process].global_reward.reward_sum_total = Some(reward_sum_total);
@@ -542,11 +554,26 @@ impl NodeResult<'_> {
             panic!("Trying to get count when global reward has not been calculated yet!");
         }
 
+        // get reward from children and calculate count based on contribution to total reward
         let total_sum = self.global_reward.reward_sum_total.unwrap();
         let mut total_count = 0.;
-        for req_result in &self.global_reward.rewards_per_requirement {
-            if req_result.category != Variable::None {
-                total_count += (req_result.reward/total_sum) * get_count_of_variable(map_state, c_state, req_result.category) as f32;
+        for var_result in &self.global_reward.rewards_per_result_change {
+            if var_result.category != Variable::None {
+                total_count += (var_result.reward/total_sum) * get_count_of_variable(map_state, c_state, var_result.category) as f32;
+            }
+        }
+
+        // now get local reward contribution and add that, assuming all effects have equal weight per count
+        // if effect of this is: +10 X and +3 Y means every X has 1/13 of total local contribution for simplicity.
+        let local_proportion = self.reward_result.reward_local / total_sum;
+        if local_proportion > 0. {
+            let mut total_effect = 0;
+            for effect in &self.effects {
+                total_effect += effect.change;
+            }
+            for effect in &self.effects {
+                let count =  get_count_of_variable(map_state, c_state, effect.variable);
+                total_count += count as f32 / total_effect as f32 * local_proportion;
             }
         }
 

@@ -2,7 +2,7 @@ extern crate rayon;
 use std::{rc::Rc, cell::RefCell};
 
 use rayon::prelude::*;
-use live_to_want_game::{*, reward_graph::{RootNode, Node, RewardNode, RewardResult, RequirementResult, VariableChange, CostResult, RewardNodeConnection, Variable}};
+use live_to_want_game::{*, reward_graph::{RootNode, Node, RewardNode, RewardResult, RequirementResult, VariableChange, CostResult, RewardNodeConnection, Variable, ConnectionResult}};
 
 #[test]
 fn run_frames_test_starvation_and_death() {
@@ -631,13 +631,13 @@ fn test_1_tier_reward_graph() {
 #[test]
 fn test_limit_algo_reward_graph() {
     // have 3 options all require wood + other ingredients
-    // spear: req 2 wood: final reward (per wood): 12,6,0..
-    // shield: req 3. FinalReward: 10,7,4,1,0..
-    // arrow: req 1. finalReward: 9,9,9, 1..
-    // assume have 1 real arrow already. and 11 wood?
+    // spear: req 2 wood: final reward (per wood): 12,9 ,, 6,3 ,, 0..(perwood)
+    // shield: req 3. FinalReward: 10, 9, 8 ,, 7, 6, 5 ,, 4 ,, 1, 0..
+    // arrow: req 1. finalReward: 9(x),9,9, 1..
+    // assume have 1 real arrow already. and 8 wood already (calc 9th)?
     // reward for each wood should be:
-    // spear 12x2, shield 10x3, arrow 9, arrow 9, sheild 7x3, spearx2 6x2
-    // so final reward should be: spear: 0, shield 4, arrow 1 -> 4
+    // spear, shield, spear, shield, arrow, arrow, shield, shield, spear, 
+    // so final reward should be: spear: 6, shield 6, arrow 1 -> 6
 
     // NOTE: THERE IS NO MECHANISM to prevent making an item you have requirements for
     // even if the ingredients are better used for a different recipe that is missing something!
@@ -645,6 +645,8 @@ fn test_limit_algo_reward_graph() {
     // because then gathering will have higher reward than the not great item.
     // maybe solved by having cost be - reward of all parents? but that's circular.
     // could solve circular problem by making it so its a final "oppertunity cost step"?
+    // wait maybe this doesn't matter because child's actual childcount will
+    // increase so its actual reward will be low? lower than gathering stuff prob?
 
     let spear_node = Node::Reward(RewardNode { 
         description: "spear".to_string(),
@@ -872,6 +874,8 @@ fn test_limit_algo_reward_graph() {
         inventory: vec![
             Item{ item_type: ItemType::Berry, quantity: 2 },
             Item{ item_type: ItemType::Meat, quantity: 2 },
+            Item{ item_type: ItemType::Wood, quantity: 8 },
+            Item{ item_type: ItemType::Arrow, quantity: 1 },
         ],
     };
     let result_graph = root.generate_result_graph(&map, &creature);
@@ -880,22 +884,49 @@ fn test_limit_algo_reward_graph() {
     // tODONEXT: connection_results and global reward for wood is None wtf?
     println!("{:#?}", result_graph);
     
-    // assert_eq!(result_graph.nodes.len(), 3);
-    // assert_eq!(result_graph.nodes[0].original_node, 0);
-    // assert_eq!(result_graph.nodes[1].original_node, 1);
-    // assert_eq!(result_graph.nodes[2].original_node, 2);
+    assert_eq!(result_graph.nodes.len(), 4);
+    assert_eq!(result_graph.nodes[0].original_node, 0);
+    assert_eq!(result_graph.nodes[1].original_node, 1);
+    assert_eq!(result_graph.nodes[2].original_node, 2);
+    assert_eq!(result_graph.nodes[3].original_node, 3);
 
 
     // assert_eq!(result_graph.nodes[0].global_reward.reward_global_with_costs.unwrap(), 19.);
-    // assert_eq!(result_graph.nodes[1].global_reward.reward_global_with_costs.unwrap(), 1.);
-    // assert_eq!(result_graph.nodes[2].global_reward.reward_global_with_costs.unwrap(), 2.);
+    let wood = &result_graph.nodes[3];
+    let results: &Option<Vec<std::collections::BinaryHeap<ConnectionResult>>> = &wood.connection_results;
+    for conn_result in &results.as_ref().unwrap()[0] {
+        if conn_result.child_index == 0 {
+            assert_eq!(conn_result.total_reward, vec![
+                6.0,
+                9.0,
+                12.0,
+            ]);
+        }
+        if conn_result.child_index == 1 {
+            assert_eq!(conn_result.total_reward, vec![
+                5.9999995,
+                7.0,
+                7.9999995,
+                9.0,
+                10.0,
+            ]);
+        }
+        if conn_result.child_index == 2 {
+            assert_eq!(conn_result.total_reward, vec![
+                1.0,
+                9.0,
+                9.0,
+            ]);
+        }
+    }
+    assert_eq!(result_graph.nodes[3].global_reward.reward_global_with_costs.unwrap(), 6.0);
 
-    // let cmd = result_graph.get_final_command();
+    let cmd = result_graph.get_final_command();
 
-    // match cmd.unwrap() {
-    //     CreatureCommand::MoveTo(name, _, _, _) => assert_eq!(name, "berryeat"),
-    //     _ => assert!(false)
-    // }
+    match cmd.unwrap() {
+        CreatureCommand::MoveTo(name, _, _, _) => assert_eq!(name, "wood"),
+        _ => assert!(false)
+    }
 }
 
 #[test]
