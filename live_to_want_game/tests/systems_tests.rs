@@ -2,7 +2,7 @@ extern crate rayon;
 use std::{rc::Rc, cell::RefCell};
 
 use rayon::prelude::*;
-use live_to_want_game::{*, reward_graph::{RootNode, Node, RewardNode, RewardResult, RequirementResult, VariableChange, CostResult, RewardNodeConnection, Variable, ConnectionResult}};
+use live_to_want_game::{*, reward_graph::{RootNode, Node, RewardNode, RewardResult, RequirementResult, VariableChange, CostResult, RewardNodeConnection, Variable, ConnectionResult, RewardNodeCreatureList}};
 
 #[test]
 fn run_frames_test_starvation_and_death() {
@@ -881,7 +881,6 @@ fn test_limit_algo_reward_graph() {
     let result_graph = root.generate_result_graph(&map, &creature);
 
     // check the limit reward thingy for the wood node, and the final rewards for the childen nodes.
-    // tODONEXT: connection_results and global reward for wood is None wtf?
     println!("{:#?}", result_graph);
     
     assert_eq!(result_graph.nodes.len(), 4);
@@ -931,7 +930,161 @@ fn test_limit_algo_reward_graph() {
 
 #[test]
 fn test_creature_list_node_reward_graph() {
+    let openr = RegionCreationStruct::new(9,9, 0, vec![]);
+    let rgrid = vec![
+        vec![openr.clone()],
+    ];
+    //create map
+    let mut map = MapState::new(rgrid, 0);
+    let  region: &mut MapRegion = &mut map.regions[0][0];
 
+    let mut creature1 = CreatureState {
+        components: ComponentMap::default(),
+        memory: CreatureMemory { creatures_remembered: vec![] },
+        inventory: vec![
+            Item{ item_type: ItemType::Berry, quantity: 2 },
+            Item{ item_type: ItemType::Meat, quantity: 2 },
+        ],
+    };
+    let mut creature2 = CreatureState {
+        components: ComponentMap::default(),
+        memory: CreatureMemory { creatures_remembered: vec![] },
+        inventory: vec![
+            Item{ item_type: ItemType::Berry, quantity: 2 },
+        ],
+    };
+    let mut creature3 = CreatureState {
+        components: ComponentMap::default(),
+        memory: CreatureMemory { creatures_remembered: vec![] },
+        inventory: vec![
+            Item{ item_type: ItemType::Berry, quantity: 2 },
+            Item{ item_type: ItemType::Meat, quantity: 2 },
+        ],
+    };
+    let mut creature4 = CreatureState {
+        components: ComponentMap::default(),
+        memory: CreatureMemory { creatures_remembered: vec![] },
+        inventory: vec![
+            Item{ item_type: ItemType::Berry, quantity: 2 },
+            Item{ item_type: ItemType::Meat, quantity: 2 },
+            Item{ item_type: ItemType::Meat, quantity: 2 },
+        ],
+    };
+    let mut creature5 = CreatureState {
+        components: ComponentMap::default(),
+        memory: CreatureMemory { creatures_remembered: vec![] },
+        inventory: vec![
+            Item{ item_type: ItemType::Bone, quantity: 2 },
+            Item{ item_type: ItemType::Meat, quantity: 2 },
+            Item{ item_type: ItemType::Meat, quantity: 2 },
+            Item{ item_type: ItemType::Meat, quantity: 2 },
+        ],
+    };
+
+    creature1.components.location_component.location = Vu2::new(3,4);
+    creature2.components.location_component.location = Vu2::new(4,4);
+    creature3.components.location_component.location = Vu2::new(4,5);
+    creature4.components.location_component.location = Vu2::new(5,4);
+    creature5.components.location_component.location = Vu2::new(5,5);
+
+
+    let c1_id = creature1.get_id();
+    let c2_id = creature2.get_id();
+    let c3_id = creature3.get_id();
+    let c4_id = creature4.get_id();
+    let c5_id = creature5.get_id();
+
+    creature1.memory.creatures_remembered.push(CreatureRemembered { location: creature2.get_location(), frame_updated: 0, id: c2_id });
+
+    creature1.memory.creatures_remembered.push(CreatureRemembered { location: creature3.get_location(), frame_updated: 0, id: c3_id });
+
+    creature1.memory.creatures_remembered.push(CreatureRemembered { location: creature4.get_location(), frame_updated: 0, id: c4_id });
+    creature1.memory.creatures_remembered.push(CreatureRemembered { location: creature4.get_location(), frame_updated: 0, id: c5_id });
+
+    region.grid[creature1.components.location_component.location].creatures.add_creature(
+        creature1, 0
+    );
+    region.grid[creature2.components.location_component.location].creatures.add_creature(
+        creature2, 0
+    );
+    region.grid[creature3.components.location_component.location].creatures.add_creature(
+        creature3, 0
+    );
+    region.grid[creature4.components.location_component.location].creatures.add_creature(
+        creature4, 0
+    );
+
+    let list_node = Node::CreatureList(RewardNodeCreatureList {
+        description: "arrow".to_string(),
+        index: 2, 
+        children: vec![], 
+        reward: Box::new(|_, _, _, other| {
+            RewardResult{
+                reward_local: other.inventory.len() as f32 * 2.0,
+                target_id: None,
+                target_location: None,
+            }
+        }),
+        reward_connection: Box::new(|_, _, count, _| {
+                1.
+            // 9,9,9, 1
+        }), 
+        requirement: Box::new(|_, c, other| {
+            RequirementResult {
+                valid: other.get_inventory_of_item(ItemType::Berry) > 0,
+                requirements: vec![vec![
+                    VariableChange{ 
+                        variable: reward_graph::Variable::Fiber, 
+                        change: 1
+                    },
+                    VariableChange{ 
+                        variable: reward_graph::Variable::Wood, 
+                        change: 1
+                    },
+                ]],
+                target_id: None,
+                target_location: None,
+            }
+        }), 
+        cost: Box::new(|_, _, _, _| { // total reward should be 10 with these costs
+            CostResult {
+                cost_base: 0.,
+                cost_divider: 1.,
+            }
+        }), 
+        get_command: Some(Box::new(|_, c,_,_, other| CreatureCommand::MoveTo("a", c, other.get_location(), 0))), 
+        effect:  Some(Box::new(|_, _, _, _, _| vec![
+            VariableChange{ 
+                variable: reward_graph::Variable::Arrow, 
+                change: 1
+            },
+        ])),
+        filter: Box::new(|_, c1, other| {
+            if other.get_id() == c1.memory.creatures_remembered[0].id {
+                return false;
+            }
+            return true;
+        }),
+        }
+    );
+    let root = RootNode{
+        description: "root".to_string(),
+        nodes: vec![list_node],
+        children: vec![
+            RewardNodeConnection{ 
+                base_multiplier: Some(1.), 
+                child_index: 3, 
+                parent_index: 0,
+                requirement: VariableChange { variable: Variable::None, change: 0 } 
+            },
+        ],
+    };
+
+    let result_graph = root.generate_result_graph(&map, map.get_creature_list()[0]);
+
+    // check the limit reward thingy for the wood node, and the final rewards for the childen nodes.
+    // tODONEXT: connection_results and global reward for wood is None wtf?
+    println!("{:#?}", result_graph);
 }
 
 // Test sex, and then reproduction. Make sure the sex related stuff like species, multithreads, mutating, inheritance, litter size, pregnancy time, and childness work.

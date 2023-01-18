@@ -1858,7 +1858,7 @@ impl CreatureList {
             self.update_blocked(true, current_frame);
         }
         // NOTE: the edges of a region may be blocked because it doesn't have a neighbor region!
-        &self.creatures.as_mut().unwrap().push(c);
+        &self.creatures.as_mut().unwrap().push(c); // error here is prob because trying to put creature in a blocked edge of region
     }
 
     pub fn drain_creatures(&mut self, current_frame: u128) -> Vec<CreatureState> {
