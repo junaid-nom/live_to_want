@@ -1013,10 +1013,13 @@ fn test_creature_list_node_reward_graph() {
     region.grid[creature4.components.location_component.location].creatures.add_creature(
         creature4, 0
     );
+    region.grid[creature5.components.location_component.location].creatures.add_creature(
+        creature5, 0
+    );
 
     let list_node = Node::CreatureList(RewardNodeCreatureList {
-        description: "arrow".to_string(),
-        index: 2, 
+        description: "listnode".to_string(),
+        index: 0, 
         children: vec![], 
         reward: Box::new(|_, _, _, other| {
             RewardResult{
@@ -1073,7 +1076,7 @@ fn test_creature_list_node_reward_graph() {
         children: vec![
             RewardNodeConnection{ 
                 base_multiplier: Some(1.), 
-                child_index: 3, 
+                child_index: 0, 
                 parent_index: 0,
                 requirement: VariableChange { variable: Variable::None, change: 0 } 
             },
@@ -1082,10 +1085,26 @@ fn test_creature_list_node_reward_graph() {
 
     let result_graph = root.generate_result_graph(&map, map.get_creature_list()[0]);
 
-    // check the limit reward thingy for the wood node, and the final rewards for the childen nodes.
-    // tODONEXT: connection_results and global reward for wood is None wtf?
     println!("{:#?}", result_graph);
+    println!("2:{} 3:{} 4:{} 5:{}", c2_id, c3_id, c4_id, c5_id);
+
+    // creature 2 is out because its ID is filtered out.
+    // creaure 5 has highest reward but no requirements met
+    // creature 4 has higher reward than creature 3 so its selected
+
+    let cmd = result_graph.get_final_command();
+
+    match cmd.unwrap() {
+        CreatureCommand::MoveTo(_, _, loc, _) => assert_eq!(loc.position, Vu2::new(5,4)),
+        _ => assert!(false)
+    }
 }
+
+#[test]
+fn test_loop_in_reward_graph() {
+    // make sure this fails
+}
+
 
 // Test sex, and then reproduction. Make sure the sex related stuff like species, multithreads, mutating, inheritance, litter size, pregnancy time, and childness work.
 #[test]

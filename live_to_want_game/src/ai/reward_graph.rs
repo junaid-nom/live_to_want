@@ -125,7 +125,7 @@ impl RootNode {
                             None => None,
                         };
                         let new = NodeResult {
-                            original_node_description: nl.description.clone(), // NOTE: Is this worth? Every frame copying over the description. All to make debug print easier?
+                            original_node_description: format!("{}:{}", nl.description.clone(), target.get_id()), // NOTE: Is this worth? Every frame copying over the description. All to make debug print easier?
                             requirement_result: requirement,
                             reward_result: reward,
                             cost_result: cost,
@@ -144,7 +144,15 @@ impl RootNode {
         }
 
         // setup children connections for root
-        root.children = self.children.iter().map(|c| c.child_index).collect();
+        root.children = vec![];
+        for result_index in 0..root.nodes.len() {
+            for root_child in &self.children {
+                println!("resultIndex: {} childIndex:{}", root.nodes[result_index].original_node, root_child.child_index);
+                if root.nodes[result_index].original_node == root_child.child_index {
+                    root.children.push(result_index);
+                }
+            }
+        }
 
         // Now how to get the reward of everything...
         // I guess: go through from root, if node doesn't have global reward set yet, then, calculate the global reward on it.
@@ -324,7 +332,7 @@ pub struct NodeResultRoot<'f> {
     pub original_node_descriptor: String,
 }
 impl NodeResultRoot<'_> {
-    pub fn calculate_global_reward(&mut self, root_node: &RootNode, map_state: &MapState, c_state: &CreatureState, c_targets: &HashMap<UID, &CreatureState>, index_to_process: usize, indexes_processed: &mut HashSet<usize>) -> bool {
+    pub fn calculate_global_reward(&mut self, og_root_node: &RootNode, map_state: &MapState, c_state: &CreatureState, c_targets: &HashMap<UID, &CreatureState>, index_to_process: usize, indexes_processed: &mut HashSet<usize>) -> bool {
         if self.nodes[index_to_process].global_reward.reward_global_with_costs.is_some() {
             return true;
         }
@@ -338,7 +346,7 @@ impl NodeResultRoot<'_> {
         // go through all children and make sure they are calculated first.
         // depth first basically.
         for child in self.nodes[index_to_process].children.clone() {
-            self.calculate_global_reward(root_node, map_state, c_state, c_targets, child, indexes_processed);
+            self.calculate_global_reward(og_root_node, map_state, c_state, c_targets, child, indexes_processed);
         }
 
         let c_target = match self.nodes[index_to_process].creature_target  {
@@ -350,7 +358,8 @@ impl NodeResultRoot<'_> {
         // final global reward with cost is: global_sum - cost_base / cost_multiplier
         
         let mut conn_by_categories: Vec<Vec<&RewardNodeConnection>> = vec![];
-        let child_iter: &Vec<RewardNodeConnection> = root_node.nodes[index_to_process].get_children();
+        let original_node_index = self.nodes[index_to_process].original_node;
+        let child_iter: &Vec<RewardNodeConnection> = og_root_node.nodes[original_node_index].get_children();
         
         child_iter.iter().for_each(|conn| {
             let mut existing = false;
@@ -442,7 +451,7 @@ impl NodeResultRoot<'_> {
                 let base_multiplier = var_effect / conn_requirement_needed;
                 assert!(c.base_multiplier.is_none()); // only None connections should have a hardCoded base multiplier
 
-                let multiplier_child = (&root_node).nodes.get((*c).child_index).unwrap().get_child_multiplier(
+                let multiplier_child = (&og_root_node).nodes.get((*c).child_index).unwrap().get_child_multiplier(
                     child_count, 
                     map_state, 
                     c_state, 
@@ -468,7 +477,7 @@ impl NodeResultRoot<'_> {
 
             let increment_best_child = |mut top: ConnectionResult| -> ConnectionResult {
                 top.parent_count += var_effect * top.parent_to_child_count_ratio;
-                top.multiplier_child = (&root_node).nodes.get(top.child_index).unwrap().get_child_multiplier(
+                top.multiplier_child = (&og_root_node).nodes.get(top.child_index).unwrap().get_child_multiplier(
                     top.child_count + top.parent_count, 
                     map_state,
                     c_state, 
