@@ -93,9 +93,36 @@ Long term later on:
  - Maybe eventually use UDP instead of TCP? It would be nice to use a UDP but TCP for some messages thing.
 
 # TODONEXT:
-I just added stuff to the starvation system for metabolism.
-Need to make tests to make sure it works. Requires pregnancy and a bunch of shit so kind of a pain.
-Maybe easier to just make many small tests for it IDK.
+Rock paper scissor style plants and animals and combat.
+
+###  Rock Paper Scissor Plants, Animals, Crafting, Combat:
+3 soil types. And 3 heights a plant can be.
+A given space can have 1 soil type, and have 2 plants of different heights (low, high) (low, med) (med, high).
+Each plant can actually live in 2 different soils. But it will spread a soil type.
+So a plant could be in soil type A, but the area around it would become soil type B.
+This should have interesting combinatorics.
+Height and soil type determine what items the plants drop when killed.
+
+Animals meanwhile have traits for ability to digest each plant height and each plant soil.
+So 6 in total?
+Maybe also have a trait for EATING animals based on their diet. So one animal could get
+a bonus for eating animals that eat low+SoilA. There would be 9 of these carnivore traits?
+These digestion traits also influence what items they drop when killed.
+
+Crafting requires items from plants and animals to make. So you could for example
+sabotage a civilization but spreading an animal that eats plants of a certain soil
+or predators that eat animals that eat plants that the civ doesn't want.
+Basically messing with ecosystem can have a big influence on what items are easily craftable.
+
+Combat itself should be roguelike CDDA style. Also rock paper scissors.
+3 damage types and 3 armor types. Thus you can cripple a civ by removing ingredients
+necessary to build armor for the damage type you invested in making.
+Additionally have tradeoff between:
+ - Range, Attack Speed, Mobility.
+So each weapon should be good with 2 of the above and bad with 1 or other tradeoff combos.
+For example long range, high attack speed, but you can't move while shooting at all?
+Vs Low range(melee) but very fast and u can move while attacking.
+Or VERY high attack speed but immobile, so equiping with high def stuff could help? or something.
 
 
 # Systems in place
