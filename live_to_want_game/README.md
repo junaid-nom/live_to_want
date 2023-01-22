@@ -104,7 +104,7 @@ This should have interesting combinatorics.
 Height and soil type determine what items the plants drop when killed.
 
 Animals meanwhile have traits for ability to digest each plant height and each plant soil.
-So 6 in total?
+So 6 in total? Or maybe the traits are like you can eat 2/3 of the heights/soils (still 3 of each tho)
 Maybe also have a trait for EATING animals based on their diet. So one animal could get
 a bonus for eating animals that eat low+SoilA. There would be 9 of these carnivore traits?
 These digestion traits also influence what items they drop when killed.
@@ -114,7 +114,11 @@ sabotage a civilization but spreading an animal that eats plants of a certain so
 or predators that eat animals that eat plants that the civ doesn't want.
 Basically messing with ecosystem can have a big influence on what items are easily craftable.
 
-Combat itself should be roguelike CDDA style. Also rock paper scissors.
+Combat itself should be roguelike CDDA style. This is because there has to be "overworld"
+mechanics anyway necessary to START the fight (run speed etc) so fuck it might as well 
+just focus on that. Also it can be relatively simple but have super interesting AI
+interactions for example melee tanks defending long range immobile archers.
+COmbat also should be rock paper scissorsish.
 3 damage types and 3 armor types. Thus you can cripple a civ by removing ingredients
 necessary to build armor for the damage type you invested in making.
 Additionally have tradeoff between:
