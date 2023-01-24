@@ -1,6 +1,6 @@
 use std::{convert::TryInto, fmt, ops::Index, ops::IndexMut, sync::Arc, sync::Mutex, vec::Drain, collections::HashMap};
 
-use crate::{BattleList, Neighbor, SoilComponent, SoilLayer, UID, Vu2, creature::CreatureState, creature::IDComponent, get_2d_vec, make_string_at_least_length, make_string_at_most_length, utils::Vector2, EventChain, Event, EventType};
+use crate::{BattleList, Neighbor, SoilComponent, SoilLayer, UID, Vu2, creature::CreatureState, creature::IDComponent, get_2d_vec, make_string_at_least_length, make_string_at_most_length, utils::Vector2, EventChain, Event, EventType, SoilType};
 use rand::prelude::*;
 extern crate rayon;
 use rayon::prelude::*;
@@ -1796,6 +1796,7 @@ impl MapLocation {
 pub struct CreatureList {
     creatures: Option<Vec<CreatureState>>, // some locations will be perma blocked and no creatures allowed so thats None for this
     last_frame_changed: u128,
+    soil_type: SoilType,
     blocked: bool,
 }
 impl CreatureList {
@@ -1808,6 +1809,7 @@ impl CreatureList {
             },
             last_frame_changed: frame,
             blocked: !has_creatures,
+            soil_type: SoilType::default(),
         }
     }
 

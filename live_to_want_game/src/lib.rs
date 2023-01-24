@@ -422,7 +422,8 @@ pub fn create_basic_map_state() -> MapState {
             seed_creature_differences: Box::new(ComponentMap::fake_default()),
         });
         grass.components.soil_component = Some(SoilComponent{
-            soil_layer: SoilLayer::Grass
+            soil_layer: SoilLayer::Grass,
+            ..Default::default()
         });
         // Just to make sure the grass doesn't replicate with the inventory
         grass.inventory.push(Item{
@@ -451,7 +452,8 @@ pub fn create_basic_map_state() -> MapState {
             seed_creature_differences: Box::new(ComponentMap::fake_default()),
         });
         flower.components.soil_component = Some(SoilComponent{
-            soil_layer: SoilLayer::Flower
+            soil_layer: SoilLayer::Flower,
+            ..Default::default()
         });
     
         let mut bush = CreatureState{
@@ -475,7 +477,8 @@ pub fn create_basic_map_state() -> MapState {
             seed_creature_differences: Box::new(ComponentMap::fake_default()),
         });
         bush.components.soil_component = Some(SoilComponent{
-            soil_layer: SoilLayer::Bush
+            soil_layer: SoilLayer::Bush,
+            ..Default::default()
         });
         
         region.grid[grass.components.location_component.location].creatures.add_creature(

@@ -202,11 +202,41 @@ pub enum SoilLayer {
     Grass,
     Flower,
     Bush,
-    // Tree would just be something with no soil layber but is a blocker basically
+    // Tree would just be something with All soil layber and is a blocker basically
     All, // blocks all growth
 }
 impl Default for SoilLayer {
     fn default() -> Self { SoilLayer::Grass }
+}
+
+#[derive(Debug, Clone, Copy)]
+#[derive(PartialEq, Hash, Eq)]
+#[derive(Deserialize, Serialize)]
+// there are three soil types. Budders have a type that lets them grow on 
+// 2 out of 3 soils, and another state that determines which soil type they spread around them.
+pub enum SoilType {
+    Silt,
+    Clay,
+    Sand,
+}
+impl Default for SoilType {
+    fn default() -> Self {
+        let mut rng = rand::thread_rng();
+        match rng.gen_range(0, 3) {
+            0 => {
+                SoilType::Silt
+            },
+            1 => {
+                SoilType::Clay
+            },
+            2 => {
+                SoilType::Sand
+            }
+            _ => {
+                panic!("wtf rng");
+            }
+        }
+    }
 }
 
 #[derive(Debug, Hash, PartialEq, Eq)]
@@ -236,10 +266,68 @@ impl Clone for BuddingComponent {
 #[derive(Deserialize, Serialize)]
 pub struct SoilComponent {
     pub soil_layer: SoilLayer,
+    pub soil_type_cannot_grow: SoilType,
+    pub soil_type_spread: SoilType,
 }
 impl Component for SoilComponent {
     fn get_visible() -> bool {
         true
+    }
+}
+impl Default for SoilComponent {
+    fn default() -> Self {
+        // 3 different cannot grows and 3 different spreads
+        // and 3 different rnged SoilLayers = 27
+        let mut rng = rand::thread_rng();
+
+        let soil_layer: SoilLayer = 
+        {
+            let num = rng.gen_range(0, 10);
+            if num <= 2 {
+                SoilLayer::Grass
+            } else if num <= 5 {
+                SoilLayer::Flower
+            } else if num <= 8 {
+                SoilLayer::Bush
+            } else {
+                SoilLayer::All // only 1/10 chance for All
+            }
+        };
+        let soil_type_cannot_grow = match rng.gen_range(0, 3) {
+            0 => {
+                SoilType::Silt
+            },
+            1 => {
+                SoilType::Clay
+            },
+            2 => {
+                SoilType::Sand
+            }
+            _ => {
+                panic!("wtf rng");
+            }
+        };
+
+        let soil_type_spread = match rng.gen_range(0, 3) {
+            0 => {
+                SoilType::Silt
+            },
+            1 => {
+                SoilType::Clay
+            },
+            2 => {
+                SoilType::Sand
+            }
+            _ => {
+                panic!("wtf rng");
+            }
+        };
+
+        SoilComponent {
+            soil_layer,
+            soil_type_cannot_grow,
+            soil_type_spread,
+        }
     }
 }
 

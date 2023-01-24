@@ -20,6 +20,10 @@ pub fn budding_system(m: &MapState, c: &CreatureState) -> Vec<EventChain> {
                 let region = c.components.region_component.region;
                 let map_region = &m.regions[region.x as usize][region.y as usize];
                 let blocker = c.components.block_space_component.is_some();
+
+                // TODONEXT: change this to use the new soil budding algo.
+                // Check for SoilHeight if soil Height is open (only 2 soil heights
+                // can exist on a square, or 1 All). Then check if the soilType matches.
                 let soil = c.components.soil_component.map_or(None, |s| Some(s.soil_layer));
                 // Also this will spawn creatures over and over on the same spots if they are not blocking
                 for n in location.get_valid_neighbors(map_region.grid.len(), map_region.grid[0].len()) {

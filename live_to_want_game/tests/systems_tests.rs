@@ -1600,7 +1600,8 @@ fn test_chain_budding_system_one_of_each_soil<'a>() {
         seed_creature_differences: Box::new(ComponentMap::fake_default()),
     });
     grass.components.soil_component = Some(SoilComponent{
-        soil_layer: SoilLayer::Grass
+        soil_layer: SoilLayer::Grass,
+        ..Default::default()
     });
     // Just to make sure the grass doesn't replicate with the inventory
     grass.inventory.push(Item{
@@ -1629,7 +1630,8 @@ fn test_chain_budding_system_one_of_each_soil<'a>() {
         seed_creature_differences: Box::new(ComponentMap::fake_default()),
     });
     flower.components.soil_component = Some(SoilComponent{
-        soil_layer: SoilLayer::Flower
+        soil_layer: SoilLayer::Flower,
+        ..Default::default()
     });
 
     let mut bush = CreatureState{
@@ -1653,7 +1655,8 @@ fn test_chain_budding_system_one_of_each_soil<'a>() {
         seed_creature_differences: Box::new(ComponentMap::fake_default()),
     });
     bush.components.soil_component = Some(SoilComponent{
-        soil_layer: SoilLayer::Bush
+        soil_layer: SoilLayer::Bush,
+        ..Default::default()
     });
     
     region.grid[grass.components.location_component.location].creatures.add_creature(
@@ -1738,7 +1741,8 @@ fn test_chain_budding_system_blockers<'a>() {
         seed_creature_differences: Box::new(ComponentMap::fake_default()),
     });
     tree.components.soil_component = Some(SoilComponent{
-        soil_layer: SoilLayer::All
+        soil_layer: SoilLayer::All,
+        ..Default::default()
     });    
 
     let mut tree2 = CreatureState{
@@ -1763,7 +1767,8 @@ fn test_chain_budding_system_blockers<'a>() {
         seed_creature_differences: Box::new(ComponentMap::fake_default()),
     });
     tree2.components.soil_component = Some(SoilComponent{
-        soil_layer: SoilLayer::All
+        soil_layer: SoilLayer::All,
+        ..Default::default()
     });
 
     let mut tree3 = CreatureState{
@@ -1788,7 +1793,8 @@ fn test_chain_budding_system_blockers<'a>() {
         seed_creature_differences: Box::new(ComponentMap::fake_default()),
     });
     tree3.components.soil_component = Some(SoilComponent{
-        soil_layer: SoilLayer::All
+        soil_layer: SoilLayer::All,
+        ..Default::default()
     });
 
     let mut tree4 = CreatureState{
@@ -1813,7 +1819,8 @@ fn test_chain_budding_system_blockers<'a>() {
         seed_creature_differences: Box::new(ComponentMap::fake_default()),
     });
     tree4.components.soil_component = Some(SoilComponent{
-        soil_layer: SoilLayer::All
+        soil_layer: SoilLayer::All,
+        ..Default::default()
     });
 
     let mut deer1 = CreatureState{
