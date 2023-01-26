@@ -198,15 +198,15 @@ impl HealthComponent {
 // Essentially for budding and plant reproduction, don't reproduce onto a tile that already has something with the uses the same soil layer.
 // For things that "bud" that don't need any soil remove the soil component, like if I ever make budding animals
 // All Type takes up all the soil nothing can grow EXCEPT Free.
-pub enum SoilLayer {
+pub enum SoilHeight {
     Grass,
     Flower,
     Bush,
     // Tree would just be something with All soil layber and is a blocker basically
     All, // blocks all growth
 }
-impl Default for SoilLayer {
-    fn default() -> Self { SoilLayer::Grass }
+impl Default for SoilHeight {
+    fn default() -> Self { SoilHeight::Grass }
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -265,9 +265,11 @@ impl Clone for BuddingComponent {
 #[derive(Hash, PartialEq, Eq)]
 #[derive(Deserialize, Serialize)]
 pub struct SoilComponent {
-    pub soil_layer: SoilLayer,
+    pub soil_height: SoilHeight,
     pub soil_type_cannot_grow: SoilType,
     pub soil_type_spread: SoilType,
+    pub frame_ready_to_spread: u128,
+    pub spread_rate: u32,
 }
 impl Component for SoilComponent {
     fn get_visible() -> bool {
@@ -280,17 +282,17 @@ impl Default for SoilComponent {
         // and 3 different rnged SoilLayers = 27
         let mut rng = rand::thread_rng();
 
-        let soil_layer: SoilLayer = 
+        let soil_layer: SoilHeight = 
         {
             let num = rng.gen_range(0, 10);
             if num <= 2 {
-                SoilLayer::Grass
+                SoilHeight::Grass
             } else if num <= 5 {
-                SoilLayer::Flower
+                SoilHeight::Flower
             } else if num <= 8 {
-                SoilLayer::Bush
+                SoilHeight::Bush
             } else {
-                SoilLayer::All // only 1/10 chance for All
+                SoilHeight::All // only 1/10 chance for All
             }
         };
         let soil_type_cannot_grow = match rng.gen_range(0, 3) {
@@ -324,7 +326,7 @@ impl Default for SoilComponent {
         };
 
         SoilComponent {
-            soil_layer,
+            soil_height: soil_layer,
             soil_type_cannot_grow,
             soil_type_spread,
         }

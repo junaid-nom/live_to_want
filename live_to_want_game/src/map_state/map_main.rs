@@ -1,6 +1,6 @@
 use std::{convert::TryInto, fmt, ops::Index, ops::IndexMut, sync::Arc, sync::Mutex, vec::Drain, collections::HashMap};
 
-use crate::{BattleList, Neighbor, SoilComponent, SoilLayer, UID, Vu2, creature::CreatureState, creature::IDComponent, get_2d_vec, make_string_at_least_length, make_string_at_most_length, utils::Vector2, EventChain, Event, EventType, SoilType};
+use crate::{BattleList, Neighbor, SoilComponent, SoilHeight, UID, Vu2, creature::CreatureState, creature::IDComponent, get_2d_vec, make_string_at_least_length, make_string_at_most_length, utils::Vector2, EventChain, Event, EventType, SoilType};
 use rand::prelude::*;
 extern crate rayon;
 use rayon::prelude::*;
@@ -1762,17 +1762,24 @@ impl MapLocation {
         }
     }
 
-    pub fn get_if_creature_open_and_soil_open(&self, exits_count_as_blocked: bool, soil_layer: Option<SoilLayer>) -> bool {
+    pub fn get_if_creature_open_and_soil_open(&self, exits_count_as_blocked: bool, soil_height: Option<SoilHeight>, invalid_soil_type: Option<SoilType>) -> bool {
         if self.get_if_blocked(exits_count_as_blocked) {
             return false;
         }
-        
-        if soil_layer.is_none() {
-            return true;
+        let soil_height_valid = if soil_height.is_none() {
+            true
         }
         else {
-            return self.creatures.get_if_open_and_open_soil(soil_layer);
-        }
+            self.creatures.get_if_open_and_open_soil(soil_height)
+        };
+        
+        let soil_type_valid = if invalid_soil_type.is_none() {
+            true
+        } else {
+            self.creatures.soil_type != invalid_soil_type.unwrap()
+        };
+
+        soil_height_valid && soil_type_valid
     }
 
     pub fn reset_point_distances(&mut self) {
@@ -1855,6 +1862,10 @@ impl CreatureList {
         }
     }
 
+    pub fn set_soil(&mut self, new_soil: SoilType) {
+        self.soil_type = new_soil;
+    }
+
     pub fn add_creature(&mut self, c: CreatureState, current_frame: u128  ) {
         if let Some(_) = c.components.block_space_component {
             self.update_blocked(true, current_frame);
@@ -1902,23 +1913,33 @@ impl CreatureList {
         return false;
     }
 
-    pub fn get_if_open_and_open_soil(&self, soil_layer: Option<SoilLayer>) -> bool {
+    pub fn get_if_open_and_open_soil(&self, soil_height: Option<SoilHeight>) -> bool {
         if let Some(creatures) = self.creatures.as_ref() {
-            if soil_layer.is_none() || soil_layer.unwrap() == SoilLayer::All {
+            if soil_height.is_none() {
                 return true;
             }
-            let ret = !creatures.iter().any(|c| {
+            let mut total_soils = 0;
+            let mut has_soil_match = false;
+            creatures.iter().for_each(|c| {
                 if let Some(other_soil) = c.components.soil_component {
-                    if other_soil.soil_layer == soil_layer.unwrap() {
-                        true
-                    } else {
-                        false
+                    if other_soil.soil_height == soil_height.unwrap() ||
+                    other_soil.soil_height == SoilHeight::All {
+                        has_soil_match = true;
                     }
-                } else {
-                    false
                 }
             });
-            ret
+            let mut open = true;
+            if soil_height.unwrap() == SoilHeight::All && total_soils > 0 {
+                open = false;
+            }
+            if total_soils >= 2 {
+                open = false;
+            }
+            if has_soil_match {
+                open = false;
+            }
+
+            return open;
         } else {
             return false; // doesn't hold creatures
         }

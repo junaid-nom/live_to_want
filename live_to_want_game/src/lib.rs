@@ -111,6 +111,7 @@ pub fn run_frame_with_input(mut game_state: GameState, root: &GoalNode, msgs: Ve
                         let ret: Vec<EventChain> = par_iter.flat_map(
                             |c| {
                                 let mut all_chains = budding_system(&m, c);
+                                all_chains.extend(soil_spread_system(&m, c));
                                 all_chains.extend(sex_reproduction_system(&m, c));
                                 all_chains
                             }
@@ -422,7 +423,7 @@ pub fn create_basic_map_state() -> MapState {
             seed_creature_differences: Box::new(ComponentMap::fake_default()),
         });
         grass.components.soil_component = Some(SoilComponent{
-            soil_layer: SoilLayer::Grass,
+            soil_height: SoilHeight::Grass,
             ..Default::default()
         });
         // Just to make sure the grass doesn't replicate with the inventory
@@ -452,7 +453,7 @@ pub fn create_basic_map_state() -> MapState {
             seed_creature_differences: Box::new(ComponentMap::fake_default()),
         });
         flower.components.soil_component = Some(SoilComponent{
-            soil_layer: SoilLayer::Flower,
+            soil_height: SoilHeight::Flower,
             ..Default::default()
         });
     
@@ -477,7 +478,7 @@ pub fn create_basic_map_state() -> MapState {
             seed_creature_differences: Box::new(ComponentMap::fake_default()),
         });
         bush.components.soil_component = Some(SoilComponent{
-            soil_layer: SoilLayer::Bush,
+            soil_height: SoilHeight::Bush,
             ..Default::default()
         });
         

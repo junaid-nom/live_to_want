@@ -1,8 +1,80 @@
 use rand::Rng;
 
-use crate::{EventTarget, Location, Vu2, map_state::MapState, tasks::Event, tasks::EventChain, tasks::EventType, MOVING_INCREASED_METABOLISM_FACTOR, EvolvingTraitsComponent, EvolvingTraits, REPRODUCE_STARTING_CALORIES_MULTIPLIER, STANDARD_METABOLISM, STANDARD_PREGNANCY_LIVE_WEIGHT, THICK_HIDE_METABOLISM_MULTIPLIER, FAST_GROWER_CALORIE_MULTIPLIER, MOVE_SPEED_METABOLISM_MULTIPLIER, STANDARD_PREGNANCY_METABOLISM_MULTIPLIER, LITTER_SIZE_METABOLISM_MULTIPLIER, UID};
+use crate::{EventTarget, Location, Vu2, map_state::MapState, tasks::Event, tasks::EventChain, tasks::EventType, MOVING_INCREASED_METABOLISM_FACTOR, EvolvingTraitsComponent, EvolvingTraits, REPRODUCE_STARTING_CALORIES_MULTIPLIER, STANDARD_METABOLISM, STANDARD_PREGNANCY_LIVE_WEIGHT, THICK_HIDE_METABOLISM_MULTIPLIER, FAST_GROWER_CALORIE_MULTIPLIER, MOVE_SPEED_METABOLISM_MULTIPLIER, STANDARD_PREGNANCY_METABOLISM_MULTIPLIER, LITTER_SIZE_METABOLISM_MULTIPLIER, UID, SoilHeight};
 
 use super::{CreatureState, STARVING_SLOW_METABOLISM_FACTOR};
+
+pub fn soil_spread_system(m: &MapState, c: &CreatureState) -> Vec<EventChain> {
+    if !c.get_if_in_combat() {
+        if let Some(soil_c) = c.components.soil_component.as_ref() {
+            if soil_c.frame_ready_to_spread <= m.frame_count {
+                // find open spot first
+                let mut open_spots = Vec::new();
+                let location = c.components.location_component.location;
+                let region = c.components.region_component.region;
+                let map_region = &m.regions[region.x as usize][region.y as usize];
+
+                let soil_type = soil_c.soil_type_spread;
+                for n in location.get_valid_neighbors(map_region.grid.len(), map_region.grid[0].len()) {
+                    // SoilHeight All should make it mean if ANY creature with soil
+                    // is there, then it won't spread
+                    if map_region.grid[n.get()].get_if_creature_open_and_soil_open(false, Some(SoilHeight::All), None) {
+                        open_spots.push(n.get());
+                    }
+                }
+                // TODONEXT: Setup the soil spreader. prob seperate system?
+
+                let spots = open_spots.len();
+                // Reset spread so it doesnt try again every frame, but next time it would spread
+                let spread_iterate = Event {
+                    event_type: EventType::IterateSoilSpread(),
+                    target: c.components.id_component.id(),
+                    on_fail: None,
+                    get_requirements: Box::new(|_,_| true),
+                };
+                let mut event_chains = vec![EventChain{
+                    events: vec![spread_iterate],
+                    debug_string: format!("Reset Budding {}", c.components.id_component.id()),
+                    creature_list_targets: false,
+                }];
+                
+                if spots > 0 {
+                    let mut rng = rand::thread_rng();
+                    let chosen = rng.gen_range(0, spots);
+                    let loc = open_spots[chosen];
+                    let target_location = map_region.grid[loc.x as usize][loc.y as usize].id_component_creatures.id();
+                    let create_event = Event {
+                        event_type: EventType::ChangeSoil(soil_type),
+                        target: target_location,
+                        on_fail: None,
+                        get_requirements: Box::new(|e_target, ev_type| {
+                            match e_target {
+                                EventTarget::LocationCreaturesTarget(cl, uid) => {
+                                    return cl.get_if_open_and_open_soil(Some(SoilHeight::All));
+                                }
+                                _ => {
+                                    panic!("Got eventtarget that isnt for add creature")
+                                }
+                            }
+                        }),
+                    };
+                    event_chains.push(EventChain{
+                        events: vec![create_event],
+                        debug_string: format!("Spread soil {} to creature list {} loc {:?}", c.components.id_component.id(), target_location, loc),
+                        creature_list_targets: true,
+                    });
+                }
+                event_chains
+            } else {
+                vec![]
+            }
+        } else {
+            vec![]
+        }
+    } else {
+        vec![]
+    }
+}
 
 // This will now work even though some of the events will target creature_list and some won't! Need to split them up.
 // Works by process_events_from_mapstate now having splitting events into two types
@@ -21,16 +93,18 @@ pub fn budding_system(m: &MapState, c: &CreatureState) -> Vec<EventChain> {
                 let map_region = &m.regions[region.x as usize][region.y as usize];
                 let blocker = c.components.block_space_component.is_some();
 
-                // TODONEXT: change this to use the new soil budding algo.
+                // new soil budding algo.
                 // Check for SoilHeight if soil Height is open (only 2 soil heights
                 // can exist on a square, or 1 All). Then check if the soilType matches.
-                let soil = c.components.soil_component.map_or(None, |s| Some(s.soil_layer));
+                let soil_height = c.components.soil_component.map_or(None, |s| Some(s.soil_height));
+                let soil_type_invalid = c.components.soil_component.map_or(None, |s| Some(s.soil_type_cannot_grow));
                 // Also this will spawn creatures over and over on the same spots if they are not blocking
                 for n in location.get_valid_neighbors(map_region.grid.len(), map_region.grid[0].len()) {
-                    if map_region.grid[n.get()].get_if_creature_open_and_soil_open(blocker, soil) {
+                    if map_region.grid[n.get()].get_if_creature_open_and_soil_open(blocker, soil_height, soil_type_invalid) {
                         open_spots.push(n.get());
                     }
                 }
+                // TODONEXT: Setup the soil spreader. prob seperate system?
 
                 let spots = open_spots.len();
                 // Reset budding so it doesnt try again every frame, but next time it would reproduce
@@ -61,7 +135,7 @@ pub fn budding_system(m: &MapState, c: &CreatureState) -> Vec<EventChain> {
                             if let EventType::AddCreature(c, clist) = ev_type {
                                 match e_target {
                                     EventTarget::LocationCreaturesTarget(cl, uid) => {
-                                        return cl.get_if_open_and_open_soil(c.components.soil_component.map_or(None, |sc| Some(sc.soil_layer)))
+                                        return cl.get_if_open_and_open_soil(c.components.soil_component.map_or(None, |sc| Some(sc.soil_height)))
                                     }
                                     _ => {
                                         panic!("Got eventtarget that isnt for add creature")

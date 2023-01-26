@@ -1564,9 +1564,9 @@ fn test_simple_attack<'a>() {
 
 #[test]
 fn test_chain_budding_system_one_of_each_soil<'a>() {
-    let soil1 = SoilLayer::Bush;
-    let soil2 = SoilLayer::Flower;
-    let soil3 = SoilLayer::Bush;
+    let soil1 = SoilHeight::Bush;
+    let soil2 = SoilHeight::Flower;
+    let soil3 = SoilHeight::Bush;
     assert_eq!(soil1, soil3);
     assert_ne!(soil1, soil2);
 
@@ -1600,7 +1600,7 @@ fn test_chain_budding_system_one_of_each_soil<'a>() {
         seed_creature_differences: Box::new(ComponentMap::fake_default()),
     });
     grass.components.soil_component = Some(SoilComponent{
-        soil_layer: SoilLayer::Grass,
+        soil_height: SoilHeight::Grass,
         ..Default::default()
     });
     // Just to make sure the grass doesn't replicate with the inventory
@@ -1630,7 +1630,7 @@ fn test_chain_budding_system_one_of_each_soil<'a>() {
         seed_creature_differences: Box::new(ComponentMap::fake_default()),
     });
     flower.components.soil_component = Some(SoilComponent{
-        soil_layer: SoilLayer::Flower,
+        soil_height: SoilHeight::Flower,
         ..Default::default()
     });
 
@@ -1655,7 +1655,7 @@ fn test_chain_budding_system_one_of_each_soil<'a>() {
         seed_creature_differences: Box::new(ComponentMap::fake_default()),
     });
     bush.components.soil_component = Some(SoilComponent{
-        soil_layer: SoilLayer::Bush,
+        soil_height: SoilHeight::Bush,
         ..Default::default()
     });
     
@@ -1741,7 +1741,7 @@ fn test_chain_budding_system_blockers<'a>() {
         seed_creature_differences: Box::new(ComponentMap::fake_default()),
     });
     tree.components.soil_component = Some(SoilComponent{
-        soil_layer: SoilLayer::All,
+        soil_height: SoilHeight::All,
         ..Default::default()
     });    
 
@@ -1767,7 +1767,7 @@ fn test_chain_budding_system_blockers<'a>() {
         seed_creature_differences: Box::new(ComponentMap::fake_default()),
     });
     tree2.components.soil_component = Some(SoilComponent{
-        soil_layer: SoilLayer::All,
+        soil_height: SoilHeight::All,
         ..Default::default()
     });
 
@@ -1793,7 +1793,7 @@ fn test_chain_budding_system_blockers<'a>() {
         seed_creature_differences: Box::new(ComponentMap::fake_default()),
     });
     tree3.components.soil_component = Some(SoilComponent{
-        soil_layer: SoilLayer::All,
+        soil_height: SoilHeight::All,
         ..Default::default()
     });
 
@@ -1819,7 +1819,7 @@ fn test_chain_budding_system_blockers<'a>() {
         seed_creature_differences: Box::new(ComponentMap::fake_default()),
     });
     tree4.components.soil_component = Some(SoilComponent{
-        soil_layer: SoilLayer::All,
+        soil_height: SoilHeight::All,
         ..Default::default()
     });
 

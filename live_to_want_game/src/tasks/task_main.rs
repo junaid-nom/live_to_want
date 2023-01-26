@@ -1,6 +1,6 @@
 use fmt::Debug;
 
-use crate::{Battle, BattleList, CreatureList, Location, creature::CreatureState, map_state::Item, map_state::ItemType, map_state::MapState, utils::UID, EvolvingTraits, DEBUG_EVENTS};
+use crate::{Battle, BattleList, CreatureList, Location, creature::CreatureState, map_state::Item, map_state::ItemType, map_state::MapState, utils::UID, EvolvingTraits, DEBUG_EVENTS, SoilType};
 use core::fmt;
 use std::collections::HashMap;
 extern crate rayon;
@@ -237,6 +237,25 @@ impl Event {
                 }
                 _ => panic!("Wrong event target for budding"),
             },
+            EventType::IterateSoilSpread() => match effected {
+                EventTarget::CreatureTarget(c) => {
+                    let soil = c.components.soil_component.as_mut().unwrap();
+                    soil.frame_ready_to_spread += soil.spread_rate as u128;
+                    None
+                }
+                _ => panic!("Wrong event target for budding"),
+            },
+            EventType::ChangeSoil(soil_type) => {
+                return match effected {
+                    EventTarget::LocationCreaturesTarget(c_list, _) => {
+                        c_list.set_soil(soil_type);
+                        None
+                    }
+                    _ => {
+                        panic!("trying to add creature wrong target");
+                    }
+                };
+            },
             EventType::ResetSexReproduction() => match effected {
                 EventTarget::CreatureTarget(c) => {
                     let birther = c.components.sexual_reproduction.as_mut().unwrap();
@@ -369,8 +388,9 @@ pub enum EventType {
     SetHealth(i32),
     ChangeHealth(i32),
     IterateBudding(),
+    IterateSoilSpread(),
+    ChangeSoil(SoilType),
     ResetSexReproduction(),
-    //IterateMovement(u128),
     InitializeMovement(u128, Location),
     EnterBattle(UID),
     LeaveBattle(), // Mostly for canceling battle events in case of conflict
