@@ -240,7 +240,7 @@ impl Event {
             EventType::IterateSoilSpread() => match effected {
                 EventTarget::CreatureTarget(c) => {
                     let soil = c.components.soil_component.as_mut().unwrap();
-                    soil.frame_ready_to_spread += soil.spread_rate as u128;
+                    soil.frame_ready_to_spread += soil.spread_rate.unwrap() as u128;
                     None
                 }
                 _ => panic!("Wrong event target for budding"),

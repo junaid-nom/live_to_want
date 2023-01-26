@@ -1561,7 +1561,13 @@ fn test_simple_attack<'a>() {
     
 }
 
-
+// TODONEXT: Update the below budding functions to make sure they work with the new budding
+// soil height and soil type stuff.
+// Might want to make a separate tiny test for just spreading.
+// make another test where everything is the right soil type. and just make sure there are 2 
+// plants per square of diff height. and maybe check the ALL one only has 1.
+// Then make a test where left half is one soil type, right half is other.
+// and see if it only spread to the right soil? (3 plant types with no spreading?)
 #[test]
 fn test_chain_budding_system_one_of_each_soil<'a>() {
     let soil1 = SoilHeight::Bush;

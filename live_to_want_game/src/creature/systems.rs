@@ -7,7 +7,7 @@ use super::{CreatureState, STARVING_SLOW_METABOLISM_FACTOR};
 pub fn soil_spread_system(m: &MapState, c: &CreatureState) -> Vec<EventChain> {
     if !c.get_if_in_combat() {
         if let Some(soil_c) = c.components.soil_component.as_ref() {
-            if soil_c.frame_ready_to_spread <= m.frame_count {
+            if soil_c.spread_rate.is_some() && soil_c.frame_ready_to_spread <= m.frame_count {
                 // find open spot first
                 let mut open_spots = Vec::new();
                 let location = c.components.location_component.location;

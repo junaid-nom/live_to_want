@@ -41,6 +41,9 @@ pub static CANNIBAL_PREGNANCY_DEATH_WEIGHT_MULTIPLIER: f32 = 1.0; // so 100 woul
 
 pub static DEFAULT_VISION_RANGE: f32 = 5.;
 
+pub static DEFAULT_SOIL_SPREAD_RATE: u32 = STANDARD_FRAMES_TO_MOVE as u32 * 20;
+pub static DEFAULT_BUD_RATE: u32 = STANDARD_FRAMES_TO_MOVE as u32 * 10;
+
 pub trait Component: Sync + Send + Clone {
     fn get_visible() -> bool {
         false
@@ -269,7 +272,7 @@ pub struct SoilComponent {
     pub soil_type_cannot_grow: SoilType,
     pub soil_type_spread: SoilType,
     pub frame_ready_to_spread: u128,
-    pub spread_rate: u32,
+    pub spread_rate: Option<u32>, // None means no spreading
 }
 impl Component for SoilComponent {
     fn get_visible() -> bool {
@@ -329,6 +332,8 @@ impl Default for SoilComponent {
             soil_height: soil_layer,
             soil_type_cannot_grow,
             soil_type_spread,
+            frame_ready_to_spread: DEFAULT_SOIL_SPREAD_RATE as u128,
+            spread_rate: Some(DEFAULT_SOIL_SPREAD_RATE),
         }
     }
 }
