@@ -1647,6 +1647,7 @@ fn test_soil_spread() {
     println!("{}", game_state.map_state.get_soil_map_strings(region_vu2));
 
     assert_eq!(game_state.map_state.count_soils(region_vu2).sand_count, 64);
+    assert_eq!(game_state.map_state.get_creature_list().len(), 63); // last spot the soil is there but not yet budded as intended. Because of how event system works need a frame to spread soil then another to notice u can spread there.
 }
 
 // TODONEXT: Update the below budding functions to make sure they work with the new budding
