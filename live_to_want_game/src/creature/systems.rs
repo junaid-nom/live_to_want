@@ -15,10 +15,12 @@ pub fn soil_spread_system(m: &MapState, c: &CreatureState) -> Vec<EventChain> {
                 let map_region = &m.regions[region.x as usize][region.y as usize];
 
                 let soil_type = soil_c.soil_type_spread;
+                //println!("{:#?}, {:#?}", location, location.get_valid_neighbors(map_region.grid.len(), map_region.grid[0].len()));
                 for n in location.get_valid_neighbors(map_region.grid.len(), map_region.grid[0].len()) {
                     // SoilHeight All should make it mean if ANY creature with soil
                     // is there, then it won't spread
-                    if map_region.grid[n.get()].get_if_creature_open_and_soil_open(false, Some(SoilHeight::All), None) {
+                    if map_region.grid[n.get()].get_soil_type() != soil_type && 
+                        map_region.grid[n.get()].get_if_creature_open_and_soil_open(false, Some(SoilHeight::All), None) {
                         open_spots.push(n.get());
                     }
                 }

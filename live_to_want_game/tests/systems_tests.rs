@@ -1561,6 +1561,94 @@ fn test_simple_attack<'a>() {
     
 }
 
+#[test]
+fn test_soil_spread() {
+    let openr = RegionCreationStruct::new(10,10, 0, vec![]);
+    let rgrid = vec![
+        vec![openr.clone()],
+    ];
+    //create map
+    let mut map = MapState::new(rgrid, 0);
+    let  region: &mut MapRegion = &mut map.regions[0][0];
+
+    let mut grass = CreatureState{
+        components: ComponentMap::default(),
+        inventory: Vec::new(),
+        memory: CreatureMemory::default(),
+    };
+    grass.components.region_component = RegionComponent {
+        region: Vu2{x: 0, y: 0},
+    };
+    grass.components.location_component = LocationComponent {
+        location: Vu2{x: 1, y: 1}
+    };
+    grass.components.health_component = Some(HealthComponent {
+        health:  1,
+        max_health: 1,
+    });
+    grass.components.soil_component = Some(SoilComponent{
+        soil_height: SoilHeight::Grass,
+        soil_type_cannot_grow: SoilType::Clay,
+        soil_type_spread: SoilType::Sand,
+        frame_ready_to_spread: 0,
+        spread_rate: Some(1),
+    });
+    // Just to make sure the grass doesn't replicate with the inventory
+    grass.inventory.push(Item{
+        item_type: ItemType::Berry,
+        quantity: 1,
+    });
+
+    for row in &mut region.grid {
+        for loc in row {
+            loc.creatures.set_soil(SoilType::Clay);
+        }
+    }
+
+    let grass_loc = grass.components.location_component.location;
+    region.grid[grass_loc].creatures.set_soil(SoilType::Sand);
+
+    region.grid[grass_loc].creatures.add_creature(
+        grass, 0
+    );
+    let nothing = GoalNode::generate_single_node_graph();
+
+    let mut game_state = GameState {
+        map_state:map
+    };
+    assert_eq!(game_state.map_state.get_creature_list().len(), 1);
+    assert_eq!(game_state.map_state.get_creature_item_list().len(), 1);
+    let region_vu2 = Vu2::new(0,0);
+    println!("{}", game_state.map_state.get_creature_map_strings(region_vu2));
+    println!("{}", game_state.map_state.get_soil_map_strings(region_vu2));
+    for _ in 0..2 {
+        game_state = run_frame(game_state, &nothing);
+        //println!("\ncreatures:{}", game_state.map_state.get_creature_strings());
+    }
+    println!("{}", game_state.map_state.get_soil_map_strings(region_vu2));
+
+    // Is only 3 because bottom and left are blocked exits so you can't spread soil there even though technically they have creature list.
+    assert_eq!(game_state.map_state.count_soils(region_vu2).sand_count, 3);
+
+    // now add a budding component.
+    let region: &mut MapRegion = &mut game_state.map_state.regions[0][0];
+    region.grid[grass_loc].creatures.get_creature_by_index_mut(0).components.budding_component = Some(BuddingComponent { 
+        reproduction_rate: 1, 
+        frame_ready_to_reproduce: 0, 
+        seed_creature_differences: Box::new(ComponentMap::fake_default()), 
+    });
+
+    for _ in 0..26 {
+        println!("Frame: {}", game_state.map_state.frame_count);
+        game_state = run_frame(game_state, &nothing);
+        //println!("\ncreatures:{}", game_state.map_state.get_creature_strings());
+    }
+    println!("{}", game_state.map_state.get_creature_map_strings(region_vu2));
+    println!("{}", game_state.map_state.get_soil_map_strings(region_vu2));
+
+    assert_eq!(game_state.map_state.count_soils(region_vu2).sand_count, 64);
+}
+
 // TODONEXT: Update the below budding functions to make sure they work with the new budding
 // soil height and soil type stuff.
 // Might want to make a separate tiny test for just spreading.

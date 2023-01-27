@@ -49,6 +49,23 @@ impl IndexMut<Location> for RegionGrid {
 
 #[derive(Debug)]
 #[derive(Default, Clone)]
+pub struct SoilCounts {
+    pub silt_count: u32,
+    pub clay_count: u32,
+    pub sand_count: u32,
+}
+impl SoilCounts {
+    pub fn add_soil(&mut self, soil: SoilType) {
+        match soil {
+            SoilType::Silt => self.silt_count += 1,
+            SoilType::Clay => self.clay_count += 1,
+            SoilType::Sand => self.sand_count += 1,
+        }
+    }
+}
+
+#[derive(Debug)]
+#[derive(Default, Clone)]
 pub struct RegionCreationStruct {
     pub location: Vu2,
     pub map_size: Vu2,
@@ -591,6 +608,52 @@ impl MapState {
         }
 
         format!("{}", lines.join("\n"))
+    }
+
+    pub fn get_soil_map_strings(&self, region :Vu2) -> String {
+        let mut lines = Vec::new();
+        let line_space = 5;
+        let region = &self.regions[region];
+        let xlen = region.grid.len();
+        let ylen = region.grid[0].len();
+        for y in 0..ylen {
+            let mut f_string = String::new();
+            for x in 0..xlen {
+                let mloc = &region.grid[x][y];
+                let has_creatures = mloc.creatures.holds_creatures();
+                let s = if has_creatures { 
+                    mloc.creatures.soil_type.map_string() 
+                } else {
+                    "-".to_string()
+                };
+
+                let creature_num = make_string_at_least_length(
+                    s, 
+                    line_space,
+                    ' ');
+                f_string = format!("{}{}", f_string, creature_num);
+                //f_string = format!("{}{}{}_", f_string, ml.location.x, ml.location.y);
+            }
+            lines.insert(0, f_string);
+        }
+
+        format!("{}", lines.join("\n"))
+    }
+
+    pub fn count_soils(&self, region :Vu2) -> SoilCounts {
+        let region = &self.regions[region];
+        let xlen = region.grid.len();
+        let ylen = region.grid[0].len();
+        let mut counts = SoilCounts::default();
+
+        for y in 0..ylen {
+            for x in 0..xlen {
+                let mloc = &region.grid[x][y];
+                counts.add_soil(mloc.creatures.soil_type);
+            }
+        }
+
+        counts
     }
 
     pub fn get_creature_map_strings_filtered(&self, region: Vu2, filter: &dyn Fn(&&CreatureState) -> bool) -> String {
@@ -1762,6 +1825,10 @@ impl MapLocation {
         }
     }
 
+    pub fn get_soil_type(&self) -> SoilType {
+        self.creatures.soil_type
+    }
+
     pub fn get_if_creature_open_and_soil_open(&self, exits_count_as_blocked: bool, soil_height: Option<SoilHeight>, invalid_soil_type: Option<SoilType>) -> bool {
         if self.get_if_blocked(exits_count_as_blocked) {
             return false;
@@ -2019,6 +2086,10 @@ impl CreatureList {
 
     pub fn get_creature_by_index(&self, index:usize) -> &CreatureState {
         &self.creatures.as_ref().unwrap()[index]
+    }
+    // Mostly used for test setup
+    pub fn get_creature_by_index_mut(&mut self, index:usize) -> &mut CreatureState {
+        &mut self.creatures.as_mut().unwrap()[index]
     }
 
     pub fn drain_no_health(&mut self, current_frame: u128) -> Vec<CreatureState> {

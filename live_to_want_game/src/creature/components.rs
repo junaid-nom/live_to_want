@@ -241,6 +241,15 @@ impl Default for SoilType {
         }
     }
 }
+impl SoilType {
+    pub fn map_string(&self) -> String {
+        match self {
+            SoilType::Silt => "Si".to_string(),
+            SoilType::Clay => "Ca".to_string(),
+            SoilType::Sand => "Sa".to_string(),
+        }
+    }
+}
 
 #[derive(Debug, Hash, PartialEq, Eq)]
 #[derive(Deserialize, Serialize)]
