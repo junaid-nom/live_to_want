@@ -87,6 +87,7 @@ pub async fn game() {
         let msgs = server.get_messages();
         game_state = run_frame_with_input(game_state, &goal_node, msgs);
         thread::sleep(time::Duration::from_millis(1000));
+        //server.send_message_all();
     }
 }
 
