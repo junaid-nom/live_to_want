@@ -649,7 +649,9 @@ impl MapState {
         for y in 0..ylen {
             for x in 0..xlen {
                 let mloc = &region.grid[x][y];
-                counts.add_soil(mloc.creatures.soil_type);
+                if mloc.creatures.holds_creatures() {
+                    counts.add_soil(mloc.creatures.soil_type);
+                }
             }
         }
 
@@ -1989,6 +1991,7 @@ impl CreatureList {
             let mut has_soil_match = false;
             creatures.iter().for_each(|c| {
                 if let Some(other_soil) = c.components.soil_component {
+                    total_soils += 1;
                     if other_soil.soil_height == soil_height.unwrap() ||
                     other_soil.soil_height == SoilHeight::All {
                         has_soil_match = true;

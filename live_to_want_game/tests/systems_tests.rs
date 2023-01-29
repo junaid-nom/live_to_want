@@ -1520,7 +1520,7 @@ fn test_simple_attack<'a>() {
         deer2.components.evolving_traits.as_ref().unwrap().traits.thick_hide);
     
     let deer1_id = deer1.components.id_component.id();
-    let deer2_id = deer2.components.id_component.id();
+    //let deer2_id = deer2.components.id_component.id();
     region.grid[deer1.components.location_component.location].creatures.add_creature(
         deer1, 0
     );
@@ -1651,6 +1651,108 @@ fn test_soil_spread() {
 }
 
 #[test]
+fn test_open_soil_all() {
+    let mut loc = MapLocation {
+        creatures: CreatureList::new(true, 0),
+        ..Default::default()
+    };
+    loc.creatures.set_soil(SoilType::Sand);
+    loc.creatures.add_creature(CreatureState { 
+        components: ComponentMap { 
+            budding_component: Some(BuddingComponent::new(1, 0)), 
+            soil_component: Some(SoilComponent{
+                soil_height: SoilHeight::All,
+                soil_type_cannot_grow: SoilType::Silt,
+                soil_type_spread: SoilType::Sand,
+                frame_ready_to_spread: 0,
+                spread_rate: Some(1),
+            }),
+            ..Default::default()
+        },
+        memory: CreatureMemory::default(), 
+        inventory: vec![],
+    }, 0);
+
+    assert_eq!(loc.get_if_creature_open_and_soil_open(false, Some(SoilHeight::Grass), Some(SoilType::Silt)), false);
+    assert_eq!(loc.get_if_creature_open_and_soil_open(false, Some(SoilHeight::Flower), Some(SoilType::Silt)), false);
+    assert_eq!(loc.get_if_creature_open_and_soil_open(false, Some(SoilHeight::Bush), Some(SoilType::Silt)), false);
+    assert_eq!(loc.get_if_creature_open_and_soil_open(false, Some(SoilHeight::All), Some(SoilType::Silt)), false);
+}
+
+#[test]
+fn test_open_soil_grass() {
+    let mut loc = MapLocation {
+        creatures: CreatureList::new(true, 0),
+        ..Default::default()
+    };
+    loc.creatures.set_soil(SoilType::Sand);
+    loc.creatures.add_creature(CreatureState { 
+        components: ComponentMap { 
+            budding_component: Some(BuddingComponent::new(1, 0)), 
+            soil_component: Some(SoilComponent{
+                soil_height: SoilHeight::Grass,
+                soil_type_cannot_grow: SoilType::Silt,
+                soil_type_spread: SoilType::Sand,
+                frame_ready_to_spread: 0,
+                spread_rate: Some(1),
+            }),
+            ..Default::default()
+        },
+        memory: CreatureMemory::default(),
+        inventory: vec![],
+    }, 0);
+
+    assert_eq!(loc.get_if_creature_open_and_soil_open(false, Some(SoilHeight::Grass), Some(SoilType::Silt)), false);
+    assert_eq!(loc.get_if_creature_open_and_soil_open(false, Some(SoilHeight::Flower), Some(SoilType::Silt)), true);
+    assert_eq!(loc.get_if_creature_open_and_soil_open(false, Some(SoilHeight::Bush), Some(SoilType::Silt)), true);
+    assert_eq!(loc.get_if_creature_open_and_soil_open(false, Some(SoilHeight::All), Some(SoilType::Silt)), false);
+}
+
+#[test]
+fn test_open_soil_two_things() {
+    let mut loc = MapLocation {
+        creatures: CreatureList::new(true, 0),
+        ..Default::default()
+    };
+    loc.creatures.set_soil(SoilType::Sand);
+    loc.creatures.add_creature(CreatureState { 
+        components: ComponentMap { 
+            budding_component: Some(BuddingComponent::new(1, 0)), 
+            soil_component: Some(SoilComponent{
+                soil_height: SoilHeight::Grass,
+                soil_type_cannot_grow: SoilType::Silt,
+                soil_type_spread: SoilType::Sand,
+                frame_ready_to_spread: 0,
+                spread_rate: Some(1),
+            }),
+            ..Default::default()
+        },
+        memory: CreatureMemory::default(),
+        inventory: vec![],
+    }, 0);
+    loc.creatures.add_creature(CreatureState { 
+        components: ComponentMap { 
+            budding_component: Some(BuddingComponent::new(1, 0)), 
+            soil_component: Some(SoilComponent{
+                soil_height: SoilHeight::Bush,
+                soil_type_cannot_grow: SoilType::Silt,
+                soil_type_spread: SoilType::Sand,
+                frame_ready_to_spread: 0,
+                spread_rate: Some(1),
+            }),
+            ..Default::default()
+        },
+        memory: CreatureMemory::default(),
+        inventory: vec![],
+    }, 0);
+
+    assert_eq!(loc.get_if_creature_open_and_soil_open(false, Some(SoilHeight::Grass), Some(SoilType::Silt)), false);
+    assert_eq!(loc.get_if_creature_open_and_soil_open(false, Some(SoilHeight::Flower), Some(SoilType::Silt)), false);
+    assert_eq!(loc.get_if_creature_open_and_soil_open(false, Some(SoilHeight::Bush), Some(SoilType::Silt)), false);
+    assert_eq!(loc.get_if_creature_open_and_soil_open(false, Some(SoilHeight::All), Some(SoilType::Silt)), false);
+}
+
+#[test]
 fn test_budding_height() {
     let openr = RegionCreationStruct::new(10,10, 0, vec![]);
     let rgrid = vec![
@@ -1700,7 +1802,7 @@ fn test_budding_height() {
         region: Vu2{x: 0, y: 0},
     };
     flower.components.location_component = LocationComponent {
-        location: Vu2{x: 7, y: 1}
+        location: Vu2{x: 1, y: 1}
     };
     flower.components.health_component = Some(HealthComponent {
         health:  1,
@@ -1708,7 +1810,7 @@ fn test_budding_height() {
     });
     flower.components.soil_component = Some(SoilComponent{
         soil_height: SoilHeight::Flower,
-        soil_type_cannot_grow: SoilType::Silt,
+        soil_type_cannot_grow: SoilType::Clay,
         soil_type_spread: SoilType::Sand,
         frame_ready_to_spread: 0,
         spread_rate: Some(1),
@@ -1731,7 +1833,7 @@ fn test_budding_height() {
         region: Vu2{x: 0, y: 0},
     };
     bush.components.location_component = LocationComponent {
-        location: Vu2{x: 7, y: 1}
+        location: Vu2{x: 2, y: 1}
     };
     bush.components.health_component = Some(HealthComponent {
         health:  1,
@@ -1739,7 +1841,7 @@ fn test_budding_height() {
     });
     bush.components.soil_component = Some(SoilComponent{
         soil_height: SoilHeight::Bush,
-        soil_type_cannot_grow: SoilType::Silt,
+        soil_type_cannot_grow: SoilType::Clay,
         soil_type_spread: SoilType::Sand,
         frame_ready_to_spread: 0,
         spread_rate: Some(1),
@@ -1770,7 +1872,7 @@ fn test_budding_height() {
     });
     tree.components.soil_component = Some(SoilComponent{
         soil_height: SoilHeight::All,
-        soil_type_cannot_grow: SoilType::Silt,
+        soil_type_cannot_grow: SoilType::Clay,
         soil_type_spread: SoilType::Sand,
         frame_ready_to_spread: 0,
         spread_rate: Some(1),
@@ -1787,11 +1889,11 @@ fn test_budding_height() {
 
     let grass_loc = grass.components.location_component.location;
     region.grid[grass_loc].creatures.set_soil(SoilType::Sand);
-    let flower_loc = grass.components.location_component.location;
+    let flower_loc = flower.components.location_component.location;
     region.grid[flower_loc].creatures.set_soil(SoilType::Sand);
-    let bush_loc = grass.components.location_component.location;
+    let bush_loc = bush.components.location_component.location;
     region.grid[bush_loc].creatures.set_soil(SoilType::Sand);
-    let tree_loc = grass.components.location_component.location;
+    let tree_loc = tree.components.location_component.location;
     region.grid[tree_loc].creatures.set_soil(SoilType::Sand);
 
     region.grid[grass_loc].creatures.add_creature(
@@ -1806,7 +1908,6 @@ fn test_budding_height() {
     region.grid[tree_loc].creatures.add_creature(
         tree, 0
     );
-
 
     let nothing = GoalNode::generate_single_node_graph();
 
@@ -1823,15 +1924,13 @@ fn test_budding_height() {
         //println!("\ncreatures:{}", game_state.map_state.get_creature_strings());
     }
 
-    println!("{}", game_state.map_state.get_creature_map_strings(region_vu2));
     println!("{}", game_state.map_state.get_soil_map_strings(region_vu2));
+    println!("{}", game_state.map_state.get_creature_map_strings(region_vu2));
 
     // Is only 3 because bottom and left are blocked exits so you can't spread soil there even though technically they have creature list.
     //assert_eq!(game_state.map_state.count_soils(region_vu2).sand_count, 3);
 
-    return;
-
-    for _ in 0..26 {
+    for _ in 0..30 {
         println!("Frame: {}", game_state.map_state.frame_count);
         game_state = run_frame(game_state, &nothing);
         //println!("\ncreatures:{}", game_state.map_state.get_creature_strings());
@@ -1839,160 +1938,29 @@ fn test_budding_height() {
     println!("{}", game_state.map_state.get_creature_map_strings(region_vu2));
     println!("{}", game_state.map_state.get_soil_map_strings(region_vu2));
 
-    assert_eq!(game_state.map_state.count_soils(region_vu2).sand_count, 64);
-    assert_eq!(game_state.map_state.get_creature_list().len(), 63); // last spot the soil is there but not yet budded as intended. Because of how event system works need a frame to spread soil then another to notice u can spread there.
-}
+    // Can be some silt if something buds there before soil spreads to there.
+    assert_eq!(game_state.map_state.count_soils(region_vu2).clay_count, 0);
 
-
-// TODONEXT: Update the below budding functions to make sure they work with the new budding
-// soil height and soil type stuff.
-// Might want to make a separate tiny test for just spreading.
-// make another test where everything is the right soil type. and just make sure there are 2 
-// plants per square of diff height. and maybe check the ALL one only has 1.
-// Then make a test where left half is one soil type, right half is other.
-// and see if it only spread to the right soil? (3 plant types with no spreading?)
-#[test]
-fn test_chain_budding_system_one_of_each_soil<'a>() {
-    let soil1 = SoilHeight::Bush;
-    let soil2 = SoilHeight::Flower;
-    let soil3 = SoilHeight::Bush;
-    assert_eq!(soil1, soil3);
-    assert_ne!(soil1, soil2);
-
-    // make a mapstate with some budders
-    let openr = RegionCreationStruct::new(10,10, 0, vec![]);
-    let rgrid = vec![
-        vec![openr.clone()],
-    ];
-    //create map
-    let mut map = MapState::new(rgrid, 0);
-    let  region: &mut MapRegion = &mut map.regions[0][0];
-
-    let mut grass = CreatureState{
-        components: ComponentMap::default(),
-        inventory: Vec::new(),
-        memory: CreatureMemory::default(),
-    };
-    grass.components.region_component = RegionComponent {
-        region: Vu2{x: 0, y: 0},
-    };
-    grass.components.location_component = LocationComponent {
-        location: Vu2{x: 1, y: 1}
-    };
-    grass.components.health_component = Some(HealthComponent {
-        health:  1,
-        max_health: 1,
-    });
-    grass.components.budding_component = Some(BuddingComponent {
-        reproduction_rate: 3,
-        frame_ready_to_reproduce: 3,
-        seed_creature_differences: Box::new(ComponentMap::fake_default()),
-    });
-    grass.components.soil_component = Some(SoilComponent{
-        soil_height: SoilHeight::Grass,
-        ..Default::default()
-    });
-    // Just to make sure the grass doesn't replicate with the inventory
-    grass.inventory.push(Item{
-        item_type: ItemType::Berry,
-        quantity: 1,
-    });
-
-    let mut flower = CreatureState{
-        components: ComponentMap::default(),
-        inventory: Vec::new(),
-        memory: CreatureMemory::default(),
-    };
-    flower.components.region_component = RegionComponent {
-        region: Vu2{x: 0, y: 0},
-    };
-    flower.components.location_component = LocationComponent {
-        location: Vu2{x: 8, y: 1}
-    };
-    flower.components.health_component = Some(HealthComponent {
-        health:  1,
-        max_health: 1,
-    });
-    flower.components.budding_component = Some(BuddingComponent {
-        reproduction_rate: 3,
-        frame_ready_to_reproduce: 3,
-        seed_creature_differences: Box::new(ComponentMap::fake_default()),
-    });
-    flower.components.soil_component = Some(SoilComponent{
-        soil_height: SoilHeight::Flower,
-        ..Default::default()
-    });
-
-    let mut bush = CreatureState{
-        components: ComponentMap::default(),
-        inventory: Vec::new(),
-        memory: CreatureMemory::default(),
-    };
-    bush.components.region_component = RegionComponent {
-        region: Vu2{x: 0, y: 0},
-    };
-    bush.components.location_component = LocationComponent {
-        location: Vu2{x: 5, y: 8}
-    };
-    bush.components.health_component = Some(HealthComponent {
-        health:  1,
-        max_health: 1,
-    });
-    bush.components.budding_component = Some(BuddingComponent {
-        reproduction_rate: 3,
-        frame_ready_to_reproduce: 3,
-        seed_creature_differences: Box::new(ComponentMap::fake_default()),
-    });
-    bush.components.soil_component = Some(SoilComponent{
-        soil_height: SoilHeight::Bush,
-        ..Default::default()
-    });
-    
-    region.grid[grass.components.location_component.location].creatures.add_creature(
-        grass, 0
-    );
-    region.grid[flower.components.location_component.location].creatures.add_creature(
-        flower, 0
-    );
-    region.grid[bush.components.location_component.location].creatures.add_creature(
-        bush, 0
-    );
-    
-    let nothing = GoalNode::generate_single_node_graph();
-
-    let mut game_state = GameState {
-        map_state:map
-    };
-    assert_eq!(game_state.map_state.get_creature_list().len(), 3);
-    assert_eq!(game_state.map_state.get_ground_item_list().len(), 0);
-    assert_eq!(game_state.map_state.get_creature_item_list().len(), 1);
-
-    println!("{}", game_state.map_state.get_creature_map_strings(Vu2::new(0,0)));
-
-    for _ in 0..3 {
-        game_state = run_frame(game_state, &nothing);
-        //println!("\ncreatures:{}", game_state.map_state.get_creature_strings());
+    for row in &game_state.map_state.regions[0][0].grid {
+        for loc in row {
+            if !loc.creatures.holds_creatures() {
+                continue;
+            }
+            match loc.creatures.get_length().unwrap() {
+                1 => {
+                    assert_eq!(loc.creatures.get_creature_by_index(0).components.soil_component.unwrap().soil_height, SoilHeight::All);
+                },
+                2 => {
+                    assert_ne!(loc.creatures.get_creature_by_index(0).components.soil_component.unwrap().soil_height, SoilHeight::All);
+                    assert_ne!(loc.creatures.get_creature_by_index(1).components.soil_component.unwrap().soil_height, SoilHeight::All);
+                    assert_ne!(loc.creatures.get_creature_by_index(0).components.soil_component.unwrap().soil_height, loc.creatures.get_creature_by_index(1).components.soil_component.unwrap().soil_height);
+                }
+                _ => {
+                    assert!(false);
+                }
+            }
+        }
     }
-
-    assert_eq!(game_state.map_state.get_creature_list().len(), 6);
-    assert_eq!(game_state.map_state.get_ground_item_list().len(), 0);
-    assert_eq!(game_state.map_state.get_creature_item_list().len(), 1);
-
-    println!("{}", game_state.map_state.get_creature_map_strings(Vu2::new(0,0)));
-
-    for _ in 0..60 {
-        game_state = run_frame(game_state, &nothing);
-    }
-    
-    println!("{}", game_state.map_state.get_creature_map_strings(Vu2::new(0,0)));
-
-    // basically make sure all map points have exactly 3 creatures
-    assert_eq!(game_state.map_state.get_creature_list().len(), 8*8*3);
-    assert_eq!(game_state.map_state.get_ground_item_list().len(), 0);
-    assert_eq!(game_state.map_state.get_creature_item_list().len(), 1);
-    assert_eq!(game_state.map_state.regions[0][0].grid[4][5].creatures.get_length(), Some(3));
-    assert_eq!(game_state.map_state.regions[0][0].grid[5][4].creatures.get_length(), Some(3));
-    assert_eq!(game_state.map_state.regions[0][0].grid[1][1].creatures.get_length(), Some(3));
 }
 
 // Put some budding blockers. Also some deer. Watch the deer be moved around because of the trees
@@ -2007,6 +1975,14 @@ fn test_chain_budding_system_blockers<'a>() {
     //create map
     let mut map = MapState::new(rgrid, 0);
     let  region: &mut MapRegion = &mut map.regions[0][0];
+
+    let soil_component = Some(SoilComponent{
+        soil_height: SoilHeight::All,
+        soil_type_cannot_grow: SoilType::Clay,
+        soil_type_spread: SoilType::Sand,
+        frame_ready_to_spread: 0,
+        spread_rate: Some(1),
+    });
 
     let mut tree = CreatureState{
         components: ComponentMap::default(),
@@ -2029,10 +2005,7 @@ fn test_chain_budding_system_blockers<'a>() {
         frame_ready_to_reproduce: 3,
         seed_creature_differences: Box::new(ComponentMap::fake_default()),
     });
-    tree.components.soil_component = Some(SoilComponent{
-        soil_height: SoilHeight::All,
-        ..Default::default()
-    });    
+    tree.components.soil_component = soil_component.clone();
 
     let mut tree2 = CreatureState{
         components: ComponentMap::default(),
@@ -2055,10 +2028,7 @@ fn test_chain_budding_system_blockers<'a>() {
         frame_ready_to_reproduce: 3,
         seed_creature_differences: Box::new(ComponentMap::fake_default()),
     });
-    tree2.components.soil_component = Some(SoilComponent{
-        soil_height: SoilHeight::All,
-        ..Default::default()
-    });
+    tree2.components.soil_component = soil_component.clone();
 
     let mut tree3 = CreatureState{
         components: ComponentMap::default(),
@@ -2081,10 +2051,7 @@ fn test_chain_budding_system_blockers<'a>() {
         frame_ready_to_reproduce: 3,
         seed_creature_differences: Box::new(ComponentMap::fake_default()),
     });
-    tree3.components.soil_component = Some(SoilComponent{
-        soil_height: SoilHeight::All,
-        ..Default::default()
-    });
+    tree3.components.soil_component = soil_component.clone();
 
     let mut tree4 = CreatureState{
         components: ComponentMap::default(),
@@ -2107,10 +2074,7 @@ fn test_chain_budding_system_blockers<'a>() {
         frame_ready_to_reproduce: 3,
         seed_creature_differences: Box::new(ComponentMap::fake_default()),
     });
-    tree4.components.soil_component = Some(SoilComponent{
-        soil_height: SoilHeight::All,
-        ..Default::default()
-    });
+    tree4.components.soil_component = soil_component.clone();
 
     let mut deer1 = CreatureState{
         components: ComponentMap::default(),
@@ -2183,14 +2147,14 @@ fn test_chain_budding_system_blockers<'a>() {
     assert_eq!(game_state.map_state.get_ground_item_list().len(), 0);
     assert_eq!(game_state.map_state.get_creature_item_list().len(), 2);
 
-    println!("replicated {}\n{}\n{}", game_state.map_state.frame_count/3, game_state.map_state.get_creature_map_strings(Vu2::new(0,0)), 
+    println!("replicated {}\nAll:\n{}\nBlockers:\n{}", game_state.map_state.frame_count/3, game_state.map_state.get_creature_map_strings(Vu2::new(0,0)), 
         game_state.map_state.get_creature_map_strings_filtered(Vu2::new(0,0), &|c: &&CreatureState| c.components.block_space_component.is_some()));
 
     for _ in 0..3 {
         game_state = run_frame(game_state, &nothing);
     }
 
-    println!("replicated {}\n{}\n{}", game_state.map_state.frame_count/3, game_state.map_state.get_creature_map_strings(Vu2::new(0,0)), 
+    println!("replicated {}\nAll:\n{}\nBlockers:\n{}", game_state.map_state.frame_count/3, game_state.map_state.get_creature_map_strings(Vu2::new(0,0)), 
         game_state.map_state.get_creature_map_strings_filtered(Vu2::new(0,0), &|c: &&CreatureState| c.components.block_space_component.is_some()));
 
     //assert_eq!(game_state.map_state.get_creature_list().len(), 8);
@@ -2201,18 +2165,18 @@ fn test_chain_budding_system_blockers<'a>() {
         game_state = run_frame(game_state, &nothing);
     }
     
-    println!("replicated {}\n{}\n{}", game_state.map_state.frame_count/3, game_state.map_state.get_creature_map_strings(Vu2::new(0,0)), 
+    println!("replicated {}\nAll:\n{}\nBlockers:\n{}", game_state.map_state.frame_count/3, game_state.map_state.get_creature_map_strings(Vu2::new(0,0)), 
         game_state.map_state.get_creature_map_strings_filtered(Vu2::new(0,0), &|c: &&CreatureState| c.components.block_space_component.is_some()));
-    println!("\ncreatures:{}", game_state.map_state.get_creature_strings());
+    println!("\ncreatures all:{}", game_state.map_state.get_creature_strings());
     //assert_eq!(game_state.map_state.get_creature_list().len(), 9);
 
     for _ in 0..3 {
         game_state = run_frame(game_state, &nothing);
     }
     
-    println!("replicated {}\n{}\n{}", game_state.map_state.frame_count/3, game_state.map_state.get_creature_map_strings(Vu2::new(0,0)), 
+    println!("replicated {}\nAll:\n{}\nBlockers:\n{}", game_state.map_state.frame_count/3, game_state.map_state.get_creature_map_strings(Vu2::new(0,0)), 
         game_state.map_state.get_creature_map_strings_filtered(Vu2::new(0,0), &|c: &&CreatureState| c.components.block_space_component.is_some()));
-    println!("\ncreatures:{}", game_state.map_state.get_creature_strings());
+    println!("\ncreatures all:{}", game_state.map_state.get_creature_strings());
 
     assert_eq!(game_state.map_state.get_creature_list().len(), 8);
     assert_eq!(game_state.map_state.get_ground_item_list()[0].0.quantity, 2);

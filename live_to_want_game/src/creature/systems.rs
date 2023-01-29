@@ -24,7 +24,6 @@ pub fn soil_spread_system(m: &MapState, c: &CreatureState) -> Vec<EventChain> {
                         open_spots.push(n.get());
                     }
                 }
-                // TODONEXT: Setup the soil spreader. prob seperate system?
 
                 let spots = open_spots.len();
                 // Reset spread so it doesnt try again every frame, but next time it would spread
@@ -106,7 +105,6 @@ pub fn budding_system(m: &MapState, c: &CreatureState) -> Vec<EventChain> {
                         open_spots.push(n.get());
                     }
                 }
-                // TODONEXT: Setup the soil spreader. prob seperate system?
 
                 let spots = open_spots.len();
                 // Reset budding so it doesnt try again every frame, but next time it would reproduce

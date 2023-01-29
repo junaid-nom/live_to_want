@@ -245,7 +245,7 @@ impl SoilType {
     pub fn map_string(&self) -> String {
         match self {
             SoilType::Silt => "Si".to_string(),
-            SoilType::Clay => "Ca".to_string(),
+            SoilType::Clay => "Cl".to_string(),
             SoilType::Sand => "Sa".to_string(),
         }
     }
@@ -269,6 +269,15 @@ impl Clone for BuddingComponent {
             reproduction_rate: self.reproduction_rate,
             frame_ready_to_reproduce: self.frame_ready_to_reproduce + self.reproduction_rate as u128,
             seed_creature_differences: Box::new(self.seed_creature_differences.fake_clone()),
+        }
+    }
+}
+impl BuddingComponent {
+    pub fn new(reproduction_rate: u32, frame_ready_to_reproduce: u128) -> Self {
+        BuddingComponent {
+            reproduction_rate: reproduction_rate,
+            frame_ready_to_reproduce: frame_ready_to_reproduce,
+            seed_creature_differences: Box::new(ComponentMap::fake_default()),
         }
     }
 }
