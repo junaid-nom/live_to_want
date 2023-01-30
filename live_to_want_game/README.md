@@ -87,13 +87,13 @@ Or maybe a "Run X Frames" message. Would probably be based on for example moveme
 Or fuck it if that's too much work just make it continue on like a real server for now (with configurable game speed)?
 
 Sub tasks:
- - Looks like Login/Disconnect messages are NOT forwarded to the game, and are handled in the LoginManager. This is bad because need spawn/dc messages so server adds/removes players.
+ - Looks like Login/Disconnect messages are NOT forwarded to the game, and are handled in the LoginManager. This is bad because need spawn/dc messages so server adds/removes players. (Is this actually true because later on in the networking section it says server will forward those messages?)
 
 Long term later on:
  - Maybe eventually use UDP instead of TCP? It would be nice to use a UDP but TCP for some messages thing.
 
 # TODONEXT:
-Rock paper scissor style plants and animals and combat.
+Rock paper scissor style plants, THE NETWORKING FIRST SO ITS READY TO MAKE UNREAL CLIENT then animals, then ai for the animals, then combat.
 
 ###  Rock Paper Scissor Plants, Animals, Crafting, Combat:
 3 soil types. And 3 heights a plant can be.
@@ -166,14 +166,21 @@ Basically got networking to work with a simple server class that receives
 and can send messages through receiever and sender channels. Create one with 
 `create_server` in server.rs
 
-You send GameMessages (check messages.rs for all the type).
+You send GameMessages (check messages.rs for all the types).
 Messages are wrapped with the username of person sending it.
 
 The server you create handles the getting and receiving of messages.
 
-The server itself handles logging in and disconnects. It will then forward
+
+There is also ConnectionManager server which handles logging in and disconnects. It will then forward
 a LoginMsg or a DropMsg to the receiving pipe, and the game can handle that itself 
 (for example create user character or remove the character on dc).
+
+The way the ConnectionManager works is, client first sends a login message.
+ConnectionManager handles logging in and auth stuff with password.
+If login is successful it adds the client to the valid login conection list.
+Then the server can send messages via `send_message` to a particular user and `send_message_all`
+to all users.
 
 
 # Tips:
