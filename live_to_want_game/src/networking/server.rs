@@ -5,10 +5,10 @@ use std::io::{Read, Write};
 use std::net::TcpStream;
 use std::sync::mpsc::{Receiver, Sender};
 use tokio::sync::mpsc::{self, UnboundedSender, UnboundedReceiver};
-use std::thread;
+use std::thread::{self, JoinHandle};
 use crate::{ConnectionMessageWrap, GameMessage, GameMessageWrap, UID, get_id};
 
-const IP_PORT: &str = "127.0.0.1:7726";
+pub const IP_PORT: &str = "127.0.0.1:7726";
 
 #[tokio::main]
 async fn start_server(send_to_server: Sender<GameMessageWrap>, clients_sender: UnboundedSender<ConnectionMessageWrap>, mut clients_receive: UnboundedReceiver<ConnectionMessageWrap>) -> Result<(), Box<dyn std::error::Error>>  {
@@ -201,6 +201,22 @@ pub fn test_client_with_func(f: Box<dyn Fn(TcpStream) -> () + Send> ) {
         }
         println!("Client Func ended.");
     });
+}
+
+pub fn test_client_with_func_handle(f: Box<dyn Fn(TcpStream) -> () + Send> ) -> JoinHandle<()> {
+    let ret = thread::spawn(move || {
+        match TcpStream::connect(IP_PORT) {
+            Ok(stream) => {
+                println!("Successfully connected to server in {}", IP_PORT);
+                f(stream);
+            },
+            Err(e) => {
+                println!("Failed to connect: {}", e);
+            }
+        }
+        println!("Client Func ended.");
+    });
+    return ret;
 }
 
 #[tokio::main]

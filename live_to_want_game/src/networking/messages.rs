@@ -129,6 +129,10 @@ impl ConnectionManager {
         }
     }
 
+    pub fn get_connected_count(&self) -> usize {
+        self.login_manager.get_all_conn_id().len()
+    }
+
     pub fn send_message(&mut self, message: GameMessage, username: String) {
         let conn_id = self.login_manager.get_conn_id(&username);
         if let Some(conn_id) = conn_id {

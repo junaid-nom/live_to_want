@@ -326,3 +326,198 @@ async fn run_dumb_server_test() {
     println!("Ran create server");
     thread::sleep(time::Duration::from_millis(1000*60*5));
 }
+
+#[tokio::test]
+async fn run_game_server() {
+    let openr = RegionCreationStruct::new(10,10, 0, vec![]);
+    let rgrid = vec![
+        vec![openr.clone()],
+    ];
+    //create map
+    let mut map = MapState::new(rgrid, 0);
+    let  region: &mut MapRegion = &mut map.regions[0][0];
+
+    let mut grass = CreatureState{
+        components: ComponentMap::default(),
+        inventory: Vec::new(),
+        memory: CreatureMemory::default(),
+    };
+    grass.components.region_component = RegionComponent {
+        region: Vu2{x: 0, y: 0},
+    };
+    grass.components.location_component = LocationComponent {
+        location: Vu2{x: 1, y: 1}
+    };
+    grass.components.health_component = Some(HealthComponent {
+        health:  1,
+        max_health: 1,
+    });
+    grass.components.soil_component = Some(SoilComponent{
+        soil_height: SoilHeight::Grass,
+        soil_type_cannot_grow: SoilType::Clay,
+        soil_type_spread: SoilType::Sand,
+        frame_ready_to_spread: 0,
+        spread_rate: Some(1),
+    });
+    grass.components.budding_component = Some(BuddingComponent { 
+        reproduction_rate: 1, frame_ready_to_reproduce: 0, seed_creature_differences: Box::new(ComponentMap::fake_default())
+    });
+    // Just to make sure the grass doesn't replicate with the inventory
+    grass.inventory.push(Item{
+        item_type: ItemType::Berry,
+        quantity: 1,
+    });
+
+    let mut flower = CreatureState{
+        components: ComponentMap::default(),
+        inventory: Vec::new(),
+        memory: CreatureMemory::default(),
+    };
+    flower.components.region_component = RegionComponent {
+        region: Vu2{x: 0, y: 0},
+    };
+    flower.components.location_component = LocationComponent {
+        location: Vu2{x: 1, y: 1}
+    };
+    flower.components.health_component = Some(HealthComponent {
+        health:  1,
+        max_health: 1,
+    });
+    flower.components.soil_component = Some(SoilComponent{
+        soil_height: SoilHeight::Flower,
+        soil_type_cannot_grow: SoilType::Clay,
+        soil_type_spread: SoilType::Sand,
+        frame_ready_to_spread: 0,
+        spread_rate: Some(1),
+    });
+    flower.components.budding_component = Some(BuddingComponent { 
+        reproduction_rate: 1, frame_ready_to_reproduce: 0, seed_creature_differences: Box::new(ComponentMap::fake_default())
+    });
+    // Just to make sure the grass doesn't replicate with the inventory
+    flower.inventory.push(Item{
+        item_type: ItemType::Berry,
+        quantity: 1,
+    });
+
+    let mut bush = CreatureState{
+        components: ComponentMap::default(),
+        inventory: Vec::new(),
+        memory: CreatureMemory::default(),
+    };
+    bush.components.region_component = RegionComponent {
+        region: Vu2{x: 0, y: 0},
+    };
+    bush.components.location_component = LocationComponent {
+        location: Vu2{x: 2, y: 1}
+    };
+    bush.components.health_component = Some(HealthComponent {
+        health:  1,
+        max_health: 1,
+    });
+    bush.components.soil_component = Some(SoilComponent{
+        soil_height: SoilHeight::Bush,
+        soil_type_cannot_grow: SoilType::Clay,
+        soil_type_spread: SoilType::Sand,
+        frame_ready_to_spread: 0,
+        spread_rate: Some(1),
+    });
+    bush.components.budding_component = Some(BuddingComponent { 
+        reproduction_rate: 1, frame_ready_to_reproduce: 0, seed_creature_differences: Box::new(ComponentMap::fake_default())
+    });
+    // Just to make sure the grass doesn't replicate with the inventory
+    bush.inventory.push(Item{
+        item_type: ItemType::Berry,
+        quantity: 1,
+    });
+
+    let mut tree = CreatureState{
+        components: ComponentMap::default(),
+        inventory: Vec::new(),
+        memory: CreatureMemory::default(),
+    };
+    tree.components.region_component = RegionComponent {
+        region: Vu2{x: 0, y: 0},
+    };
+    tree.components.location_component = LocationComponent {
+        location: Vu2{x: 7, y: 1}
+    };
+    tree.components.health_component = Some(HealthComponent {
+        health:  1,
+        max_health: 1,
+    });
+    tree.components.soil_component = Some(SoilComponent{
+        soil_height: SoilHeight::All,
+        soil_type_cannot_grow: SoilType::Clay,
+        soil_type_spread: SoilType::Sand,
+        frame_ready_to_spread: 0,
+        spread_rate: Some(1),
+    });
+    tree.components.budding_component = Some(BuddingComponent { 
+        reproduction_rate: 2, frame_ready_to_reproduce: 0, seed_creature_differences: Box::new(ComponentMap::fake_default())
+    });
+    // Just to make sure the grass doesn't replicate with the inventory
+    tree.inventory.push(Item{
+        item_type: ItemType::Berry,
+        quantity: 1,
+    });
+
+
+    let grass_loc = grass.components.location_component.location;
+    region.grid[grass_loc].creatures.set_soil(SoilType::Sand);
+    let flower_loc = flower.components.location_component.location;
+    region.grid[flower_loc].creatures.set_soil(SoilType::Sand);
+    let bush_loc = bush.components.location_component.location;
+    region.grid[bush_loc].creatures.set_soil(SoilType::Sand);
+    let tree_loc = tree.components.location_component.location;
+    region.grid[tree_loc].creatures.set_soil(SoilType::Sand);
+
+    region.grid[grass_loc].creatures.add_creature(
+        grass, 0
+    );
+    region.grid[flower_loc].creatures.add_creature(
+        flower, 0
+    );
+    region.grid[bush_loc].creatures.add_creature(
+        bush, 0
+    );
+    region.grid[tree_loc].creatures.add_creature(
+        tree, 0
+    );
+
+    let nothing = GoalNode::generate_single_node_graph();
+    // See last post of: https://users.rust-lang.org/t/how-to-use-async-fn-in-thread-spawn/46413/5
+    // for how this works
+    tokio::spawn(async { create_game_server(map, nothing, 10, true).await; });
+
+    fn make_client_func(username: String) -> Box<dyn Fn(TcpStream) -> () + Send> {
+        return Box::new(move |mut stream: TcpStream| {
+            let username = username.clone();
+            stream.write(&wrap_ser_message(GameMessage::LoginMsg(User{
+                username: username.clone(),
+                password: "poop".to_string(),
+            }), 0)).unwrap();
+            
+            let mut stream_reader = BufReader::new(stream.try_clone().unwrap());
+            let mut data = String::new();
+            for _ in 0..2 {
+                data.clear();
+                match stream_reader.read_line(&mut data) {
+                    Ok(_) => {
+                        data.pop();
+                        let message_received: GameMessageWrap = serde_json::from_str(&data).expect(&format!("Couldnt serialize {}", data));
+                        if let GameMessage::LoginReplyMsg(succ, name) = message_received.message {
+                            println!("Got login reply message: {} {}", succ, name);
+                        } else if let GameMessage::GameStateMsg(game_state) = message_received.message {
+                            println!("Got game state: frame: {}", game_state.map_state.frame_count);
+                        }
+                    },
+                    Err(e) => {
+                        println!("Failed to receive data: {}", e);
+                    }
+                }
+            };
+        });
+    }
+
+    test_client_with_func_handle(make_client_func(format!("userguy"))).join().expect("couldnt start client");
+}
