@@ -152,7 +152,7 @@ impl ConnectionManager {
         });
     }
 
-    pub fn get_messages(&mut self) -> Vec<GameMessageWrapUsername> {
+    pub fn process_logins_and_get_messages(&mut self) -> Vec<GameMessageWrapUsername> {
         // Read all the current messages on the list.
         // if any are UserLogin, check if valid, if invalid respond with error.
         // if any DropConnection messages, handle here, just remove_connection from LoginManager

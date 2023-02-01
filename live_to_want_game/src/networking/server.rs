@@ -205,14 +205,19 @@ pub fn test_client_with_func(f: Box<dyn Fn(TcpStream) -> () + Send> ) {
 
 pub fn test_client_with_func_handle(f: Box<dyn Fn(TcpStream) -> () + Send> ) -> JoinHandle<()> {
     let ret = thread::spawn(move || {
-        match TcpStream::connect(IP_PORT) {
-            Ok(stream) => {
-                println!("Successfully connected to server in {}", IP_PORT);
-                f(stream);
-            },
-            Err(e) => {
-                println!("Failed to connect: {}", e);
-            }
+        let mut connected = false;
+        while !connected {
+            connected = match TcpStream::connect(IP_PORT) {
+                Ok(stream) => {
+                    println!("Successfully connected to server in {}", IP_PORT);
+                    f(stream);
+                    true
+                },
+                Err(e) => {
+                    println!("Failed to connect: {}", e);
+                    false
+                }
+            };
         }
         println!("Client Func ended.");
     });

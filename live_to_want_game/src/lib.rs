@@ -63,30 +63,42 @@ pub fn unwrap_option_list(opList: Vec<Option<EventChain>>) -> Vec<EventChain> {
     return ret;
 }
 
-pub async fn create_game_server<'a>(map_state: MapState, goal_node: GoalNode<'a>, time_per_frame: u64, require_user_connected: bool) {
+pub async fn create_game_server(map_state: MapState, time_per_frame: u64, require_user_connected: bool) {
     // TODONEXT (UNTESTED)
     // Make initial game state
     let mut game_state = GameState {
         map_state,
     };
+    println!("Starting Server");
 
     // start server
     let mut server = ConnectionManager::new().await;
 
-    // loop
-    loop {
-        // get input from connections
-        // run frame
-        // TODO: if in super-fast mode, just loop
-        // TODO: if in user controlled just check for input until receive something
-        // TODO: also can do "slow" mode with a wait
-        thread::sleep(time::Duration::from_millis(time_per_frame));
-        if !require_user_connected || server.get_connected_count() > 0 {
-            let msgs = server.get_messages();
-            game_state = run_frame_with_input(game_state, &goal_node, msgs);
-            server.send_message_all(GameMessage::GameStateMsg(game_state.clone()));
+    println!("Started Server");
+
+    thread::spawn(move || {
+        println!("Starting Game");
+
+        let goal_node = GoalNode::generate_single_node_graph();
+        // loop
+        loop {
+            // get input from connections
+            // run frame
+            // TODO: if in super-fast mode, just loop
+            // TODO: if in user controlled just check for input until receive something
+            // TODO: also can do "slow" mode with a wait
+            //tokio::time::sleep(time::Duration::from_millis(time_per_frame));
+            thread::sleep(time::Duration::from_millis(time_per_frame));
+            let msgs = server.process_logins_and_get_messages();
+            if !require_user_connected || server.get_connected_count() > 0 {
+                println!("Iterating game got msgs: {}", msgs.len());
+                game_state = run_frame_with_input(game_state, &goal_node, msgs);
+                server.send_message_all(GameMessage::GameStateMsg(game_state.clone()));
+            } else {
+                println!("Sleeping until users join");
+            }
         }
-    }
+    });
 }
 
 pub fn run_frame(mut game_state: GameState, root: &GoalNode)  -> GameState {

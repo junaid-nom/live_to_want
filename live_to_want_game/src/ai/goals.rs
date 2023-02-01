@@ -17,6 +17,7 @@ use std::borrow::Borrow;
 // But what about the case of SUPER RARE diamond ore is around, and 1 wood. Also, wood reward will be high even you only need 1 of it and the other requirement is super rare diamond.
 // So, maybe need Rarity idea? But I guess you can accomplish this by just setting the Base-local reward for rare items High? Shouldn't discount easy to get items or the AI might never try to get them.
 // Not the biggest deal because eventually the AI will get alot of wood and stop once it has enough for most recipes.
+#[derive(Clone)]
 pub struct GoalNode<'a> {
     pub get_want_local: Box<fn(&MapState, &CreatureState) -> u32>,
     pub get_effort_local: Box<fn(&MapState, &CreatureState) -> u32>, // should be minimum of 1
@@ -38,6 +39,7 @@ impl GoalNode<'_> {
     }
 }
 
+#[derive(Clone)]
 pub struct GoalConnection<'a> {
     pub child: Arc<GoalNode<'a>>,
     pub is_additive: bool, // if its additive, will ADD with its "siblings" otherwise we take the "best" sibling

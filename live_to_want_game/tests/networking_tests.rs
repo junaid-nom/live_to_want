@@ -63,7 +63,7 @@ async fn run_simple_server_test() {
     let mut got_test = false;
     let mut got_test2 = false;
     while !got_test || !got_test2 {
-        let msgs = server.get_messages();
+        let msgs = server.process_logins_and_get_messages();
         msgs.into_iter().for_each(
             |g| {
                 let test_string = if g.username == "test".to_string() {
@@ -122,7 +122,7 @@ async fn run_simple_server_test() {
     let mut got_test = false;
     let mut got_test2 = false;
     while !got_test || !got_test2 {
-        let msgs = server.get_messages();
+        let msgs = server.process_logins_and_get_messages();
         msgs.into_iter().for_each(
             |g| {
                 let test_string = if g.username == "test".to_string() {
@@ -148,6 +148,7 @@ async fn run_simple_server_test() {
             }
         );
     }
+    println!("GOT IT!");
 }
 
 
@@ -198,7 +199,7 @@ async fn run_connection_manager_test_send_all_and_multi_login() {
 
     let mut got_msgs = 0;
     while got_msgs != clients_started {
-        let msgs = server.get_messages();
+        let msgs = server.process_logins_and_get_messages();
         msgs.into_iter().for_each(
             |g| {
                 match g.message {
@@ -242,7 +243,7 @@ async fn run_connection_manager_test_send_all_and_multi_login() {
     // should get (clients_started - 1) h2s and 1 from u9 thats u9
     let mut got_msgs = 0;
     while got_msgs != clients_started {
-        let msgs = server.get_messages();
+        let msgs = server.process_logins_and_get_messages();
         msgs.into_iter().for_each(
             |g| {
                 match g.message {
@@ -484,31 +485,50 @@ async fn run_game_server() {
         tree, 0
     );
 
-    let nothing = GoalNode::generate_single_node_graph();
     // See last post of: https://users.rust-lang.org/t/how-to-use-async-fn-in-thread-spawn/46413/5
     // for how this works
-    tokio::spawn(async { create_game_server(map, nothing, 10, true).await; });
-
+    let server_handle = tokio::spawn(async {
+        println!("Running server thread");
+        create_game_server(map, 500, true).await;
+    });
+    // Note need to use tokio threads because we have a ConnectionManager.await.
+    // Then need to await this server_handle or it will never run 
+    // Unless we await or yield or something something else in this function.
+    // To make it simpler, just await the tokio spawn which will actually
+    // run the server msg loop in a different thread.
+    server_handle.await.unwrap();
+    
     fn make_client_func(username: String) -> Box<dyn Fn(TcpStream) -> () + Send> {
         return Box::new(move |mut stream: TcpStream| {
+            println!("Sending login message");
+
             let username = username.clone();
             stream.write(&wrap_ser_message(GameMessage::LoginMsg(User{
                 username: username.clone(),
                 password: "poop".to_string(),
             }), 0)).unwrap();
             
+            println!("Sent login message");
+
             let mut stream_reader = BufReader::new(stream.try_clone().unwrap());
             let mut data = String::new();
-            for _ in 0..2 {
+            let mut finished = false;
+            while !finished {
                 data.clear();
+                println!("Waiting for reply");
                 match stream_reader.read_line(&mut data) {
                     Ok(_) => {
+                        println!("Got a msg as client");
                         data.pop();
                         let message_received: GameMessageWrap = serde_json::from_str(&data).expect(&format!("Couldnt serialize {}", data));
                         if let GameMessage::LoginReplyMsg(succ, name) = message_received.message {
                             println!("Got login reply message: {} {}", succ, name);
                         } else if let GameMessage::GameStateMsg(game_state) = message_received.message {
                             println!("Got game state: frame: {}", game_state.map_state.frame_count);
+                            if game_state.map_state.frame_count >= 3 {
+                                println!("Got game state: {:#?}", &data);
+                                finished = true;
+                            }
                         }
                     },
                     Err(e) => {
