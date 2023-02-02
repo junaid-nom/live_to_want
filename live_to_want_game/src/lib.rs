@@ -9,6 +9,7 @@ use std::ops::Deref;
 use std::{fmt::{Debug, Formatter}, borrow::Borrow};
 use std::sync::{Arc, atomic::AtomicU64};
 use core::fmt;
+use ai::reward_graph::RootNode;
 use rand::prelude::*;
 use serde::{Deserialize, Serialize};
 
@@ -49,10 +50,25 @@ pub use ai::*;
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct GameState {
     pub map_state: MapState,
+    // Can't make GoalNode here because of its lifetime bs would make GameState also require lifetime shit.
+    // can't make RewardNode here because its not serializable. YET.
+    // TODO: Eventually make custom serialize/deserialize for RewardNode.
+    // it would basically be the JSON implementation, that would be human editable (or at least editable with client side app)
+    // basically need to turn all the Box functions into some kinda like Vec<> list of enums and their params?
+    // like Vec<Operation> Operation: Enum with custom fields. similar to creatureCommand I guess.
+    // but need to be careful to have NO references, and serializable.
+    // maybe should just convert RewardGraph to that now... but would have to redo tests.
+    // well maybe it won't be too bad? Just need to match Operation->function.
+    // and can just hardcode a bunch of test only matches for Operation?
+    // maybe need a higher level Operation like: CompositeOperation:: Chain(Vec<Operation>), HardCoded(FuncImpl)
+    // FuncImpl:: TestFuncA, TestFuncB.. UsefulStuff too?
+    // Ugg basically a coding lang ><
+    // TODONEXT: For now just setup RunFrame to take in Option<GoalNode>, Option<RewardGraphMap> and it'll
+    // run one of em for ai.
 }
 
-pub fn unwrap_option_list(opList: Vec<Option<EventChain>>) -> Vec<EventChain> {
-    let ret :Vec<EventChain> = opList.into_par_iter().flat_map(
+pub fn unwrap_option_list(op_list: Vec<Option<EventChain>>) -> Vec<EventChain> {
+    let ret :Vec<EventChain> = op_list.into_par_iter().flat_map(
         |opt| {
             if let Some(ec) = opt {
                 vec![ec]

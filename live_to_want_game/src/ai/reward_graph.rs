@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use core::fmt;
 use std::collections::{HashSet, BinaryHeap, HashMap};
 use crate::{UID, MapState, CreatureState, CreatureCommand, Location, ItemType};
 
@@ -49,6 +50,7 @@ pub fn get_variable_change_from_effects(category: Variable, effects: &Vec<Variab
     None
 }
 
+#[derive(Debug, Clone)]
 pub struct RootNode {
     pub description: String,  // just for debugging/comments
     pub nodes: Vec<Node>,
@@ -172,7 +174,7 @@ impl RootNode {
         root
     }
 }
-
+#[derive(Debug, Clone)]
 pub enum Node {
     Reward(RewardNode),
     CreatureList(RewardNodeCreatureList),
@@ -222,6 +224,7 @@ pub struct RewardNodeConnection {
     pub parent_index: NodeIndex, // debug only
     pub requirement: VariableChange, // multiplier is: 1/requirement.change * effect(for that variable)
 }
+#[derive(Clone)]
 pub struct RewardNode {
     pub description: String,  // just for debugging/comments
     pub index: NodeIndex,
@@ -233,7 +236,18 @@ pub struct RewardNode {
     pub cost: Box<fn(&MapState, &CreatureState, &RequirementResult) -> CostResult>,
     pub get_command: Option<Box<for<'f> fn(&'f MapState, &'f CreatureState, &RewardResult, &RequirementResult) -> CreatureCommand<'f>>>, // Is None if this node does not lead to a category and is more of an organizing node
     pub effect: Option<Box<fn(&MapState, &CreatureState, &RewardResult, &RequirementResult) -> Vec<VariableChange>>> // Used to get current of self already
+} impl fmt::Debug for RewardNode {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("RewardNode")
+         .field("description", &self.description)
+         .field("index", &self.index)
+         .field("children", &self.children)
+         .field("get_command", &self.get_command.is_some())
+         .field("effect", &self.effect.is_some())
+         .finish()
+    }
 }
+#[derive(Clone)]
 pub struct RewardNodeCreatureList {
     pub description: String,  // just for debugging/comments
     pub index: NodeIndex,
@@ -246,6 +260,16 @@ pub struct RewardNodeCreatureList {
     pub get_command: Option<Box<for<'f> fn(&'f MapState, &'f CreatureState, &RewardResult, &RequirementResult, &'f CreatureState) -> CreatureCommand<'f>>>, // Is None if this node does not lead to a category and is more of an organizing node
     pub effect: Option<Box<fn(&MapState, &CreatureState, &RewardResult, &RequirementResult, &CreatureState) -> Vec<VariableChange>>>, // Used to get current of self already
     pub filter: Box<fn(&MapState, &CreatureState, &CreatureState)->bool>, // will take all known CreatureStates, then use this filter on them, to produce one NodeResult for each one.
+} impl fmt::Debug for RewardNodeCreatureList {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("RewardNodeCreatureList")
+         .field("description", &self.description)
+         .field("index", &self.index)
+         .field("children", &self.children)
+         .field("get_command", &self.get_command.is_some())
+         .field("effect", &self.effect.is_some())
+         .finish()
+    }
 }
 
 #[derive(Clone, Debug)]

@@ -197,6 +197,7 @@ impl CreatureState {
             evolving_traits: c.components.evolving_traits.clone(),
             sexual_reproduction: c.components.sexual_reproduction.clone(),
             vision_component: c.components.vision_component.clone(),
+            ai_component: c.components.ai_component.clone(),
         };
 
         CreatureState {

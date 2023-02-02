@@ -72,7 +72,8 @@ pub struct ComponentMap {
     pub evolving_traits: Option<EvolvingTraitsComponent>,
     pub sexual_reproduction: Option<SexualReproduction>,
     pub vision_component: Option<VisionComponent>,
-} 
+    pub ai_component: Option<AIComponent>,
+}
 impl ComponentMap {
     pub fn copy_from_other(self, other:&ComponentMap) -> Self {
         let other = other.fake_clone();
@@ -96,6 +97,7 @@ impl ComponentMap {
             evolving_traits: other.evolving_traits.or(self.evolving_traits),
             sexual_reproduction: other.sexual_reproduction.or(self.sexual_reproduction),
             vision_component: other.vision_component.or(self.vision_component),
+            ai_component: other.ai_component.or(self.ai_component),
         }
     }
     // Only meant to be used for budding component and similar. Should never put a fake_clone onto a real creature because no UID
@@ -118,6 +120,7 @@ impl ComponentMap {
             evolving_traits: self.evolving_traits.clone(),
             sexual_reproduction: self.sexual_reproduction.clone(),
             vision_component: self.vision_component.clone(),
+            ai_component: self.ai_component.clone(),
         }
     }
     pub fn fake_default() -> Self {
@@ -139,6 +142,7 @@ impl ComponentMap {
             evolving_traits: None,
             sexual_reproduction: None,
             vision_component: None,
+            ai_component: None,
         }
     }
 }
@@ -192,6 +196,18 @@ impl HealthComponent {
     }
     pub fn at_max_health(&self) -> bool {
         return self.health == self.max_health;
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+#[derive(PartialEq, Hash, Eq)]
+#[derive(Deserialize, Serialize)]
+pub struct AIComponent {
+    pub ai_id: UID,
+}
+impl Component for AIComponent {
+    fn get_visible() -> bool {
+        true
     }
 }
 
