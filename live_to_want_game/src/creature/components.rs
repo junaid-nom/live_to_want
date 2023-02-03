@@ -608,7 +608,10 @@ impl EvolvingTraitsComponent {
             return;
         }
         let total_time = self.child_until_frame - self.born_on_frame;
-        let percent_done = (frame - self.born_on_frame) as f32 / total_time as f32;
+        let mut percent_done = (frame - self.born_on_frame) as f32 / total_time as f32;
+        if total_time == 0 {
+            percent_done = 1.;
+        }
         self.traits = self.adult_traits.clone_with_multiplier_and_exceptions(percent_done, true);
         // TODO whatever calls this should remove child component when this is done?
         // TODO: Fuck this is gonna be really complicated for stuff like healthcomponent, movement etc that set their own stats at startup.

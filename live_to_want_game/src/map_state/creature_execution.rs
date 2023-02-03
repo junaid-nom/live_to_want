@@ -91,7 +91,7 @@ impl CreatureCommand<'_> {
                 return Some(EventChain{
                     events: vec![init_move],
                     debug_string: format!("Move to {:?} for {}", destination, c.components.id_component.id()),
-                    creature_list_targets: true,
+                    creature_list_targets: false,
                 });
             }
             CreatureCommand::Chase(_, _, _) => {}

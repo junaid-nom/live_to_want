@@ -79,7 +79,7 @@ pub fn unwrap_option_list(op_list: Vec<Option<EventChain>>) -> Vec<EventChain> {
     return ret;
 }
 
-pub async fn create_game_server(map_state: MapState, time_per_frame: u64, require_user_connected: bool) {
+pub async fn create_game_server(ip_port: String, map_state: MapState, time_per_frame: u64, require_user_connected: bool) {
     // TODONEXT (UNTESTED)
     // Make initial game state
     let mut game_state = GameState {
@@ -88,7 +88,7 @@ pub async fn create_game_server(map_state: MapState, time_per_frame: u64, requir
     println!("Starting Server");
 
     // start server
-    let mut server = ConnectionManager::new().await;
+    let mut server = ConnectionManager::new(ip_port).await;
 
     println!("Started Server");
 
@@ -108,7 +108,7 @@ pub async fn create_game_server(map_state: MapState, time_per_frame: u64, requir
             let msgs = server.process_logins_and_get_messages();
             if !require_user_connected || server.get_connected_count() > 0 {
                 println!("Iterating game got msgs: {}", msgs.len());
-                game_state = run_frame_with_input(game_state, &goal_node, msgs);
+                game_state = run_frame_with_input(game_state, Some(&goal_node), None, msgs);
                 server.send_message_all(GameMessage::GameStateMsg(game_state.clone()));
             } else {
                 println!("Sleeping until users join");
@@ -117,11 +117,11 @@ pub async fn create_game_server(map_state: MapState, time_per_frame: u64, requir
     });
 }
 
-pub fn run_frame(mut game_state: GameState, root: &GoalNode)  -> GameState {
-    run_frame_with_input(game_state, root, vec![])
+pub fn run_frame(mut game_state: GameState, root: Option<&GoalNode>, reward_root: Option<&RootNode>)  -> GameState {
+    run_frame_with_input(game_state, root, reward_root, vec![])
 }
 
-pub fn run_frame_with_input(mut game_state: GameState, root: &GoalNode, msgs: Vec<GameMessageWrapUsername>) -> GameState {
+pub fn run_frame_with_input(mut game_state: GameState, goal_root: Option<&GoalNode>, reward_root: Option<&RootNode>, msgs: Vec<GameMessageWrapUsername>) -> GameState {
     let mut m = game_state.map_state;
     {
         m.frame_count += 1;
@@ -322,10 +322,22 @@ pub fn run_frame_with_input(mut game_state: GameState, root: &GoalNode, msgs: Ve
                             |c| {
                                 // TODOREVAMP: Comment out below and instead use evolutionary growing ai approach? Actually just combine this with evo approach.
                                 // So that we can just do both. Because old approach is great for running tests so good to keep. maybe put in a bool
-                                match GoalCacheNode::get_final_command(&root, &m, &c) {
-                                    Some(cc) => {cc.to_event_chain()}
-                                    None => {None}
+                                if let Some(reward_ai) = reward_root {
+                                    match reward_ai.generate_result_graph(&m, c).get_final_command() {
+                                        Some(cc) => {return cc.to_event_chain();}
+                                        None => {return None;}
+                                    }
                                 }
+                                
+                                if let Some(goal_ai) = goal_root {
+                                    match GoalCacheNode::get_final_command(&goal_ai, &m, &c) {
+                                        Some(cc) => {return cc.to_event_chain();}
+                                        None => {return None;}
+                                    }
+                                }
+                                
+
+                                None
                             }
                         ).collect();
                         return ret;

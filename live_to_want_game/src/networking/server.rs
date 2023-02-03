@@ -11,10 +11,11 @@ use crate::{ConnectionMessageWrap, GameMessage, GameMessageWrap, UID, get_id};
 pub const IP_PORT: &str = "127.0.0.1:7726";
 
 #[tokio::main]
-async fn start_server(send_to_server: Sender<GameMessageWrap>, clients_sender: UnboundedSender<ConnectionMessageWrap>, mut clients_receive: UnboundedReceiver<ConnectionMessageWrap>) -> Result<(), Box<dyn std::error::Error>>  {
-    let listener = TcpListener::bind(IP_PORT).await?;
+async fn start_server(ip_port: String, send_to_server: Sender<GameMessageWrap>, clients_sender: UnboundedSender<ConnectionMessageWrap>, mut clients_receive: UnboundedReceiver<ConnectionMessageWrap>) -> Result<(), Box<dyn std::error::Error>>  {
+    // Note can't use &'static str reference because later when you move it in a thread it will complain. must be owned
+    let listener = TcpListener::bind(ip_port.clone()).await?;
     
-    println!("Listening on {:?} {:?}", IP_PORT, listener.local_addr());
+    println!("Listening on {:?} {:?}", ip_port, listener.local_addr());
     let mut started = false;
     
     let all_send_to_server = send_to_server.clone();
@@ -118,13 +119,13 @@ async fn start_server(send_to_server: Sender<GameMessageWrap>, clients_sender: U
     }
 }
 
-pub async fn create_server() -> (UnboundedSender<ConnectionMessageWrap>, Receiver<GameMessageWrap>) {
+pub async fn create_server(ip_port: String) -> (UnboundedSender<ConnectionMessageWrap>, Receiver<GameMessageWrap>) {
     // let (sender: Sender<GameMessage>, receiver: Receiver<GameMessage>) = mpsc::channel();
     let  (sender_to_server, receive_server) = std::sync::mpsc::channel();
     let  (sender_to_clients, receieve_clients) = mpsc::unbounded_channel();
     let send_clients_clone = sender_to_clients.clone();
     thread::spawn(|| {
-        start_server(sender_to_server, send_clients_clone, receieve_clients).unwrap();
+        start_server(ip_port, sender_to_server, send_clients_clone, receieve_clients).unwrap();
     });
 
     let start_msg = receive_server.recv();
@@ -157,10 +158,10 @@ pub fn string_to_msg_buffer(string_msg: String) -> Vec<u8> {
     return msg;
 }
 
-pub fn test_client_just_print() {
-    match TcpStream::connect(IP_PORT) {
+pub fn test_client_just_print(ip_port: String) {
+    match TcpStream::connect(ip_port.clone()) {
         Ok(mut stream) => {
-            println!("Successfully connected to server in {}", IP_PORT);
+            println!("Successfully connected to server in {}", ip_port);
 
             //let msg = b"Hello There!";
             let msg = GameMessage::StringMsg("Hello There!".to_string());
@@ -188,11 +189,11 @@ pub fn test_client_just_print() {
     println!("Client Terminated.");
 }
 
-pub fn test_client_with_func(f: Box<dyn Fn(TcpStream) -> () + Send> ) {
+pub fn test_client_with_func(ip_port: String, f: Box<dyn Fn(TcpStream) -> () + Send> ) {
     thread::spawn(move || {
-        match TcpStream::connect(IP_PORT) {
+        match TcpStream::connect(ip_port.clone()) {
             Ok(stream) => {
-                println!("Successfully connected to server in {}", IP_PORT);
+                println!("Successfully connected to server in {}", ip_port);
                 f(stream);
             },
             Err(e) => {
@@ -203,13 +204,13 @@ pub fn test_client_with_func(f: Box<dyn Fn(TcpStream) -> () + Send> ) {
     });
 }
 
-pub fn test_client_with_func_handle(f: Box<dyn Fn(TcpStream) -> () + Send> ) -> JoinHandle<()> {
+pub fn test_client_with_func_handle(ip_port: String, f: Box<dyn Fn(TcpStream) -> () + Send> ) -> JoinHandle<()> {
     let ret = thread::spawn(move || {
         let mut connected = false;
         while !connected {
-            connected = match TcpStream::connect(IP_PORT) {
+            connected = match TcpStream::connect(ip_port.clone()) {
                 Ok(stream) => {
-                    println!("Successfully connected to server in {}", IP_PORT);
+                    println!("Successfully connected to server in {}", ip_port);
                     f(stream);
                     true
                 },
@@ -225,8 +226,8 @@ pub fn test_client_with_func_handle(f: Box<dyn Fn(TcpStream) -> () + Send> ) -> 
 }
 
 #[tokio::main]
-pub async fn dumb_server() -> Result<(), Box<dyn std::error::Error>> {
-    let listener = TcpListener::bind(IP_PORT).await?;
+pub async fn dumb_server(ip_port: String) -> Result<(), Box<dyn std::error::Error>> {
+    let listener = TcpListener::bind(ip_port).await?;
     println!("Started dumb server");
     loop {
         let (mut socket, _) = listener.accept().await?;
@@ -255,12 +256,12 @@ pub async fn dumb_server() -> Result<(), Box<dyn std::error::Error>> {
     }
 }
 
-pub async fn create_server_dumb() -> std::sync::mpsc::Receiver<GameMessage> {
+pub async fn create_server_dumb(ip_port: String) -> std::sync::mpsc::Receiver<GameMessage> {
     // let (sender: Sender<GameMessage>, receiver: Receiver<GameMessage>) = mpsc::channel();
     let (_, receiver) = std::sync::mpsc::channel();
 
     let _ = thread::spawn(|| {
-        dumb_server().unwrap();
+        dumb_server(ip_port).unwrap();
     });
     
     println!("b4 spawn");

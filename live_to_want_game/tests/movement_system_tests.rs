@@ -23,6 +23,7 @@ fn test_movement_normal() {
         frame_ready_to_move:0,
         destination:Location::new0(),
     });
+    c.setup_creature(0, false);
     println!("Creature id: {}", c.components.id_component.id());
 
     map.regions[0][0].grid[1][1].creatures.add_creature(c, 0);
@@ -39,7 +40,7 @@ fn test_movement_normal() {
     process_events_from_mapstate(&mut map, move_chain);
 
     //in loop:
-    for frame_add in 0..38 {
+    for _frame_add in 0..38 {
         map.frame_count+=1;
         let current_frame = map.frame_count;
         println!("Starting frame: {}", map.frame_count);

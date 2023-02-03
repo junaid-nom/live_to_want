@@ -279,9 +279,9 @@ fn test_chain_multithread_items() {
         // for all events, get current target, and make hashtable of Vec for it
         // transfer the Vec and Targets to a TaskList
         let event_chains = vec![deer_chain1, deer_chain2];
-        let mut ed1 = EventTarget::CreatureTarget(d1_ref);
-        let mut ed2 = EventTarget::CreatureTarget(d2_ref);
-        let mut eloc = EventTarget::LocationItemTarget(loc_ref, berry_id);
+        let ed1 = EventTarget::CreatureTarget(d1_ref);
+        let ed2 = EventTarget::CreatureTarget(d2_ref);
+        let eloc = EventTarget::LocationItemTarget(loc_ref, berry_id);
         let mut targets = vec![ed1, ed2, eloc];
         //let targets = &mut targets;
         
@@ -412,7 +412,7 @@ fn test_chain_multithread_battle<'a>() {
     assert_eq!(game_state.map_state.get_creature_item_list()[0].1, deer1_id);
 
     for _ in 0..32 {
-        game_state = run_frame(game_state, &attack);
+        game_state = run_frame(game_state, Some(&attack), None);
         println!("creatures: {}", game_state.map_state.get_creature_strings());
     }
 
@@ -423,7 +423,7 @@ fn test_chain_multithread_battle<'a>() {
     println!("BEGIN PHASE 2!");
 
     for _ in 0..29 {
-        game_state = run_frame(game_state, &attack);
+        game_state = run_frame(game_state, Some(&attack), None);
         println!("creatures: {}", game_state.map_state.get_creature_strings());
     }
 
@@ -434,7 +434,7 @@ fn test_chain_multithread_battle<'a>() {
 
     // make sure don't crash if no creatures to fight.
     for _ in 0..3 {
-        game_state = run_frame(game_state, &attack);
+        game_state = run_frame(game_state, Some(&attack), None);
         println!("creatures: {}", game_state.map_state.get_creature_strings());
     }
 }
@@ -512,8 +512,8 @@ fn test_max_dist_battle<'a>() {
     });
     
     let deer1_id = deer1.components.id_component.id();
-    let deer2_id = deer2.components.id_component.id();
-    let deer3_id = deer3.components.id_component.id();
+    let _deer2_id = deer2.components.id_component.id();
+    let _deer3_id = deer3.components.id_component.id();
     region.grid[deer1.components.location_component.location].creatures.add_creature(
         deer1, 0
     );
@@ -544,7 +544,7 @@ fn test_max_dist_battle<'a>() {
 
     // Creatures should be too far away to attack each other!
     for _ in 0..65 {
-        game_state = run_frame(game_state, &attack);
+        game_state = run_frame(game_state, Some(&attack), None);
         println!("creatures: {}", game_state.map_state.get_creature_strings());
     }
 

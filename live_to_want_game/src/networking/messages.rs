@@ -120,8 +120,8 @@ impl ConnectionManager {
     // on init, creates a server. Then saves the returned channels.
     // then has methods, receive message and send message.
     // it should manage username:conn_uid and stuff through login_manager
-    pub async fn new() -> Self {
-        let (send_to_clients, receive_server_messages) = create_server().await;
+    pub async fn new(ip_port: String) -> Self {
+        let (send_to_clients, receive_server_messages) = create_server(ip_port).await;
         ConnectionManager {
             send_to_clients,
             receive_server_messages,

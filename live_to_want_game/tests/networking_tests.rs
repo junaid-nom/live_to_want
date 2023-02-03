@@ -18,13 +18,15 @@ use std::{thread, time};
 
 #[tokio::test]
 async fn run_simple_server_test() {
+    let ip_port: String = "127.0.0.1:7727".to_string();
+
     // - One test that uses ConnectionManager to create a server.
     // Then in a loop call get_msgs every x seconds.
     // Also in another thread call test_clients that try to login and then send
     // a string message. make sure the string message arrives with the right username
 
-    let mut server = ConnectionManager::new().await;
-    test_client_with_func(Box::new(|mut stream: TcpStream| {
+    let mut server = ConnectionManager::new(ip_port.clone()).await;
+    test_client_with_func(ip_port.clone(), Box::new(|mut stream: TcpStream| {
         stream.write(&wrap_ser_message(GameMessage::LoginMsg(User{
             username: "test".to_string(),
             password: "poop".to_string(),
@@ -51,7 +53,7 @@ async fn run_simple_server_test() {
         }
     }));
 
-    test_client_with_func(Box::new(|mut stream: TcpStream| {
+    test_client_with_func(ip_port.clone(), Box::new(|mut stream: TcpStream| {
         stream.write(&wrap_ser_message(GameMessage::LoginMsg(User{
             username: "test2".to_string(),
             password: "poop".to_string(),
@@ -90,7 +92,7 @@ async fn run_simple_server_test() {
         );
     }
     
-    test_client_with_func(Box::new(|mut stream: TcpStream| {
+    test_client_with_func(ip_port.clone(), Box::new(|mut stream: TcpStream| {
         // below should fail to login b/c wrong password
         stream.write(&wrap_ser_message(GameMessage::LoginMsg(User{
             username: "test2".to_string(),
@@ -154,12 +156,14 @@ async fn run_simple_server_test() {
 
 #[tokio::test]
 async fn run_connection_manager_test_send_all_and_multi_login() {
+    let ip_port: String = "127.0.0.1:7728".to_string(); // make sure port is diff so tests can run concurrently
+
     // test many clients connected.
     // have one try to login to same user already connected.
     // make sure first connector is forcefully dced.
     // then send_all to make sure stuff is working.
 
-    let mut server = ConnectionManager::new().await;
+    let mut server = ConnectionManager::new(ip_port.clone()).await;
     fn make_client_func(username: String) -> Box<dyn Fn(TcpStream) -> () + Send> {
         return Box::new(move |mut stream: TcpStream| {
             let username = username.clone();
@@ -194,7 +198,7 @@ async fn run_connection_manager_test_send_all_and_multi_login() {
     }
     let clients_started = 10;
     (0..clients_started).for_each(|i| {
-        test_client_with_func(make_client_func(format!("u{}", i)));
+        test_client_with_func(ip_port.clone(), make_client_func(format!("u{}", i)));
     });
 
     let mut got_msgs = 0;
@@ -236,7 +240,7 @@ async fn run_connection_manager_test_send_all_and_multi_login() {
         });
     }
 
-    test_client_with_func(make_overwrite_client_func(format!("u9")));
+    test_client_with_func(ip_port.clone(), make_overwrite_client_func(format!("u9")));
 
     server.send_message_all(GameMessage::StringMsg("ServerMsg".to_string()));
 
@@ -323,13 +327,19 @@ fn test_serde2() {
 
 #[tokio::test]
 async fn run_dumb_server_test() {
-    create_server_dumb().await;
+    let ip_port: String = "127.0.0.1:7729".to_string(); // make sure port is diff so tests can run concurrently
+
+    create_server_dumb(ip_port).await;
     println!("Ran create server");
-    thread::sleep(time::Duration::from_millis(1000*60*5));
+    // I think I used the below to test in my browser/postman if stuff is working.
+    //thread::sleep(time::Duration::from_millis(1000*60*5));
+    thread::sleep(time::Duration::from_millis(1000));
 }
 
 #[tokio::test]
 async fn run_game_server() {
+    let ip_port: String = "127.0.0.1:7730".to_string(); // make sure port is diff so tests can run concurrently
+
     let openr = RegionCreationStruct::new(10,10, 0, vec![]);
     let rgrid = vec![
         vec![openr.clone()],
@@ -487,9 +497,10 @@ async fn run_game_server() {
 
     // See last post of: https://users.rust-lang.org/t/how-to-use-async-fn-in-thread-spawn/46413/5
     // for how this works
-    let server_handle = tokio::spawn(async {
+    let ip_port_copy = ip_port.clone();
+    let server_handle = tokio::spawn(async move {
         println!("Running server thread");
-        create_game_server(map, 500, true).await;
+        create_game_server(ip_port_copy, map, 500, true).await;
     });
     // Note need to use tokio threads because we have a ConnectionManager.await.
     // Then need to await this server_handle or it will never run 
@@ -539,5 +550,5 @@ async fn run_game_server() {
         });
     }
 
-    test_client_with_func_handle(make_client_func(format!("userguy"))).join().expect("couldnt start client");
+    test_client_with_func_handle(ip_port, make_client_func(format!("userguy"))).join().expect("couldnt start client");
 }

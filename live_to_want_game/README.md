@@ -241,6 +241,9 @@ updates rust version
 `cargo test`
 Runs all tests. No captured output.
 
+`cargo test --no-fail-fast`
+Runs all tests, even if one fails it'll continue.
+
 `cargo test -- --show-output`
 Runs all test, and shows output
 
