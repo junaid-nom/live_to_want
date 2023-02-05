@@ -1,6 +1,6 @@
 use std::{fmt::Formatter, cmp::max};
 use serde::{Deserialize, Serialize};
-use crate::{Location, RegionComponent, UID, map_state::Item, utils::Vector2, utils::Vu2, UserComponent, STANDARD_PREGNANCY_TIME, STANDARD_CHILD_TIME, FAST_GROWER_MULTIPLIER, SPECIES_SEX_RANGE, MAX_ATTACK_DISTANCE, DEFAULT_VISION_RANGE, ItemType};
+use crate::{Location, RegionComponent, UID, map_state::Item, utils::Vector2, utils::Vu2, UserComponent, STANDARD_PREGNANCY_TIME, STANDARD_CHILD_TIME, FAST_GROWER_MULTIPLIER, SPECIES_SEX_RANGE, MAX_ATTACK_DISTANCE, DEFAULT_VISION_RANGE, ItemType, SoilComponent};
 
 use super::{ComponentMap, IDComponent, LocationComponent, HealthComponent, NameComponent, StarvationComponent, REPRODUCE_STARTING_CALORIES_MULTIPLIER};
 
@@ -50,6 +50,34 @@ impl CreatureState {
         ret.components.location_component = LocationComponent{location:loc.position};
         ret.components.region_component = RegionComponent{region:loc.region};
         ret
+    }
+
+    pub fn get_item_based_on_soil(&self) -> Option<Item> {
+        if let Some(soil) = self.components.soil_component{
+            match soil.soil_height {
+                crate::SoilHeight::Grass => match soil.soil_type_cannot_grow {
+                    crate::SoilType::Silt => todo!(),
+                    crate::SoilType::Clay => todo!(),
+                    crate::SoilType::Sand => todo!(),
+                },
+                crate::SoilHeight::Flower => match soil.soil_type_cannot_grow {
+                    crate::SoilType::Silt => todo!(),
+                    crate::SoilType::Clay => todo!(),
+                    crate::SoilType::Sand => todo!(),
+                },
+                crate::SoilHeight::Bush => match soil.soil_type_cannot_grow {
+                    crate::SoilType::Silt => todo!(),
+                    crate::SoilType::Clay => todo!(),
+                    crate::SoilType::Sand => todo!(),
+                },
+                crate::SoilHeight::All => match soil.soil_type_cannot_grow {
+                    crate::SoilType::Silt => todo!(),
+                    crate::SoilType::Clay => todo!(),
+                    crate::SoilType::Sand => todo!(),
+                },
+            }
+        }
+        None
     }
 
     pub fn can_sex_anything(&self, frame: u128) -> bool {
