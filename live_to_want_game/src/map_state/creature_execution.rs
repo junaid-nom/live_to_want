@@ -21,6 +21,19 @@ pub enum ItemType {
     Shield,
     Arrow,
     Bow,
+
+    PSiltGrass,
+    PSiltFlower,
+    PSiltBush,
+    PSiltAll,
+    PSandGrass,
+    PSandBush,
+    PSandFlower,
+    PSandAll,
+    PClayGrass,
+    PClayFlower,
+    PClayBush,
+    PClayAll,
 }
 impl Default for ItemType {
     fn default() -> Self { ItemType::Berry }

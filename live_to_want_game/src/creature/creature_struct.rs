@@ -1,6 +1,6 @@
 use std::{fmt::Formatter, cmp::max};
 use serde::{Deserialize, Serialize};
-use crate::{Location, RegionComponent, UID, map_state::Item, utils::Vector2, utils::Vu2, UserComponent, STANDARD_PREGNANCY_TIME, STANDARD_CHILD_TIME, FAST_GROWER_MULTIPLIER, SPECIES_SEX_RANGE, MAX_ATTACK_DISTANCE, DEFAULT_VISION_RANGE, ItemType, SoilComponent};
+use crate::{Location, RegionComponent, UID, map_state::Item, utils::Vector2, utils::Vu2, UserComponent, STANDARD_PREGNANCY_TIME, STANDARD_CHILD_TIME, FAST_GROWER_MULTIPLIER, SPECIES_SEX_RANGE, MAX_ATTACK_DISTANCE, DEFAULT_VISION_RANGE, ItemType, SoilComponent, SoilType, SoilHeight};
 
 use super::{ComponentMap, IDComponent, LocationComponent, HealthComponent, NameComponent, StarvationComponent, REPRODUCE_STARTING_CALORIES_MULTIPLIER};
 
@@ -52,30 +52,34 @@ impl CreatureState {
         ret
     }
 
-    pub fn get_item_based_on_soil(&self) -> Option<Item> {
+    pub fn get_item_based_on_soil(soil_type_cannot_grow: SoilType, height: SoilHeight) -> Item {
+        return match height {
+            crate::SoilHeight::Grass => match soil_type_cannot_grow {
+                crate::SoilType::Silt => Item::new(ItemType::PSiltGrass, 1),
+                crate::SoilType::Clay => Item::new(ItemType::PClayGrass, 1),
+                crate::SoilType::Sand => Item::new(ItemType::PSandGrass, 1),
+            },
+            crate::SoilHeight::Flower => match soil_type_cannot_grow {
+                crate::SoilType::Silt => Item::new(ItemType::PSiltFlower, 1),
+                crate::SoilType::Clay => Item::new(ItemType::PClayFlower, 1),
+                crate::SoilType::Sand => Item::new(ItemType::PSandFlower, 1),
+            },
+            crate::SoilHeight::Bush => match soil_type_cannot_grow {
+                crate::SoilType::Silt => Item::new(ItemType::PSiltBush, 1),
+                crate::SoilType::Clay => Item::new(ItemType::PClayBush, 1),
+                crate::SoilType::Sand => Item::new(ItemType::PSandBush, 1),
+            },
+            crate::SoilHeight::All => match soil_type_cannot_grow {
+                crate::SoilType::Silt => Item::new(ItemType::PSiltAll, 1),
+                crate::SoilType::Clay => Item::new(ItemType::PClayAll, 1),
+                crate::SoilType::Sand => Item::new(ItemType::PSandAll, 1),
+            },
+        }
+    }
+
+    pub fn get_item_based_on_soil_creature(&self) -> Option<Item> {
         if let Some(soil) = self.components.soil_component{
-            match soil.soil_height {
-                crate::SoilHeight::Grass => match soil.soil_type_cannot_grow {
-                    crate::SoilType::Silt => todo!(),
-                    crate::SoilType::Clay => todo!(),
-                    crate::SoilType::Sand => todo!(),
-                },
-                crate::SoilHeight::Flower => match soil.soil_type_cannot_grow {
-                    crate::SoilType::Silt => todo!(),
-                    crate::SoilType::Clay => todo!(),
-                    crate::SoilType::Sand => todo!(),
-                },
-                crate::SoilHeight::Bush => match soil.soil_type_cannot_grow {
-                    crate::SoilType::Silt => todo!(),
-                    crate::SoilType::Clay => todo!(),
-                    crate::SoilType::Sand => todo!(),
-                },
-                crate::SoilHeight::All => match soil.soil_type_cannot_grow {
-                    crate::SoilType::Silt => todo!(),
-                    crate::SoilType::Clay => todo!(),
-                    crate::SoilType::Sand => todo!(),
-                },
-            }
+            return Some(CreatureState::get_item_based_on_soil(soil.soil_type_cannot_grow, soil.soil_height));
         }
         None
     }
