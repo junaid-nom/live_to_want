@@ -1,6 +1,9 @@
 use crate::{Item, map_state::Location, utils::{UID, get_id, Vu2}};
 use serde::{Deserialize, Serialize};
 use rand::Rng;
+use strum::IntoEnumIterator;
+use strum_macros::EnumIter;
+
 // game constants:
 pub static DEBUG_EVENTS: bool = true;
 
@@ -213,7 +216,7 @@ impl Component for AIComponent {
 
 #[derive(Debug, Clone, Copy)]
 #[derive(PartialEq, Hash, Eq)]
-#[derive(Deserialize, Serialize)]
+#[derive(Deserialize, Serialize, EnumIter)]
 // Essentially for budding and plant reproduction, don't reproduce onto a tile that already has something with the uses the same soil layer.
 // For things that "bud" that don't need any soil remove the soil component, like if I ever make budding animals
 // All Type takes up all the soil nothing can grow EXCEPT Free.
@@ -230,7 +233,7 @@ impl Default for SoilHeight {
 
 #[derive(Debug, Clone, Copy)]
 #[derive(PartialEq, Hash, Eq)]
-#[derive(Deserialize, Serialize)]
+#[derive(Deserialize, Serialize, EnumIter)]
 // there are three soil types. Budders have a type that lets them grow on 
 // 2 out of 3 soils, and another state that determines which soil type they spread around them.
 pub enum SoilType {

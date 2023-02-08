@@ -3,6 +3,7 @@ use std::{rc::Rc, cell::RefCell};
 
 use rayon::prelude::*;
 use live_to_want_game::{*, reward_graph::{RootNode, Node, RewardNode, RewardResult, RequirementResult, VariableChange, CostResult, RewardNodeConnection, Variable, ConnectionResult, RewardNodeCreatureList}};
+use strum::IntoEnumIterator;
 
 #[test]
 fn run_frames_test_starvation_and_death() {
@@ -1314,6 +1315,21 @@ fn test_budding_height() {
                     assert!(false);
                 }
             }
+        }
+    }
+}
+
+#[test]
+fn test_soil_item_drop_unique() {
+    // Test if they are all unique.
+    let mut items: Vec<Item> = vec![];
+    for soil in SoilType::iter() {
+        for height in SoilHeight::iter() {
+            let item = CreatureState::get_item_based_on_soil(soil, height);
+            for existing in items.iter() {
+                assert_ne!(existing.item_type, item.item_type);
+            }
+            items.push(item);
         }
     }
 }
