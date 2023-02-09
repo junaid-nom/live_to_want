@@ -496,15 +496,15 @@ pub struct EvolvingTraits {
     // eating:
     // TODONEXT: implement a function that given a creature_state ref, 
     // gives calories for eating it based on below.
-    pub eat_sand_silt: i32,
-    pub eat_sand_clay: i32,
-    pub eat_silt_clay: i32,
-    pub eat_grass_flower: i32,
-    pub eat_grass_bush: i32,
-    pub eat_grass_all: i32,
-    pub eat_flower_bush: i32,
-    pub eat_flower_all: i32,
-    pub eat_bush_all: i32,
+    // pub eat_sand_silt: i32,
+    // pub eat_sand_clay: i32,
+    // pub eat_silt_clay: i32,
+    // pub eat_grass_flower: i32,
+    // pub eat_grass_bush: i32,
+    // pub eat_grass_all: i32,
+    // pub eat_flower_bush: i32,
+    // pub eat_flower_all: i32,
+    // pub eat_bush_all: i32,
 }
 impl EvolvingTraits {
     pub fn clone_with_multiplier_and_exceptions(&self, multiplier :f32, ignore_child_exceptions: bool) -> EvolvingTraits {
