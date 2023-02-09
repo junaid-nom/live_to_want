@@ -489,12 +489,22 @@ pub struct EvolvingTraits {
     pub cannibal_childbirth: i32, // chance to die in childbirth, but babies born with a lot of calories
 
     //Unimplemented:
-    //move_speed, make it increase metabolism while doing
-
     pub hamstring: i32, // lowers speed of victim after attacksimple? need to make a whole status effect component for this? or add to movement componenet (prob that?)? how to do duration though and magnitude? debug stack shud prob make a whoel component then for status conditions?
     pub more_mutations: i32, // Higher the number more mutations that will happen, similar to litter_size in terms of probability and guarantees after 100
     // pub graceful: i32, // higher this value the less ur metabolism consumed when moving. BAD because move_speed is OP as fuck and its cost is food so fuck buffing it by making this exist.
     // pub anti_rape: i32, // increases chance of sex failing when other creatures try to sex you.
+    // eating:
+    // TODONEXT: implement a function that given a creature_state ref, 
+    // gives calories for eating it based on below.
+    pub eat_sand_silt: i32,
+    pub eat_sand_clay: i32,
+    pub eat_silt_clay: i32,
+    pub eat_grass_flower: i32,
+    pub eat_grass_bush: i32,
+    pub eat_grass_all: i32,
+    pub eat_flower_bush: i32,
+    pub eat_flower_all: i32,
+    pub eat_bush_all: i32,
 }
 impl EvolvingTraits {
     pub fn clone_with_multiplier_and_exceptions(&self, multiplier :f32, ignore_child_exceptions: bool) -> EvolvingTraits {
