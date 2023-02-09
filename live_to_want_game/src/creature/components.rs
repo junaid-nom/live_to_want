@@ -1,4 +1,4 @@
-use crate::{Item, map_state::Location, utils::{UID, get_id, Vu2}};
+use crate::{Item, map_state::Location, utils::{UID, get_id, Vu2}, ItemType};
 use serde::{Deserialize, Serialize};
 use rand::Rng;
 use strum::IntoEnumIterator;
@@ -46,6 +46,10 @@ pub static DEFAULT_VISION_RANGE: f32 = 5.;
 
 pub static DEFAULT_SOIL_SPREAD_RATE: u32 = STANDARD_FRAMES_TO_MOVE as u32 * 20;
 pub static DEFAULT_BUD_RATE: u32 = STANDARD_FRAMES_TO_MOVE as u32 * 10;
+
+pub static CALORIE_PER_ITEM_BASE: i32 = 100;
+pub static EAT_TRAIT_TO_CALORIE_MULTIPLIER: f32 = 0.01; // 100 = 100 calories
+
 
 pub trait Component: Sync + Send + Clone {
     fn get_visible() -> bool {
@@ -495,16 +499,18 @@ pub struct EvolvingTraits {
     // pub anti_rape: i32, // increases chance of sex failing when other creatures try to sex you.
     // eating:
     // TODONEXT: implement a function that given a creature_state ref, 
-    // gives calories for eating it based on below.
-    // pub eat_sand_silt: i32,
-    // pub eat_sand_clay: i32,
-    // pub eat_silt_clay: i32,
-    // pub eat_grass_flower: i32,
-    // pub eat_grass_bush: i32,
-    // pub eat_grass_all: i32,
-    // pub eat_flower_bush: i32,
-    // pub eat_flower_all: i32,
-    // pub eat_bush_all: i32,
+    // gives calories for eating it based on below traits.
+    // soil:
+    pub eat_sand_silt: i32,
+    pub eat_sand_clay: i32,
+    pub eat_silt_clay: i32,
+    // height:
+    pub eat_grass_flower: i32,
+    pub eat_grass_bush: i32,
+    pub eat_grass_all: i32,
+    pub eat_flower_bush: i32,
+    pub eat_flower_all: i32,
+    pub eat_bush_all: i32,
 }
 impl EvolvingTraits {
     pub fn clone_with_multiplier_and_exceptions(&self, multiplier :f32, ignore_child_exceptions: bool) -> EvolvingTraits {
@@ -521,6 +527,15 @@ impl EvolvingTraits {
             girth: (self.girth as f32 * multiplier) as i32,
             more_mutations: (self.more_mutations as f32 * multiplier) as i32,
             cannibal_childbirth: (self.cannibal_childbirth as f32 * multiplier) as i32,
+            eat_sand_silt: (self.eat_sand_silt as f32 * multiplier) as i32,
+            eat_sand_clay: (self.eat_sand_clay as f32 * multiplier) as i32,
+            eat_silt_clay: (self.eat_silt_clay as f32 * multiplier) as i32,
+            eat_grass_flower: (self.eat_grass_flower as f32 * multiplier) as i32,
+            eat_grass_bush: (self.eat_grass_bush as f32 * multiplier) as i32,
+            eat_grass_all: (self.eat_grass_all as f32 * multiplier) as i32,
+            eat_flower_bush: (self.eat_flower_bush as f32 * multiplier) as i32,
+            eat_flower_all: (self.eat_flower_all as f32 * multiplier) as i32,
+            eat_bush_all: (self.eat_bush_all as f32 * multiplier) as i32,
         }
     }
 
@@ -556,6 +571,17 @@ impl EvolvingTraits {
             girth: EvolvingTraits::mix_traits(self.girth, mate.girth),
             more_mutations: EvolvingTraits::mix_traits(self.more_mutations, mate.more_mutations),
             cannibal_childbirth: EvolvingTraits::mix_traits(self.cannibal_childbirth, mate.cannibal_childbirth),
+
+            eat_sand_silt: EvolvingTraits::mix_traits(self.eat_sand_silt, mate.eat_sand_silt),
+            eat_sand_clay: EvolvingTraits::mix_traits(self.eat_sand_clay, mate.eat_sand_clay),
+            eat_silt_clay: EvolvingTraits::mix_traits(self.eat_silt_clay, mate.eat_silt_clay),
+
+            eat_grass_flower: EvolvingTraits::mix_traits(self.eat_grass_flower, mate.eat_grass_flower),
+            eat_grass_bush: EvolvingTraits::mix_traits(self.eat_grass_bush, mate.eat_grass_bush),
+            eat_grass_all: EvolvingTraits::mix_traits(self.eat_grass_all, mate.eat_grass_all),
+            eat_flower_bush: EvolvingTraits::mix_traits(self.eat_flower_bush, mate.eat_flower_bush),
+            eat_flower_all: EvolvingTraits::mix_traits(self.eat_flower_all, mate.eat_flower_all),
+            eat_bush_all: EvolvingTraits::mix_traits(self.eat_bush_all, mate.eat_bush_all),
         }
     }
 }
@@ -603,6 +629,47 @@ impl EvolvingTraitsComponent {
         }
 
         total as u32
+    }
+
+    pub fn trait_to_calorie_formula(trait_value: i32) -> i32 {
+        (CALORIE_PER_ITEM_BASE as f32 * (trait_value as f32 * EAT_TRAIT_TO_CALORIE_MULTIPLIER)) as i32
+    }
+
+    pub fn traits_to_calorie_formula(traits: &[i32]) -> i32{
+        let mut total = 0;
+        for trait_val in traits.iter() {
+            total += EvolvingTraitsComponent::trait_to_calorie_formula(*trait_val);
+        }
+        total
+    }
+
+    pub fn get_calories_from_item_type(&self, item: &ItemType) -> i32 {
+        let mut calories = 0;
+        calories += match item {
+            ItemType::PSiltGrass => {
+                EvolvingTraitsComponent::traits_to_calorie_formula(&[
+                    self.traits.eat_silt_clay,
+                    self.traits.eat_sand_silt,
+                    self.traits.eat_grass_all,
+                    self.traits.eat_grass_flower,
+                    self.traits.eat_grass_bush,
+                ])
+            },
+            ItemType::PSiltFlower => todo!(),
+            ItemType::PSiltBush => todo!(),
+            ItemType::PSiltAll => todo!(),
+            ItemType::PSandGrass => todo!(),
+            ItemType::PSandBush => todo!(),
+            ItemType::PSandFlower => todo!(),
+            ItemType::PSandAll => todo!(),
+            ItemType::PClayGrass => todo!(),
+            ItemType::PClayFlower => todo!(),
+            ItemType::PClayBush => todo!(),
+            ItemType::PClayAll => todo!(),
+            _ => 0,
+        };
+
+        calories
     }
 
     pub fn get_adult_percent(&self, frame: u128) -> f32 {
