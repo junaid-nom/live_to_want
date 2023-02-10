@@ -655,17 +655,107 @@ impl EvolvingTraitsComponent {
                     self.traits.eat_grass_bush,
                 ])
             },
-            ItemType::PSiltFlower => todo!(),
-            ItemType::PSiltBush => todo!(),
-            ItemType::PSiltAll => todo!(),
-            ItemType::PSandGrass => todo!(),
-            ItemType::PSandBush => todo!(),
-            ItemType::PSandFlower => todo!(),
-            ItemType::PSandAll => todo!(),
-            ItemType::PClayGrass => todo!(),
-            ItemType::PClayFlower => todo!(),
-            ItemType::PClayBush => todo!(),
-            ItemType::PClayAll => todo!(),
+            ItemType::PSiltFlower => {
+                EvolvingTraitsComponent::traits_to_calorie_formula(&[
+                    self.traits.eat_silt_clay,
+                    self.traits.eat_sand_silt,
+                    self.traits.eat_flower_bush,
+                    self.traits.eat_grass_flower,
+                    self.traits.eat_flower_all,
+                ])
+            },
+            ItemType::PSiltBush => {
+                EvolvingTraitsComponent::traits_to_calorie_formula(&[
+                    self.traits.eat_silt_clay,
+                    self.traits.eat_sand_silt,
+                    self.traits.eat_bush_all,
+                    self.traits.eat_grass_bush,
+                    self.traits.eat_flower_bush,
+                ])
+            },
+            ItemType::PSiltAll => {
+                EvolvingTraitsComponent::traits_to_calorie_formula(&[
+                    self.traits.eat_silt_clay,
+                    self.traits.eat_sand_silt,
+                    self.traits.eat_grass_all,
+                    self.traits.eat_flower_all,
+                    self.traits.eat_bush_all,
+                ])
+            },
+
+            ItemType::PSandGrass => {
+                EvolvingTraitsComponent::traits_to_calorie_formula(&[
+                    self.traits.eat_sand_clay,
+                    self.traits.eat_sand_silt,
+                    self.traits.eat_grass_all,
+                    self.traits.eat_grass_flower,
+                    self.traits.eat_grass_bush,
+                ])
+            },
+            ItemType::PSandFlower => {
+                EvolvingTraitsComponent::traits_to_calorie_formula(&[
+                    self.traits.eat_sand_clay,
+                    self.traits.eat_sand_silt,
+                    self.traits.eat_flower_bush,
+                    self.traits.eat_grass_flower,
+                    self.traits.eat_flower_all,
+                ])
+            },
+            ItemType::PSandBush => {
+                EvolvingTraitsComponent::traits_to_calorie_formula(&[
+                    self.traits.eat_sand_clay,
+                    self.traits.eat_sand_silt,
+                    self.traits.eat_bush_all,
+                    self.traits.eat_grass_bush,
+                    self.traits.eat_flower_bush,
+                ])
+            },
+            ItemType::PSandAll => {
+                EvolvingTraitsComponent::traits_to_calorie_formula(&[
+                    self.traits.eat_sand_clay,
+                    self.traits.eat_sand_silt,
+                    self.traits.eat_grass_all,
+                    self.traits.eat_flower_all,
+                    self.traits.eat_bush_all,
+                ])
+            },
+
+            ItemType::PClayGrass => {
+                EvolvingTraitsComponent::traits_to_calorie_formula(&[
+                    self.traits.eat_silt_clay,
+                    self.traits.eat_sand_clay,
+                    self.traits.eat_grass_all,
+                    self.traits.eat_grass_flower,
+                    self.traits.eat_grass_bush,
+                ])
+            },
+            ItemType::PClayFlower => {
+                EvolvingTraitsComponent::traits_to_calorie_formula(&[
+                    self.traits.eat_silt_clay,
+                    self.traits.eat_sand_clay,
+                    self.traits.eat_flower_bush,
+                    self.traits.eat_grass_flower,
+                    self.traits.eat_flower_all,
+                ])
+            },
+            ItemType::PClayBush => {
+                EvolvingTraitsComponent::traits_to_calorie_formula(&[
+                    self.traits.eat_silt_clay,
+                    self.traits.eat_sand_clay,
+                    self.traits.eat_bush_all,
+                    self.traits.eat_grass_bush,
+                    self.traits.eat_flower_bush,
+                ])
+            },
+            ItemType::PClayAll => {
+                EvolvingTraitsComponent::traits_to_calorie_formula(&[
+                    self.traits.eat_silt_clay,
+                    self.traits.eat_sand_clay,
+                    self.traits.eat_grass_all,
+                    self.traits.eat_grass_flower,
+                    self.traits.eat_grass_bush,
+                ])
+            },
             _ => 0,
         };
 
