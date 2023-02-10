@@ -582,6 +582,15 @@ impl EvolvingTraits {
             eat_flower_bush: EvolvingTraits::mix_traits(self.eat_flower_bush, mate.eat_flower_bush),
             eat_flower_all: EvolvingTraits::mix_traits(self.eat_flower_all, mate.eat_flower_all),
             eat_bush_all: EvolvingTraits::mix_traits(self.eat_bush_all, mate.eat_bush_all),
+
+            // TODO: duplicate the above with carnivore_eat_x_y 
+            // then make it so animals who have the above traits will drop
+            // meat based on those traits. The meat being 1:1 with the traits.
+            // the more they have of the traits the more meat they drop.
+            // So an animal with alot of points in ALL of them will drop alot
+            // of meat in all of them.
+            // Carnivore_xyz traits will multiple calories gained by eating
+            // that specific meat.
         }
     }
 }
