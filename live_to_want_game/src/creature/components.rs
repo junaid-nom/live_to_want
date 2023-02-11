@@ -761,8 +761,8 @@ impl EvolvingTraitsComponent {
                     self.traits.eat_silt_clay,
                     self.traits.eat_sand_clay,
                     self.traits.eat_grass_all,
-                    self.traits.eat_grass_flower,
-                    self.traits.eat_grass_bush,
+                    self.traits.eat_flower_all,
+                    self.traits.eat_bush_all,
                 ])
             },
             _ => 0,

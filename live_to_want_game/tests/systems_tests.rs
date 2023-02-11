@@ -1334,6 +1334,80 @@ fn test_soil_item_drop_unique() {
     }
 }
 
+#[test]
+fn test_eat_soil_calories() {
+    let traits = EvolvingTraits {
+        eat_sand_silt: 1,
+        eat_sand_clay: 0,
+        eat_silt_clay: 1,
+        eat_grass_flower: 1,
+        eat_grass_bush: 1,
+        eat_grass_all: 0,
+        eat_flower_bush: 0,
+        eat_flower_all: 0,
+        eat_bush_all: 1,
+        ..Default::default()
+    };
+    // Test if they are all unique.
+    let component = EvolvingTraitsComponent {
+        adult_traits: traits.clone(),
+        traits: traits,
+        child_until_frame: 0,
+        born_on_frame: 0,
+    };
+    assert_eq!(4, component.get_calories_from_item_type(&ItemType::PSiltGrass));
+    assert_eq!(3, component.get_calories_from_item_type(&ItemType::PSiltFlower));
+    assert_eq!(4, component.get_calories_from_item_type(&ItemType::PSiltBush));
+    assert_eq!(3, component.get_calories_from_item_type(&ItemType::PSiltAll));
+    
+    assert_eq!(3, component.get_calories_from_item_type(&ItemType::PSandGrass));
+    assert_eq!(2, component.get_calories_from_item_type(&ItemType::PSandFlower));
+    assert_eq!(3, component.get_calories_from_item_type(&ItemType::PSandBush));
+    assert_eq!(2, component.get_calories_from_item_type(&ItemType::PSandAll));
+    
+    assert_eq!(3, component.get_calories_from_item_type(&ItemType::PClayGrass));
+    assert_eq!(2, component.get_calories_from_item_type(&ItemType::PClayFlower));
+    assert_eq!(3, component.get_calories_from_item_type(&ItemType::PClayBush));
+    assert_eq!(2, component.get_calories_from_item_type(&ItemType::PClayAll));
+
+    // inverse of above traits
+    let traits = EvolvingTraits {
+        eat_sand_silt: 0,
+        eat_sand_clay: 1,
+        eat_silt_clay: 0,
+        eat_grass_flower: 0,
+        eat_grass_bush: 0,
+        eat_grass_all: 1,
+        eat_flower_bush: 1,
+        eat_flower_all: 1,
+        eat_bush_all: 0,
+        ..Default::default()
+    };
+    // Test if they are all unique.
+    let component = EvolvingTraitsComponent {
+        adult_traits: traits.clone(),
+        traits: traits,
+        child_until_frame: 0,
+        born_on_frame: 0,
+    };
+    assert_eq!(1, component.get_calories_from_item_type(&ItemType::PSiltGrass));
+    assert_eq!(2, component.get_calories_from_item_type(&ItemType::PSiltFlower));
+    assert_eq!(1, component.get_calories_from_item_type(&ItemType::PSiltBush));
+    assert_eq!(2, component.get_calories_from_item_type(&ItemType::PSiltAll));
+    
+    assert_eq!(2, component.get_calories_from_item_type(&ItemType::PSandGrass));
+    assert_eq!(3, component.get_calories_from_item_type(&ItemType::PSandFlower));
+    assert_eq!(2, component.get_calories_from_item_type(&ItemType::PSandBush));
+    assert_eq!(3, component.get_calories_from_item_type(&ItemType::PSandAll));
+    
+    assert_eq!(2, component.get_calories_from_item_type(&ItemType::PClayGrass));
+    assert_eq!(3, component.get_calories_from_item_type(&ItemType::PClayFlower));
+    assert_eq!(2, component.get_calories_from_item_type(&ItemType::PClayBush));
+    assert_eq!(3, component.get_calories_from_item_type(&ItemType::PClayAll));
+    
+
+}
+
 // Put some budding blockers. Also some deer. Watch the deer be moved around because of the trees
 // Might be easiest to test by having a narrow region only 1 open wide
 #[test]
