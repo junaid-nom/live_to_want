@@ -84,7 +84,8 @@ pub enum CreatureCommand<'b>{
     AttackBattle(&'static str, &'b CreatureState, &'b CreatureState, UID), // attacker, victim, 3rd is battle list uid
     TakeItem(&'static str, InventoryHolder<'b>, InventoryHolder<'b>, Item),
     AttackSimple(&'static str, &'b CreatureState, &'b CreatureState), // attacker, victim
-    Sex(&'static str, &'b CreatureState, &'b CreatureState, u128) // 
+    Sex(&'static str, &'b CreatureState, &'b CreatureState, u128), //
+    UseItem(&'static str, InventoryHolder<'b>, Item),
 }
 impl CreatureCommand<'_> {
     pub fn to_event_chain(&self) -> Option<EventChain> {
@@ -288,7 +289,7 @@ impl CreatureCommand<'_> {
                 return Some(EventChain{
                     events: vec![remove, add],
                     debug_string: format!("Take item {:?} for {}", final_item, get_id_from_inventory(dst)),
-                    creature_list_targets: false,
+                    creature_list_targets: false, // This works because its ITEM LIST TARGET not creature list!
                 })
             }
             CreatureCommand::Sex(_, c1, c2, current_frame) => {
@@ -341,6 +342,56 @@ impl CreatureCommand<'_> {
                     }
                 }
 
+            },
+            CreatureCommand::UseItem(_, src, item) => {
+                let found_item = get_item_from_inventory(src, item.item_type);
+                if let None = found_item {
+                    return None;
+                }
+                let found_item = found_item.unwrap();
+                let final_item = if found_item.quantity < item.quantity {
+                    found_item
+                } else {
+                    *item
+                };
+
+                // event chain is:
+                // remove item from src. req=item exists in that quantity fail=None
+                // add item to dst. req=None(for now, infinite inventory) fail=None
+                let remove = Event{
+                    event_type: EventType::RemoveItem(final_item.quantity, item.item_type),
+                    target: get_id_from_inventory(src),
+                    on_fail: None,
+                    get_requirements: Box::new(|e, et| {
+                        if let EventType::RemoveItem(q, it) = et {
+                            match e {
+                                EventTarget::CreatureTarget(c) => {
+                                    for item in c.inventory.iter() {
+                                        if item.item_type == *it && item.quantity >= *q {
+                                            return true
+                                        }
+                                    }
+                                    return false
+                                }
+                                _ => {
+                                    panic!("Got eventtarget for use item that isn't creature")
+                                }
+                            }
+                        }
+                        panic!("Got EventType that isnt for RemoveItem")
+                    })
+                };
+                let use_item = Event {
+                    event_type: EventType::UseItem(final_item.quantity, item.item_type),
+                    on_fail: None,
+                    get_requirements: Box::new(|_,_| true),
+                    target: get_id_from_inventory(src),
+                };
+                return Some(EventChain{
+                    events: vec![remove, use_item],
+                    debug_string: format!("Use item {:?} for {}", final_item, get_id_from_inventory(src)),
+                    creature_list_targets: false,
+                })
             },
         }
         None

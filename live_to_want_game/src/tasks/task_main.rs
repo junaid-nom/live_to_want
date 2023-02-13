@@ -367,6 +367,47 @@ impl Event {
                     }
                 }
             },
+            EventType::UseItem(quantity, item_type) => {
+                match effected {
+                    EventTarget::CreatureTarget(c) => {
+                        let add_calories = |c: &mut CreatureState, quantity: u32, item_type: ItemType| {
+                            let calories = c.components.evolving_traits.as_mut().unwrap().get_calories_from_item_type(&item_type);
+                            let calories = calories * quantity as i32;
+                            c.components.starvation_component.as_mut().unwrap().calories += calories;
+                        };
+
+                        match item_type {
+                            ItemType::Meat => todo!(),
+                            ItemType::Bone => todo!(),
+                            ItemType::Skin => todo!(),
+                            ItemType::Berry => todo!(),
+                            ItemType::Fiber => todo!(),
+                            ItemType::Wood => todo!(),
+                            ItemType::Spear => todo!(),
+                            ItemType::Shield => todo!(),
+                            ItemType::Arrow => todo!(),
+                            ItemType::Bow => todo!(),
+
+                            ItemType::PSiltGrass => add_calories(c, quantity, item_type),
+                            ItemType::PSiltFlower => add_calories(c, quantity, item_type),
+                            ItemType::PSiltBush => add_calories(c, quantity, item_type),
+                            ItemType::PSiltAll => add_calories(c, quantity, item_type),
+                            ItemType::PSandGrass => add_calories(c, quantity, item_type),
+                            ItemType::PSandFlower => add_calories(c, quantity, item_type),
+                            ItemType::PSandBush => add_calories(c, quantity, item_type),
+                            ItemType::PSandAll => add_calories(c, quantity, item_type),
+                            ItemType::PClayGrass => add_calories(c, quantity, item_type),
+                            ItemType::PClayFlower => add_calories(c, quantity, item_type),
+                            ItemType::PClayBush => add_calories(c, quantity, item_type),
+                            ItemType::PClayAll => add_calories(c, quantity, item_type),
+                        };
+                    },
+                    _ => {
+                        panic!("Got UseItem for wrong target");
+                    }
+                };
+                None
+            },
         }
     }
 }
@@ -385,6 +426,7 @@ pub enum EventType {
     AddCreature(CreatureState, u128),
     RemoveItem(u32, ItemType),
     AddItem(u32, ItemType),
+    UseItem(u32, ItemType),
     SetHealth(i32),
     ChangeHealth(i32),
     IterateBudding(),

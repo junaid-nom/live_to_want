@@ -33,7 +33,7 @@ fn test_1_tier_reward_graph() {
                 target_id: None,
                 target_location: None,
             }
-        }), 
+        }),
         cost: Box::new(|_, _, _| { // total reward should be 10 with these costs
             CostResult {
                 cost_base: 5.,
