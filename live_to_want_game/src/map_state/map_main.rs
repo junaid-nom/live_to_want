@@ -1,6 +1,6 @@
 use std::{convert::TryInto, fmt, ops::Index, ops::IndexMut, sync::Arc, sync::Mutex, vec::Drain, collections::HashMap};
 
-use crate::{BattleList, Neighbor, SoilComponent, SoilHeight, UID, Vu2, creature::CreatureState, creature::IDComponent, get_2d_vec, make_string_at_least_length, make_string_at_most_length, utils::Vector2, EventChain, Event, EventType, SoilType};
+use crate::{BattleList, Neighbor, SoilComponent, SoilHeight, UID, Vu2, creature::CreatureState, creature::IDComponent, get_2d_vec, make_string_at_least_length, make_string_at_most_length, utils::Vector2, EventChain, Event, EventType, SoilType, ItemType};
 use rand::prelude::*;
 extern crate rayon;
 use rayon::prelude::*;
@@ -63,6 +63,12 @@ impl SoilCounts {
         }
     }
 }
+#[derive(Debug, Default, Clone)]
+pub struct ItemLocation {
+    pub item: Item,
+    pub location: Location,
+}
+
 
 #[derive(Debug)]
 #[derive(Default, Clone)]
@@ -250,6 +256,37 @@ impl MapState {
                     if c.components.id_component.id() != src_creature.components.id_component.id() {
                         ret.push(c);
                     }
+                });
+            }
+            // add vector2s to to_check of locations next to this one if they exist
+            // and if they aren't already in the list
+            let neighbors = to_check[idx].get_neighbors_vu2();
+            for n in neighbors {
+                if loc.position.get_distance(n) <= range && self.location_exists_and_holds_creatures(&loc.region, &n) && !to_check.contains(&n) {
+                    to_check.push(n);
+                }
+            }
+
+            idx += 1;
+        }
+        ret
+    }
+
+    pub fn find_items_in_range_to_creature<'a>(&'a self, src_creature: &'a CreatureState, range: f32) -> Vec<ItemLocation> {
+        let loc = src_creature.get_location();
+        let region = &self.regions[loc.region.x as usize][loc.region.y as usize];
+        let mut to_check: Vec<Vu2> = Vec::new();
+        to_check.push(loc.position);
+        let mut idx = 0;
+        let mut ret = Vec::new();
+        while idx < to_check.len() {
+            let checking  = &region.grid[to_check[idx].x as usize][to_check[idx].y as usize];
+            if checking.creatures.holds_creatures() {
+                checking.items.iter().for_each(|item| {
+                    ret.push(ItemLocation {
+                        item: item.clone(),
+                        location: Location{ region: loc.region, position: checking.location },
+                    });
                 });
             }
             // add vector2s to to_check of locations next to this one if they exist
@@ -1829,6 +1866,15 @@ impl MapLocation {
 
     pub fn get_soil_type(&self) -> SoilType {
         self.creatures.soil_type
+    }
+
+    pub fn get_inventory_of_item(&self, item_type: ItemType) -> u32 {
+        for item in &self.items {
+            if item.item_type == item_type {
+                return item.quantity;
+            }
+        }
+        0
     }
 
     pub fn get_if_creature_open_and_soil_open(&self, exits_count_as_blocked: bool, soil_height: Option<SoilHeight>, invalid_soil_type: Option<SoilType>) -> bool {

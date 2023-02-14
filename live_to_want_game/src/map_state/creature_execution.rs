@@ -78,11 +78,12 @@ impl CreatureCommandUser {
 
 #[derive(Debug, Clone)]
 pub enum CreatureCommand<'b>{
+    Nothing(&'static str),
     // str here is for debugging purposes and is usually just the name of the node
     MoveTo(&'static str, &'b CreatureState, Location, u128), // Assume this sets the destination not instantly move to
     Chase(&'static str, &'b CreatureState, &'b CreatureState),
     AttackBattle(&'static str, &'b CreatureState, &'b CreatureState, UID), // attacker, victim, 3rd is battle list uid
-    TakeItem(&'static str, InventoryHolder<'b>, InventoryHolder<'b>, Item),
+    TakeItem(&'static str, InventoryHolder<'b>, InventoryHolder<'b>, Item), // victim, taker, item
     AttackSimple(&'static str, &'b CreatureState, &'b CreatureState), // attacker, victim
     Sex(&'static str, &'b CreatureState, &'b CreatureState, u128), //
     UseItem(&'static str, InventoryHolder<'b>, Item),
@@ -393,6 +394,7 @@ impl CreatureCommand<'_> {
                     creature_list_targets: false,
                 })
             },
+            CreatureCommand::Nothing(_) => return None,
         }
         None
     }

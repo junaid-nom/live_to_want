@@ -22,6 +22,20 @@ pub fn get_count_of_variable(m: &MapState, c: &CreatureState, v: Variable) -> i3
         Variable::Shield => c.get_inventory_of_item(ItemType::Shield) as i32,
         Variable::Arrow => c.get_inventory_of_item(ItemType::Arrow) as i32,
         Variable::Bow => c.get_inventory_of_item(ItemType::Bow) as i32,
+
+        // eat plant stuff
+        Variable::PSiltGrass => c.get_inventory_of_item(ItemType::PSiltGrass) as i32,
+        Variable::PSiltFlower => c.get_inventory_of_item(ItemType::PSiltFlower) as i32,
+        Variable::PSiltBush => c.get_inventory_of_item(ItemType::PSiltBush) as i32,
+        Variable::PSiltAll => c.get_inventory_of_item(ItemType::PSiltAll) as i32,
+        Variable::PSandGrass => c.get_inventory_of_item(ItemType::PSandGrass) as i32,
+        Variable::PSandFlower => c.get_inventory_of_item(ItemType::PSandFlower) as i32,
+        Variable::PSandBush => c.get_inventory_of_item(ItemType::PSandBush) as i32,
+        Variable::PSandAll => c.get_inventory_of_item(ItemType::PSandAll) as i32,
+        Variable::PClayGrass => c.get_inventory_of_item(ItemType::PClayGrass) as i32,
+        Variable::PClayFlower => c.get_inventory_of_item(ItemType::PClayFlower) as i32,
+        Variable::PClayBush => c.get_inventory_of_item(ItemType::PClayBush) as i32,
+        Variable::PClayAll => c.get_inventory_of_item(ItemType::PClayAll) as i32,
     }
 }
 
@@ -208,6 +222,21 @@ pub enum Variable {
     Shield,
     Arrow,
     Bow,
+
+    // pant foods:
+    PSiltGrass,
+    PSiltFlower,
+    PSiltBush,
+    PSiltAll,
+    PSandGrass,
+    PSandFlower,
+    PSandBush,
+    PSandAll,
+    PClayGrass,
+    PClayFlower,
+    PClayBush,
+    PClayAll,
+
     // NOTE inbetween ingredients will need to be variables. Anything that is an inner OR. For example, if  (wood OR clay) AND glue makes a wall, then (wood OR clay) must be its own node and variable.
 }
 #[derive(Debug)]

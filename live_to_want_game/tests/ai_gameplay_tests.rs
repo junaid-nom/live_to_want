@@ -10,7 +10,114 @@ fn test_eat_soil_creatures() {
     // Create reward graph that has:
     // Find Food (wander) -> Chase Food (creature list) -> attack food -> pick up food items -> eat items
     // eat items should be only thing with reward? rest use the connection stuff divide by their effort level
-    
+    let use_food = Node::Reward(RewardNode { 
+        description: "use_food".to_string(),
+        index: 0, 
+        children: vec![], 
+        reward: Box::new(|_, c, _| {
+            let item_type = ItemType::PSiltGrass;
+            RewardResult{
+                reward_local: c.components.evolving_traits.as_ref().unwrap().get_calories_from_item_type(&item_type) as f32,
+                target_id: None,
+                target_location: None,
+            }
+        }),
+        reward_connection: Box::new(|_, _, _| {
+            1.
+        }),
+        requirement: Box::new(|_, c| {
+            RequirementResult {
+                valid: c.get_inventory_of_item(ItemType::PSiltGrass) >= 1,
+                requirements: vec![vec![VariableChange{ 
+                    variable: reward_graph::Variable::PSiltGrass, 
+                    change: 1
+                }]],
+                target_id: None,
+                target_location: None,
+            }
+        }), 
+        cost: Box::new(|_, _, _| {
+            CostResult {
+                cost_base: 0.,
+                cost_divider: 1.,
+            }
+        }),
+        get_command: Some(Box::new(|_, c,_,_| CreatureCommand::UseItem("use plant", InventoryHolder::CreatureInventory(c), Item::new(ItemType::PSiltGrass, 1)))), 
+        effect: None,
+        }
+    );
+
+    let pick_up_food = Node::Reward(RewardNode { 
+        description: "use_food".to_string(),
+        index: 1,
+        children: vec![RewardNodeConnection{ base_multiplier: Some(1.), child_index: 0, parent_index: 1, requirement: VariableChange { variable: Variable::PSiltGrass, change: 1 } }], 
+        reward: Box::new(|_, _, _| {
+            RewardResult{
+                reward_local: 0., // use child reward
+                target_id: None,
+                target_location: None,
+            }
+        }),
+        reward_connection: Box::new(|_, _, _| {
+            1.
+        }),
+        requirement: Box::new(|m, c| {
+            let items = m.find_items_in_range_to_creature(c, 2.);
+            for item in items.iter() {
+                if item.item.item_type == ItemType::PSiltGrass {
+                    return RequirementResult {
+                        valid: true,
+                        requirements: vec![vec![]],
+                        target_id: None,
+                        target_location: Some(item.location),
+                    };
+                }
+            }
+            return RequirementResult {
+                valid: false,
+                requirements: vec![vec![]],
+                target_id: None,
+                target_location: None,
+            };
+        }), 
+        cost: Box::new(|_, _, _| {
+            CostResult {
+                cost_base: 0.,
+                cost_divider: 1.,
+            }
+        }),
+        get_command: Some(Box::new(|m, c, _, req_result| {
+            if req_result.valid {
+                let victim = m.location_to_map_location(&req_result.target_location.unwrap());
+                let quantity = victim.get_inventory_of_item(ItemType::PSiltGrass);
+                return CreatureCommand::TakeItem("take plant",InventoryHolder::LocationInventory(victim), InventoryHolder::CreatureInventory(c), Item::new(ItemType::PSiltGrass, quantity));
+            }
+            panic!("impossible getting command when req false");
+        })), 
+        effect: None,
+        }
+    );
+
+    // attack nearby plant requirement is nearby plant creature. cost is lets say divisor of 2
+    // local reward is 0. command is attack target mentioned in requirement result.
+    // or maybe use creaturelist? and just requirement is they are in range of 2?
+    // fuck idk in real game prob need 1 kill node that attaches to every item drop possible?
+    // I think I have to use the effect and requirement variable change stuff??
+
+    // move to creaturelist node. requirement is none? but reward is based on child of attack node. 
+
+    let root = RootNode{
+        description: "root".to_string(),
+        nodes: vec![use_food, pick_up_food],
+        children: vec![
+            RewardNodeConnection{ 
+                base_multiplier: Some(1.), 
+                child_index: 3, 
+                parent_index: 0,
+                requirement: VariableChange { variable: Variable::None, change: 0 }
+            },
+        ],
+    };
 
     let traits = EvolvingTraits {
         eat_sand_silt: 1,
