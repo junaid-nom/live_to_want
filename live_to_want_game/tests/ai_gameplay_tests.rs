@@ -103,6 +103,8 @@ fn test_eat_soil_creatures() {
     // or maybe use creaturelist? and just requirement is they are in range of 2?
     // fuck idk in real game prob need 1 kill node that attaches to every item drop possible?
     // I think I have to use the effect and requirement variable change stuff??
+    // TODO: make base_multiplier in children, a function. then it can do stuff like
+    // multiplier = drop + inventory
 
     // move to creaturelist node. requirement is none? but reward is based on child of attack node. 
 
