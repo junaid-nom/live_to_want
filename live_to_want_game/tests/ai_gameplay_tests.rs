@@ -105,6 +105,11 @@ fn test_eat_soil_creatures() {
     // I think I have to use the effect and requirement variable change stuff??
     // TODO: make base_multiplier in children, a function. then it can do stuff like
     // multiplier = drop + inventory
+    // TODO: ACtually I think all I have to do is set the reward multiplier to None
+    // then set the effect to be everything the creature will drop.
+    // and set the requirement of "pick up item" to be 1 of the item.
+    // and then it'll work? Should make a separate test to confirm? Or maybe this test
+    // will confirm for me
 
     // move to creaturelist node. requirement is none? but reward is based on child of attack node. 
 
