@@ -128,6 +128,24 @@ For example long range, high attack speed, but you can't move while shooting at 
 Vs Low range(melee) but very fast and u can move while attacking.
 Or VERY high attack speed but immobile, so equiping with high def stuff could help? or something.
 
+# TODO Eventually:
+## Integrate with a Client
+Lets use unreal so I can put unreal on resume and because it looks better out of the box.
+C++ libraries might also help? Or maybe it will be awful.
+The way communication would work with client:
+ - Server sends entire gamestate of region every frame (lets say .1 seconds).
+   - However, for each creatureState it doesn't give all the details, just the core like location etc.
+   - Client can click on a creature to "inspect" and get more details. Sends out a message to the server which replies with the details next frame.
+ - Client has a list of spawned creatures and spawned tiles. When it gets the server message, for each of these gameobjects it will see if their is a spawned version of them already. if there is, it'll update them based on the info in the message. If there isn't it'll make a new gameobject (pooling?).
+   - Death: First step of each message processed is to go through all the spawned gameobjects and mark them as "invalid", then when it updates them all it will mark them as valid. Any gameobject that is still invalid after processing the message is destroyed.
+
+Alternatives: 
+ - DS combat game multiverse craziness. AI enemies. Dark atmosphere and particle effects.
+ - Lawnchairman: Telegod. Game where you refuse to get off chair, teleport with balls.
+   - Start out like a lefty believing everything. Taking pills that are a metaphor for trans.
+   - Obese uneducated working class losers are only ones who don't agree. Say that "The rich and greedy bribe them".
+   - Face office-chair people. Man bad guy pays outsource people to copy MC's tech. THey also refuse to get out of chair because they lack creativity to do anything other than make an exact copy.
+   - Other jokes.
 
 # Systems in place
 
