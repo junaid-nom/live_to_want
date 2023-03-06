@@ -12,7 +12,7 @@ fn test_1_tier_reward_graph() {
     let cant_do_node = Node::Reward(RewardNode { 
         description: "cant_do bone".to_string(),
         index: 0, 
-        children: vec![], 
+        static_children: vec![], 
         reward: Box::new(|_, _, _| {
             RewardResult{
                 reward_local: 100.,
@@ -26,7 +26,7 @@ fn test_1_tier_reward_graph() {
         requirement: Box::new(|_, c| {
             RequirementResult {
                 valid: c.get_inventory_of_item(ItemType::Bone) >= 2,
-                requirements: vec![vec![VariableChange{ 
+                dynamic_and_static_requirements: vec![vec![VariableChange{ 
                     variable: reward_graph::Variable::Bone, 
                     change: 2 
                 }]],
@@ -48,7 +48,7 @@ fn test_1_tier_reward_graph() {
     let can_do_low_reward = Node::Reward(RewardNode { 
         description: "cant_do meat".to_string(),
         index: 1, 
-        children: vec![], 
+        static_children: vec![], 
         reward: Box::new(|_, _, _| {
             RewardResult{
                 reward_local: 10.,
@@ -62,7 +62,7 @@ fn test_1_tier_reward_graph() {
         requirement: Box::new(|_, c| {
             RequirementResult {
                 valid: c.get_inventory_of_item(ItemType::Meat) >= 2,
-                requirements: vec![vec![VariableChange{ 
+                dynamic_and_static_requirements: vec![vec![VariableChange{ 
                     variable: reward_graph::Variable::Meat, 
                     change: 2 
                 }]],
@@ -84,7 +84,7 @@ fn test_1_tier_reward_graph() {
     let can_do_high_reward = Node::Reward(RewardNode { 
         description: "cant_do Berry".to_string(),
         index: 2, 
-        children: vec![], 
+        static_children: vec![], 
         reward: Box::new(|_, _, _| {
             RewardResult{
                 reward_local: 8.,
@@ -98,7 +98,7 @@ fn test_1_tier_reward_graph() {
         requirement: Box::new(|_, c| {
             RequirementResult {
                 valid: c.get_inventory_of_item(ItemType::Berry) >= 2,
-                requirements: vec![vec![VariableChange{ 
+                dynamic_and_static_requirements: vec![vec![VariableChange{ 
                     variable: reward_graph::Variable::Berry, 
                     change: 2 
                 }]],
@@ -195,7 +195,7 @@ fn test_limit_algo_reward_graph() {
     let spear_node = Node::Reward(RewardNode { 
         description: "spear".to_string(),
         index: 0, 
-        children: vec![], 
+        static_children: vec![], 
         reward: Box::new(|_, _, _| {
             RewardResult{
                 reward_local: 24.,
@@ -209,7 +209,7 @@ fn test_limit_algo_reward_graph() {
         requirement: Box::new(|_, c| {
             RequirementResult {
                 valid: c.get_inventory_of_item(ItemType::Bone) >= 2,
-                requirements: vec![vec![
+                dynamic_and_static_requirements: vec![vec![
                     VariableChange{ 
                         variable: reward_graph::Variable::Bone, 
                         change: 2
@@ -242,7 +242,7 @@ fn test_limit_algo_reward_graph() {
     let shield_node = Node::Reward(RewardNode { 
         description: "shield".to_string(),
         index: 1, 
-        children: vec![], 
+        static_children: vec![], 
         reward: Box::new(|_, _, _| {
             RewardResult{
                 reward_local: 30.,
@@ -256,7 +256,7 @@ fn test_limit_algo_reward_graph() {
         requirement: Box::new(|_, c| {
             RequirementResult {
                 valid: c.get_inventory_of_item(ItemType::Skin) >= 2,
-                requirements: vec![vec![
+                dynamic_and_static_requirements: vec![vec![
                     VariableChange{ 
                         variable: reward_graph::Variable::Skin, 
                         change: 2
@@ -289,7 +289,7 @@ fn test_limit_algo_reward_graph() {
     let arrow_node = Node::Reward(RewardNode { 
         description: "arrow".to_string(),
         index: 2, 
-        children: vec![], 
+        static_children: vec![], 
         reward: Box::new(|_, _, _| {
             RewardResult{
                 reward_local: 9.,
@@ -309,7 +309,7 @@ fn test_limit_algo_reward_graph() {
         requirement: Box::new(|_, c| {
             RequirementResult {
                 valid: c.get_inventory_of_item(ItemType::Fiber) >= 1,
-                requirements: vec![vec![
+                dynamic_and_static_requirements: vec![vec![
                     VariableChange{ 
                         variable: reward_graph::Variable::Fiber, 
                         change: 1
@@ -342,7 +342,7 @@ fn test_limit_algo_reward_graph() {
     let wood_node = Node::Reward(RewardNode { 
         description: "wood".to_string(),
         index: 3, 
-        children: vec![
+        static_children: vec![
             RewardNodeConnection{ 
                 base_multiplier: None, 
                 child_index: 0, 
@@ -376,7 +376,7 @@ fn test_limit_algo_reward_graph() {
         requirement: Box::new(|_, _| {
             RequirementResult {
                 valid: true,
-                requirements: vec![vec![
+                dynamic_and_static_requirements: vec![vec![
                 ]],
                 target_id: None,
                 target_location: None,
@@ -564,7 +564,7 @@ fn test_creature_list_node_reward_graph() {
     let list_node = Node::CreatureList(RewardNodeCreatureList {
         description: "listnode".to_string(),
         index: 0, 
-        children: vec![], 
+        static_children: vec![],
         reward: Box::new(|_, _, _, other| {
             RewardResult{
                 reward_local: other.inventory.len() as f32 * 2.0,
@@ -579,7 +579,7 @@ fn test_creature_list_node_reward_graph() {
         requirement: Box::new(|_, _c, other| {
             RequirementResult {
                 valid: other.get_inventory_of_item(ItemType::Berry) > 0,
-                requirements: vec![vec![
+                dynamic_and_static_requirements: vec![vec![
                     VariableChange{ 
                         variable: reward_graph::Variable::Fiber, 
                         change: 1
