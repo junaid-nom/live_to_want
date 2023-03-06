@@ -93,11 +93,13 @@ impl RootNode {
             *uid_map.get(&cr.id).unwrap()
         }).collect();
 
+        let mut result_to_og_idx_map: HashMap<NodeIndex, Vec<NodeResultIndex>> = HashMap::new();
+
         for node in &self.nodes {
             match node{
                 Node::Reward(n) => {
                     let mut requirement = n.requirement.as_ref()(map_state, c_state);
-                    requirement.dynamic_and_static_requirements.extend(n.static_requirements);
+                    requirement.dynamic_and_static_requirements.extend(n.static_requirements.clone());
                     let reward = n.reward.as_ref()(map_state, c_state, &requirement);
                     let cost = n.cost.as_ref()(map_state, c_state, &requirement);
                     let effects = match &n.effect {
@@ -108,22 +110,26 @@ impl RootNode {
                         Some(fun) => Some(fun.as_ref()(map_state, c_state,&reward, &requirement)),
                         None => None,
                     };
+                    let idx = root.nodes.len();
                     let new = NodeResult {
+                        index: idx,
                         original_node_description: n.description.clone(), // NOTE: Is this worth? Every frame copying over the description. All to make debug print easier?
                         requirement_result: requirement,
                         reward_result: reward,
                         cost_result: cost,
                         global_reward: NodeRewardGlobal { rewards_per_result_change: vec![], reward_sum_total: None, reward_global_with_costs: None },
-                        children: vec![], // (&n.static_children).into_iter().map(|c| c.child_index).collect()
+                        children_result: vec![], // (&n.static_children).into_iter().map(|c| c.child_index).collect()
                         effects: effects,
                         connection_results: None, // need to wait for global results of children to compute this
-                        original_node: n.index,
+                        original_node_index: n.index,
                         creature_target: None,
                         command_result: cmd,
                     };
                     root.nodes.push(new);
+                    result_to_og_idx_map.insert(n.index, vec![idx]);
                 },
                 Node::CreatureList(nl) => {
+                    result_to_og_idx_map.insert(nl.index, vec![]);
                     // get the filtered list of targets. then make a NodeResult for all of them
                     let filter = |target: &CreatureState| -> bool {
                         nl.filter.as_ref()(map_state, c_state, target)
@@ -137,7 +143,7 @@ impl RootNode {
                     for target in targets {
                         // make a NodeResult for em
                         let mut requirement = nl.requirement.as_ref()(map_state, c_state, target);
-                        requirement.dynamic_and_static_requirements.extend(nl.static_requirements);
+                        requirement.dynamic_and_static_requirements.extend(nl.static_requirements.clone());
                         let reward = nl.reward.as_ref()(map_state, c_state, &requirement, target);
                         let cost = nl.cost.as_ref()(map_state, c_state, &requirement, target);
                         let effects = match &nl.effect {
@@ -148,20 +154,23 @@ impl RootNode {
                             Some(fun) => Some(fun.as_ref()(map_state, c_state,&reward, &requirement, target)),
                             None => None,
                         };
+                        let idx = root.nodes.len();
                         let new = NodeResult {
+                            index: idx,
                             original_node_description: format!("{}:{}", nl.description.clone(), target.get_id()), // NOTE: Is this worth? Every frame copying over the description. All to make debug print easier?
                             requirement_result: requirement,
                             reward_result: reward,
                             cost_result: cost,
                             global_reward: NodeRewardGlobal { rewards_per_result_change: vec![], reward_sum_total: None, reward_global_with_costs: None },
-                            children: vec![], // (&nl.static_children).into_iter().map(|c| c.child_index).collect()
+                            children_result: vec![], // (&nl.static_children).into_iter().map(|c| c.child_index).collect()
                             effects: effects,
                             connection_results: None, // need to wait for global results of children to compute this
-                            original_node: nl.index,
+                            original_node_index: nl.index,
                             creature_target: Some(target.get_id()),
                             command_result: cmd,
                         };
                         root.nodes.push(new);
+                        result_to_og_idx_map.get_mut(&nl.index).unwrap().push(idx);
                     }
                 },
             }
@@ -169,38 +178,46 @@ impl RootNode {
 
         // Setup children for all nodes now that we have all nodes effects and static requirements.
         // need to get the req map first
-        for nodeResult in root.nodes {
-            let reqs = &nodeResult.requirement_result.dynamic_and_static_requirements;
-            let addedVars = HashSet::new();
+        for node_result in &root.nodes {
+            let reqs = &node_result.requirement_result.dynamic_and_static_requirements;
+            let mut added_vars = HashSet::new();
             for option_or in reqs.iter() {
                 for change in option_or {
-                    if addedVars.contains(&change.variable) {
+                    if added_vars.contains(&change.variable) {
                         continue;
                     }
-                    addedVars.insert(change.variable);
+                    added_vars.insert(change.variable);
 
                     if root.requirement_map.contains_key(&change.variable) {
-                        root.requirement_map.get(&change.variable).unwrap().push(nodeResult.original_node);
+                        root.requirement_map.get_mut(&change.variable).unwrap().push(node_result.original_node_index);
                     } else {
-                        root.requirement_map.insert(change.variable, vec![nodeResult.original_node]);
+                        root.requirement_map.insert(change.variable, vec![node_result.original_node_index]);
                     }
-                    root.requirement_map.insert(change.variable, vec![]);
                 }
             }
         }
-        // TODONEXT: double check all refs to children are expecting them to be the original node's index.
-        for nodeResult in root.nodes {
-            nodeResult.children = self.nodes.get(nodeResult.original_node).unwrap().get_children(self, &root.requirement_map, &nodeResult.effects).into_iter().map(|conn| {
-                conn.child_index
-            }).collect();
+        // make sure all refs to children are expecting them to be the RESULT node's index not original.
+        for node_result in &mut root.nodes {
+            node_result.children_result = self.nodes.get(node_result.original_node_index).unwrap()
+                .get_children(self, &root.requirement_map, &node_result.effects).into_iter().map(|conn_og| {
+                    let mut results = vec![];
+                    for result_child_idx in result_to_og_idx_map.get(&conn_og.child_index).unwrap() {
+                        // Transform og index to result indexes
+                        let mut result_conn = conn_og.clone();
+                        result_conn.parent_index = node_result.index;
+                        result_conn.child_index = *result_child_idx;
+                        results.push(result_conn);
+                    }
+                    results
+                }).flatten().collect();
         }
 
         // setup children connections for root
         root.children = vec![];
         for result_index in 0..root.nodes.len() {
             for root_child in &self.children {
-                println!("resultIndex: {} childIndex:{}", root.nodes[result_index].original_node, root_child.child_index);
-                if root.nodes[result_index].original_node == root_child.child_index {
+                println!("resultIndex: {} childIndex:{}", root.nodes[result_index].original_node_index, root_child.child_index);
+                if root.nodes.get(result_index).unwrap().original_node_index == root_child.child_index {
                     root.children.push(result_index);
                 }
             }
@@ -388,7 +405,7 @@ pub struct RewardNodeCreatureList {
 #[derive(Clone, Debug)]
 pub struct RequirementResult{
     pub valid: bool,
-    pub dynamic_and_static_requirements: Vec<Vec<VariableChange>>, //requirements split by OR // total requirements are actually the static requirements extended by the dynamic requirements. dynamic ones are generated by the requirements function and are rare, most should be static
+    pub dynamic_and_static_requirements: Vec<Vec<VariableChange>>, //requirements split by OR // total requirements are actually the dynamic requirements extended by the static requirements. dynamic ones are generated by the requirements function and are rare, most should be static.
     pub target_id: Option<UID>,
     pub target_location: Option<Location>,
 }
@@ -407,8 +424,8 @@ pub struct CostResult{
 
 #[derive(Clone, Debug)]
 pub struct ConnectionResult {
-    pub child_index: NodeResultIndex,
-    pub parent_index: NodeResultIndex,
+    pub child_index_node_result: NodeResultIndex,
+    pub parent_index_node_result: NodeResultIndex,
     pub base_multiplier: f32, // multiplier based on just the requirements of child and effects of parent
     pub multiplier_child: f32, // child's Count based multiplier
     pub total_reward: Vec<f32>, // empty when not set. will push to the top of list for every reward calculated. total_reward[0] is the final calculated one
@@ -442,7 +459,7 @@ impl Ord for ConnectionResult {
         }
 
         if self.total_reward[0] == other.total_reward[0] { 
-            return (-1 * self.child_index as i32).cmp(&(-1 * other.child_index as i32));
+            return (-1 * self.child_index_node_result as i32).cmp(&(-1 * other.child_index_node_result as i32));
         }
         return self.total_reward[0].partial_cmp(&other.total_reward[0]).unwrap();
     }
@@ -487,8 +504,8 @@ impl NodeResultRoot<'_> {
         // go through all children and make sure they are calculated first.
         // depth first basically.
         // we process the child TOTALLY. including local, child conns, global total and costs etc.
-        for child in self.nodes[index_to_process].children.clone() {
-            self.calculate_global_reward(og_root_node, map_state, c_state, c_targets, child, indexes_processed);
+        for child in self.nodes[index_to_process].children_result.clone() {
+            self.calculate_global_reward(og_root_node, map_state, c_state, c_targets, child.child_index, indexes_processed);
         }
 
         let c_target = match self.nodes[index_to_process].creature_target  {
@@ -499,31 +516,30 @@ impl NodeResultRoot<'_> {
         // global reward sum is: reward_local + Sum(rewards_per_requirement)
         // final global reward with cost is: global_sum - cost_base / cost_multiplier
         
-        let mut conn_by_categories: Vec<Vec<&RewardNodeConnection>> = vec![];
-        let original_node_index = self.nodes[index_to_process].original_node;
+        let mut conn_by_categories: Vec<Vec<RewardNodeConnection>> = vec![];
         // Remember the indexes of the NodeResults are different than the Nodes because 
         // of the creature list nodes.
         // TODO NEXT: THIS SHOULD BE THE NODERESULT ITER NOT ORIGINAL NODE?
-        let child_iter: &Vec<RewardNodeConnection> = og_root_node.nodes[original_node_index].get_children();
-        
-        child_iter.iter().for_each(|conn| {
+
+        // Ground conns by variable
+        self.nodes[index_to_process].children_result.iter().for_each(|conn| {
             let mut existing = false;
             for cvec in conn_by_categories.iter_mut() {
                 if cvec.len() > 0 && cvec[0].requirement.variable == conn.requirement.variable {
                     existing = true;
-                    cvec.push(conn);
+                    cvec.push(conn.clone());
                     break;
                 }
             }
             if !existing {
-                conn_by_categories.push(vec![conn]);
+                conn_by_categories.push(vec![conn.clone()]);
             }
         });
 
         let mut conn_results: Vec<BinaryHeap<ConnectionResult>> = Vec::new();
-        for conn_list in conn_by_categories.iter() {
+        for conn_list_noderesult in conn_by_categories.iter() {
             let mut cat_results: BinaryHeap<ConnectionResult> = BinaryHeap::new();
-            let variable = conn_list[0].requirement.variable;
+            let variable = conn_list_noderesult[0].requirement.variable;
 
             if variable == Variable::None {
                 // For None category, we SUM all child connections.
@@ -531,19 +547,19 @@ impl NodeResultRoot<'_> {
                 // to do the LIMIT algorithm below or care about counts and other stuff
                 let mut total_sum = 0.;
                 // if its None, the count is 0, just get the base multiplier in the connection.
-                for connection_og in conn_list {
-                    let base_mult = connection_og.base_multiplier.unwrap();
+                for connection_resultnode in conn_list_noderesult {
+                    let base_mult = connection_resultnode.base_multiplier.unwrap();
                     let conn_result = ConnectionResult{
                         category: variable,
                         base_multiplier: base_mult,
                         multiplier_child: 1.,
-                        total_reward: vec![get_global_reward_for_connection(1., self.nodes[(*connection_og).child_index].global_reward.reward_global_with_costs.unwrap(), base_mult)], // TODONEXT: THIS IS WRONG because using connection_og.child_index into the nodeRESULT list which is wrong!
+                        total_reward: vec![get_global_reward_for_connection(1., self.nodes[connection_resultnode.child_index].global_reward.reward_global_with_costs.unwrap(), base_mult)],
                         child_count: 0.,
                         parent_count: 0.,
                         parent_count_total: 0,
                         parent_to_child_count_ratio: 0.,
-                        child_index: connection_og.child_index, // TODONEXT: THIS IS WRONG because using connection_og.child_index into the nodeRESULT list which is wrong!
-                        parent_index: connection_og.parent_index,
+                        child_index_node_result: connection_resultnode.child_index,
+                        parent_index_node_result: connection_resultnode.parent_index,
                     };
                     total_sum+= conn_result.total_reward[0];
                     cat_results.push(conn_result);
@@ -578,10 +594,10 @@ impl NodeResultRoot<'_> {
             // which takes in a Count as a parameter.
             let parent_count = get_count_of_variable(map_state, c_state, variable);
             let var_effect = get_variable_change_from_effects(variable, &self.nodes[index_to_process].effects).unwrap().change as f32;
-            for connection_og in conn_list {
-                let requirement_needed_in_child = get_smallest_variable_change_from_vec_vec(&self.nodes[connection_og.child_index].requirement_result.dynamic_and_static_requirements, variable);
+            for connection_node_result in conn_list_noderesult {
+                let requirement_needed_in_child = get_smallest_variable_change_from_vec_vec(&self.nodes[connection_node_result.child_index].requirement_result.dynamic_and_static_requirements, variable);
                 if requirement_needed_in_child == None {
-                    eprintln!("have a Variable connection but child requirement does not actually have this Variable as its requirement. Graph is wrong! parent:{} child:{} variable:{:#?}", index_to_process, connection_og.child_index, variable);
+                    eprintln!("have a Variable connection but child requirement does not actually have this Variable as its requirement. Graph is wrong! parent:{} child:{} variable:{:#?}", index_to_process, connection_node_result.child_index, variable);
                     panic!("have a Variable connection but child requirement does not have requirement.");
                 }
                 let conn_requirement_needed = requirement_needed_in_child.unwrap().change as f32;
@@ -589,41 +605,42 @@ impl NodeResultRoot<'_> {
                 // now just need to get "actually exists" of the child. this can be done by
                 // for each of its effects, get their count, then for each variable get its 
                 // reward proportion by finding its rewards_per_requirement/reward_sum_total
-                let child_count = self.nodes[connection_og.child_index].get_count(map_state, c_state);
-                assert!(child_count >= 0.); // TODONEXT: THIS IS WRONG because using connection_og.child_index into the nodeRESULT list which is wrong!
+                let child_count = self.nodes[connection_node_result.child_index].get_count(map_state, c_state);
+                assert!(child_count >= 0.);
 
                 // if its none that means that node doesn't actually require this category?
                 // or its None category? AGG maybe None requirement shouldn't exist!
                 let base_multiplier = var_effect / conn_requirement_needed;
-                assert!(connection_og.base_multiplier.is_none()); // only None connections should have a hardCoded base multiplier
+                assert!(connection_node_result.base_multiplier.is_none()); // only None connections should have a hardCoded base multiplier
 
-                let multiplier_child = (&og_root_node).nodes.get((*connection_og).child_index).unwrap().get_child_multiplier(
+                let og_node_idx = self.nodes[connection_node_result.child_index].original_node_index;
+                let multiplier_child = (&og_root_node).nodes.get(og_node_idx).unwrap().get_child_multiplier(
                     child_count, 
                     map_state, 
                     c_state, 
                     c_target
-                ); // This is okay, using og child index on og root.
+                );
                 cat_results.push(ConnectionResult{
                     category: variable,
                     base_multiplier: base_multiplier,
                     multiplier_child: multiplier_child,
                     total_reward: vec![get_global_reward_for_connection(
                         multiplier_child, 
-                        self.nodes[(*connection_og).child_index].global_reward.reward_global_with_costs.unwrap(),
-                        base_multiplier,// TODONEXT: THIS IS WRONG because using connection_og.child_index into the nodeRESULT list which is wrong!
+                        self.nodes[connection_node_result.child_index].global_reward.reward_global_with_costs.unwrap(),
+                        base_multiplier,
                     )],
                     child_count: child_count,
                     parent_count: 0.,
                     parent_count_total: parent_count,
                     parent_to_child_count_ratio: 1. / conn_requirement_needed,
-                    child_index: connection_og.child_index, // TODONEXT: THIS IS WRONG because using connection_og.child_index into the nodeRESULT list which is wrong!
-                    parent_index: connection_og.parent_index,
+                    child_index_node_result: connection_node_result.child_index,
+                    parent_index_node_result: connection_node_result.parent_index,
                 });
             }
 
             let increment_best_child = |mut top: ConnectionResult| -> ConnectionResult {
                 top.parent_count += var_effect * top.parent_to_child_count_ratio;
-                top.multiplier_child = (&og_root_node).nodes.get(top.child_index).unwrap().get_child_multiplier(
+                top.multiplier_child = (&og_root_node).nodes.get(self.nodes[top.child_index_node_result].original_node_index).unwrap().get_child_multiplier(
                     top.child_count + top.parent_count, 
                     map_state,
                     c_state, 
@@ -631,7 +648,7 @@ impl NodeResultRoot<'_> {
                 );
                 top.total_reward.insert(0, get_global_reward_for_connection(
                     top.multiplier_child, 
-                    self.nodes[top.child_index].global_reward.reward_global_with_costs.unwrap(),
+                    self.nodes[top.child_index_node_result].global_reward.reward_global_with_costs.unwrap(),
                     top.base_multiplier,
                 ));
                 top
@@ -690,13 +707,14 @@ impl NodeResultRoot<'_> {
 
 #[derive(Clone, Debug)]
 pub struct NodeResult<'f> {
-    pub original_node: NodeIndex,
+    pub index: NodeResultIndex,
+    pub original_node_index: NodeIndex,
     pub original_node_description: String,
     pub reward_result: RewardResult, //contains local reward
     pub cost_result: CostResult,
     pub requirement_result: RequirementResult,
     pub effects: Vec<VariableChange>,
-    pub children: Vec<NodeResultIndex>,
+    pub children_result: Vec<RewardNodeConnection>,
     // Filled out as you do global reward:
     pub connection_results: Option<Vec<BinaryHeap<ConnectionResult>>>,
     pub global_reward: NodeRewardGlobal,

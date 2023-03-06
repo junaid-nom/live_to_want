@@ -155,9 +155,9 @@ fn test_1_tier_reward_graph() {
     // TODO: og node not set. global rewards not set. move to new file
     println!("{:#?}", result_graph);
     assert_eq!(result_graph.nodes.len(), 3);
-    assert_eq!(result_graph.nodes[0].original_node, 0);
-    assert_eq!(result_graph.nodes[1].original_node, 1);
-    assert_eq!(result_graph.nodes[2].original_node, 2);
+    assert_eq!(result_graph.nodes[0].original_node_index, 0);
+    assert_eq!(result_graph.nodes[1].original_node_index, 1);
+    assert_eq!(result_graph.nodes[2].original_node_index, 2);
 
 
     assert_eq!(result_graph.nodes[0].global_reward.reward_global_with_costs.unwrap(), 19.);
@@ -428,24 +428,24 @@ fn test_limit_algo_reward_graph() {
     println!("{:#?}", result_graph);
     
     assert_eq!(result_graph.nodes.len(), 4);
-    assert_eq!(result_graph.nodes[0].original_node, 0);
-    assert_eq!(result_graph.nodes[1].original_node, 1);
-    assert_eq!(result_graph.nodes[2].original_node, 2);
-    assert_eq!(result_graph.nodes[3].original_node, 3);
+    assert_eq!(result_graph.nodes[0].original_node_index, 0);
+    assert_eq!(result_graph.nodes[1].original_node_index, 1);
+    assert_eq!(result_graph.nodes[2].original_node_index, 2);
+    assert_eq!(result_graph.nodes[3].original_node_index, 3);
 
 
     // assert_eq!(result_graph.nodes[0].global_reward.reward_global_with_costs.unwrap(), 19.);
     let wood = &result_graph.nodes[3];
     let results: &Option<Vec<std::collections::BinaryHeap<ConnectionResult>>> = &wood.connection_results;
     for conn_result in &results.as_ref().unwrap()[0] {
-        if conn_result.child_index == 0 {
+        if conn_result.child_index_node_result == 0 {
             assert_eq!(conn_result.total_reward, vec![
                 6.0,
                 9.0,
                 12.0,
             ]);
         }
-        if conn_result.child_index == 1 {
+        if conn_result.child_index_node_result == 1 {
             assert_eq!(conn_result.total_reward, vec![
                 5.9999995,
                 7.0,
@@ -454,7 +454,7 @@ fn test_limit_algo_reward_graph() {
                 10.0,
             ]);
         }
-        if conn_result.child_index == 2 {
+        if conn_result.child_index_node_result == 2 {
             assert_eq!(conn_result.total_reward, vec![
                 1.0,
                 9.0,
@@ -472,6 +472,9 @@ fn test_limit_algo_reward_graph() {
     }
 }
 
+
+// TODONEXT: Make sure this graph is more like root -> child1 -> creature list -> creature list
+// to fully test out the indexing madness
 #[test]
 fn test_creature_list_node_reward_graph() {
     let openr = RegionCreationStruct::new(9,9, 0, vec![]);

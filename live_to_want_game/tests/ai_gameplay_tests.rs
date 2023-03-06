@@ -12,7 +12,11 @@ fn test_eat_soil_creatures() {
     // eat items should be only thing with reward? rest use the connection stuff divide by their effort level
     let use_food = Node::Reward(RewardNode { 
         description: "use_food".to_string(),
-        index: 0, 
+        index: 0,
+        static_requirements: vec![vec![VariableChange{ 
+            variable: reward_graph::Variable::PSiltGrass, 
+            change: 1
+        }]],
         static_children: vec![], 
         reward: Box::new(|_, c, _| {
             let item_type = ItemType::PSiltGrass;
@@ -28,10 +32,7 @@ fn test_eat_soil_creatures() {
         requirement: Box::new(|_, c| {
             RequirementResult {
                 valid: c.get_inventory_of_item(ItemType::PSiltGrass) >= 1,
-                dynamic_and_static_requirements: vec![vec![VariableChange{ 
-                    variable: reward_graph::Variable::PSiltGrass, 
-                    change: 1
-                }]],
+                dynamic_and_static_requirements: vec![vec![]],
                 target_id: None,
                 target_location: None,
             }
@@ -50,6 +51,7 @@ fn test_eat_soil_creatures() {
     let pick_up_food = Node::Reward(RewardNode { 
         description: "use_food".to_string(),
         index: 1,
+        static_requirements: vec![vec![]],
         static_children: vec![RewardNodeConnection{ base_multiplier: Some(1.), child_index: 0, parent_index: 1, requirement: VariableChange { variable: Variable::PSiltGrass, change: 1 } }], 
         reward: Box::new(|_, _, _| {
             RewardResult{
