@@ -9,7 +9,11 @@ fn test_1_tier_reward_graph() {
     // have 3 options. only 2 are possible. 
     // one has higher reward than other.
 
-    let cant_do_node = Node::Reward(RewardNode { 
+    let cant_do_node = Node::Reward(RewardNode {
+        static_requirements: vec![vec![VariableChange{ 
+            variable: reward_graph::Variable::Bone, 
+            change: 2 
+        }]],
         description: "cant_do bone".to_string(),
         index: 0, 
         static_children: vec![], 
@@ -26,10 +30,7 @@ fn test_1_tier_reward_graph() {
         requirement: Box::new(|_, c| {
             RequirementResult {
                 valid: c.get_inventory_of_item(ItemType::Bone) >= 2,
-                dynamic_and_static_requirements: vec![vec![VariableChange{ 
-                    variable: reward_graph::Variable::Bone, 
-                    change: 2 
-                }]],
+                dynamic_and_static_requirements: vec![vec![]],
                 target_id: None,
                 target_location: None,
             }
@@ -45,7 +46,11 @@ fn test_1_tier_reward_graph() {
         }
     );
 
-    let can_do_low_reward = Node::Reward(RewardNode { 
+    let can_do_low_reward = Node::Reward(RewardNode {
+        static_requirements: vec![vec![VariableChange{ 
+            variable: reward_graph::Variable::Meat, 
+            change: 2 
+        }]],
         description: "cant_do meat".to_string(),
         index: 1, 
         static_children: vec![], 
@@ -62,10 +67,7 @@ fn test_1_tier_reward_graph() {
         requirement: Box::new(|_, c| {
             RequirementResult {
                 valid: c.get_inventory_of_item(ItemType::Meat) >= 2,
-                dynamic_and_static_requirements: vec![vec![VariableChange{ 
-                    variable: reward_graph::Variable::Meat, 
-                    change: 2 
-                }]],
+                dynamic_and_static_requirements: vec![vec![]],
                 target_id: None,
                 target_location: None,
             }
@@ -81,7 +83,11 @@ fn test_1_tier_reward_graph() {
         }
     );
 
-    let can_do_high_reward = Node::Reward(RewardNode { 
+    let can_do_high_reward = Node::Reward(RewardNode {
+        static_requirements: vec![vec![VariableChange{ 
+            variable: reward_graph::Variable::Berry, 
+            change: 2 
+        }]],
         description: "cant_do Berry".to_string(),
         index: 2, 
         static_children: vec![], 
@@ -98,10 +104,7 @@ fn test_1_tier_reward_graph() {
         requirement: Box::new(|_, c| {
             RequirementResult {
                 valid: c.get_inventory_of_item(ItemType::Berry) >= 2,
-                dynamic_and_static_requirements: vec![vec![VariableChange{ 
-                    variable: reward_graph::Variable::Berry, 
-                    change: 2 
-                }]],
+                dynamic_and_static_requirements: vec![vec![]],
                 target_id: None,
                 target_location: None,
             }
@@ -192,7 +195,17 @@ fn test_limit_algo_reward_graph() {
     // wait maybe this doesn't matter because child's actual childcount will
     // increase so its actual reward will be low? lower than gathering stuff prob?
 
-    let spear_node = Node::Reward(RewardNode { 
+    let spear_node = Node::Reward(RewardNode {
+        static_requirements: vec![vec![
+            VariableChange{ 
+                variable: reward_graph::Variable::Bone, 
+                change: 2
+            },
+            VariableChange{ 
+                variable: reward_graph::Variable::Wood, 
+                change: 2
+            },
+        ]],
         description: "spear".to_string(),
         index: 0, 
         static_children: vec![], 
@@ -209,16 +222,7 @@ fn test_limit_algo_reward_graph() {
         requirement: Box::new(|_, c| {
             RequirementResult {
                 valid: c.get_inventory_of_item(ItemType::Bone) >= 2,
-                dynamic_and_static_requirements: vec![vec![
-                    VariableChange{ 
-                        variable: reward_graph::Variable::Bone, 
-                        change: 2
-                    },
-                    VariableChange{ 
-                        variable: reward_graph::Variable::Wood, 
-                        change: 2
-                    },
-                ]],
+                dynamic_and_static_requirements: vec![vec![]],
                 target_id: None,
                 target_location: None,
             }
@@ -239,7 +243,17 @@ fn test_limit_algo_reward_graph() {
         }
     );
 
-    let shield_node = Node::Reward(RewardNode { 
+    let shield_node = Node::Reward(RewardNode {
+        static_requirements: vec![vec![
+            VariableChange{ 
+                variable: reward_graph::Variable::Skin, 
+                change: 2
+            },
+            VariableChange{ 
+                variable: reward_graph::Variable::Wood, 
+                change: 3
+            },
+        ]],
         description: "shield".to_string(),
         index: 1, 
         static_children: vec![], 
@@ -256,16 +270,7 @@ fn test_limit_algo_reward_graph() {
         requirement: Box::new(|_, c| {
             RequirementResult {
                 valid: c.get_inventory_of_item(ItemType::Skin) >= 2,
-                dynamic_and_static_requirements: vec![vec![
-                    VariableChange{ 
-                        variable: reward_graph::Variable::Skin, 
-                        change: 2
-                    },
-                    VariableChange{ 
-                        variable: reward_graph::Variable::Wood, 
-                        change: 3
-                    },
-                ]],
+                dynamic_and_static_requirements: vec![vec![]],
                 target_id: None,
                 target_location: None,
             }
@@ -286,7 +291,17 @@ fn test_limit_algo_reward_graph() {
         }
     );
 
-    let arrow_node = Node::Reward(RewardNode { 
+    let arrow_node = Node::Reward(RewardNode {
+        static_requirements: vec![vec![
+            VariableChange{ 
+                variable: reward_graph::Variable::Fiber, 
+                change: 1
+            },
+            VariableChange{ 
+                variable: reward_graph::Variable::Wood, 
+                change: 1
+            },
+        ]],
         description: "arrow".to_string(),
         index: 2, 
         static_children: vec![], 
@@ -309,16 +324,7 @@ fn test_limit_algo_reward_graph() {
         requirement: Box::new(|_, c| {
             RequirementResult {
                 valid: c.get_inventory_of_item(ItemType::Fiber) >= 1,
-                dynamic_and_static_requirements: vec![vec![
-                    VariableChange{ 
-                        variable: reward_graph::Variable::Fiber, 
-                        change: 1
-                    },
-                    VariableChange{ 
-                        variable: reward_graph::Variable::Wood, 
-                        change: 1
-                    },
-                ]],
+                dynamic_and_static_requirements: vec![vec![]],
                 target_id: None,
                 target_location: None,
             }
@@ -339,7 +345,8 @@ fn test_limit_algo_reward_graph() {
         }
     );
 
-    let wood_node = Node::Reward(RewardNode { 
+    let wood_node = Node::Reward(RewardNode {
+        static_requirements: vec![vec![]],
         description: "wood".to_string(),
         index: 3, 
         static_children: vec![
@@ -376,8 +383,7 @@ fn test_limit_algo_reward_graph() {
         requirement: Box::new(|_, _| {
             RequirementResult {
                 valid: true,
-                dynamic_and_static_requirements: vec![vec![
-                ]],
+                dynamic_and_static_requirements: vec![vec![]],
                 target_id: None,
                 target_location: None,
             }
@@ -564,9 +570,63 @@ fn test_creature_list_node_reward_graph() {
         creature5, 0
     );
 
-    let list_node = Node::CreatureList(RewardNodeCreatureList {
-        description: "listnode".to_string(),
+    let inbetween_node = Node::Reward(RewardNode {
+        static_requirements: vec![vec![VariableChange{ 
+            variable: reward_graph::Variable::Berry, 
+            change: 2 
+        }]],
+        description: "cant_do Berry".to_string(),
         index: 0, 
+        static_children: vec![
+            RewardNodeConnection{ 
+                base_multiplier: Some(0.5), 
+                child_index: 1, 
+                parent_index: 0, 
+                requirement: VariableChange { variable: Variable::None, change: 1 }, 
+            }
+        ], 
+        reward: Box::new(|_, _, _| {
+            RewardResult{
+                reward_local: 8.,
+                target_id: None,
+                target_location: None,
+            }
+        }),
+        reward_connection: Box::new(|_, _, _| {
+            1.
+        }), 
+        requirement: Box::new(|_, c| {
+            RequirementResult {
+                valid: c.get_inventory_of_item(ItemType::Berry) >= 2,
+                dynamic_and_static_requirements: vec![vec![]],
+                target_id: None,
+                target_location: None,
+            }
+        }), 
+        cost: Box::new(|_, _, _| { // total reward should be 2 with these costs
+            CostResult {
+                cost_base: 2.,
+                cost_divider: 3.,
+            }
+        }), 
+        get_command: Some(Box::new(|_, c,_,_| CreatureCommand::MoveTo("berryeat", c, Location::new0(), 0))), 
+        effect: None,
+        }
+    );
+
+    let list_node = Node::CreatureList(RewardNodeCreatureList {
+        static_requirements: vec![vec![
+            VariableChange{ 
+                variable: reward_graph::Variable::Fiber, 
+                change: 1
+            },
+            VariableChange{ 
+                variable: reward_graph::Variable::Wood, 
+                change: 1
+            },
+        ]],
+        description: "listnode".to_string(),
+        index: 1, 
         static_children: vec![],
         reward: Box::new(|_, _, _, other| {
             RewardResult{
@@ -582,16 +642,7 @@ fn test_creature_list_node_reward_graph() {
         requirement: Box::new(|_, _c, other| {
             RequirementResult {
                 valid: other.get_inventory_of_item(ItemType::Berry) > 0,
-                dynamic_and_static_requirements: vec![vec![
-                    VariableChange{ 
-                        variable: reward_graph::Variable::Fiber, 
-                        change: 1
-                    },
-                    VariableChange{ 
-                        variable: reward_graph::Variable::Wood, 
-                        change: 1
-                    },
-                ]],
+                dynamic_and_static_requirements: vec![vec![]],
                 target_id: None,
                 target_location: None,
             }
@@ -619,7 +670,7 @@ fn test_creature_list_node_reward_graph() {
     );
     let root = RootNode{
         description: "root".to_string(),
-        nodes: vec![list_node],
+        nodes: vec![inbetween_node, list_node],
         children: vec![
             RewardNodeConnection{ 
                 base_multiplier: Some(1.), 
@@ -648,6 +699,129 @@ fn test_creature_list_node_reward_graph() {
 }
 
 #[test]
+#[should_panic]
 fn test_loop_in_reward_graph() {
     // make sure this fails
+    let cant_do_node = Node::Reward(RewardNode {
+        static_requirements: vec![vec![VariableChange{ 
+            variable: reward_graph::Variable::Bone, 
+            change: 2 
+        }]],
+        description: "cant_do bone".to_string(),
+        index: 0, 
+        static_children: vec![
+            RewardNodeConnection { 
+                base_multiplier: Some(1.), 
+                child_index: 1, 
+                parent_index: 0, 
+                requirement: VariableChange{ variable: Variable::None, change: 1 } 
+            }
+        ], 
+        reward: Box::new(|_, _, _| {
+            RewardResult{
+                reward_local: 100.,
+                target_id: None,
+                target_location: None,
+            }
+        }),
+        reward_connection: Box::new(|_, _, _| {
+            1.
+        }), 
+        requirement: Box::new(|_, c| {
+            RequirementResult {
+                valid: c.get_inventory_of_item(ItemType::Bone) >= 2,
+                dynamic_and_static_requirements: vec![vec![]],
+                target_id: None,
+                target_location: None,
+            }
+        }),
+        cost: Box::new(|_, _, _| { // total reward should be 10 with these costs
+            CostResult {
+                cost_base: 5.,
+                cost_divider: 5.,
+            }
+        }), 
+        get_command: Some(Box::new(|_, c,_,_| CreatureCommand::MoveTo("boneseat", c, Location::new0(), 0))), 
+        effect: None,
+        }
+    );
+
+    let can_do_low_reward = Node::Reward(RewardNode {
+        static_requirements: vec![vec![VariableChange{ 
+            variable: reward_graph::Variable::Meat, 
+            change: 2 
+        }]],
+        description: "cant_do meat".to_string(),
+        index: 1, 
+        static_children: vec![
+            RewardNodeConnection { 
+                base_multiplier: Some(1.), 
+                child_index: 0, 
+                parent_index: 1, 
+                requirement: VariableChange{ variable: Variable::None, change: 1 } 
+            }
+        ], 
+        reward: Box::new(|_, _, _| {
+            RewardResult{
+                reward_local: 10.,
+                target_id: None,
+                target_location: None,
+            }
+        }),
+        reward_connection: Box::new(|_, _, _| {
+            1.
+        }), 
+        requirement: Box::new(|_, c| {
+            RequirementResult {
+                valid: c.get_inventory_of_item(ItemType::Meat) >= 2,
+                dynamic_and_static_requirements: vec![vec![]],
+                target_id: None,
+                target_location: None,
+            }
+        }), 
+        cost: Box::new(|_, _, _| { // total reward should be 1 with these costs
+            CostResult {
+                cost_base: 5.,
+                cost_divider: 5.,
+            }
+        }), 
+        get_command: Some(Box::new(|_, c,_,_| CreatureCommand::MoveTo("meateat", c, Location::new0(), 0))), 
+        effect: None,
+        }
+    );
+
+    let root = RootNode{
+        description: "root".to_string(),
+        nodes: vec![cant_do_node, can_do_low_reward],
+        children: vec![
+            RewardNodeConnection{ 
+                base_multiplier: Some(1.), 
+                child_index: 0, 
+                parent_index: 0,
+                requirement: VariableChange { variable: Variable::None, change: 0 } 
+            },
+            RewardNodeConnection{ 
+                base_multiplier: Some(1.), 
+                child_index: 1, 
+                parent_index: 0,
+                requirement: VariableChange { variable: Variable::None, change: 0 } 
+            },
+            RewardNodeConnection{ 
+                base_multiplier: Some(1.), 
+                child_index: 2, 
+                parent_index: 0,
+                requirement: VariableChange { variable: Variable::None, change: 0 } 
+            }
+        ],
+    };
+    let map = MapState::default();
+    let creature = CreatureState {
+        components: ComponentMap::default(),
+        memory: CreatureMemory { creatures_remembered: vec![] },
+        inventory: vec![
+            Item{ item_type: ItemType::Berry, quantity: 2 },
+            Item{ item_type: ItemType::Meat, quantity: 2 },
+        ],
+    };
+    let result_graph = root.generate_result_graph(&map, &creature);
 }
