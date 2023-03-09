@@ -9,14 +9,11 @@ use strum::IntoEnumIterator;
 fn test_eat_soil_creatures() {
     // Create reward graph that has:
     // Find Food (wander) -> Chase Food (creature list) -> attack food -> pick up food items -> eat items
-    // eat items should be only thing with reward? rest use the connection stuff divide by their effort level
-    let use_food = Node::Reward(RewardNode { 
-        description: "use_food".to_string(),
+    // eat items should be only thing with reward? rest use the connection stuff minus by their effort level
+    let use_food = Node::Reward(RewardNode {
+        description: "use_PSiltGrass".to_string(),
         index: 0,
-        static_requirements: vec![vec![VariableChange{ 
-            variable: reward_graph::Variable::PSiltGrass, 
-            change: 1
-        }]],
+        static_requirements: vec![vec![]],
         static_children: vec![], 
         reward: Box::new(|_, c, _| {
             let item_type = ItemType::PSiltGrass;
@@ -49,9 +46,12 @@ fn test_eat_soil_creatures() {
     );
 
     let pick_up_food = Node::Reward(RewardNode { 
-        description: "use_food".to_string(),
+        description: "pickup_PSiltGrass".to_string(),
         index: 1,
-        static_requirements: vec![vec![]],
+        static_requirements: vec![vec![VariableChange{ 
+            variable: reward_graph::Variable::PSiltGrass, 
+            change: 1
+        }]],
         static_children: vec![RewardNodeConnection{ base_multiplier: Some(1.), child_index: 0, parent_index: 1, requirement: VariableChange { variable: Variable::PSiltGrass, change: 1 } }], 
         reward: Box::new(|_, _, _| {
             RewardResult{
@@ -105,13 +105,73 @@ fn test_eat_soil_creatures() {
     // or maybe use creaturelist? and just requirement is they are in range of 2?
     // fuck idk in real game prob need 1 kill node that attaches to every item drop possible?
     // I think I have to use the effect and requirement variable change stuff??
-    // TODO: make base_multiplier in children, a function. then it can do stuff like
-    // multiplier = drop + inventory
     // TODO: ACtually I think all I have to do is set the reward multiplier to None
     // then set the effect to be everything the creature will drop.
     // and set the requirement of "pick up item" to be 1 of the item.
     // and then it'll work? Should make a separate test to confirm? Or maybe this test
     // will confirm for me
+
+    let list_kill_node = Node::CreatureList(RewardNodeCreatureList {
+        static_requirements: vec![vec![]],
+        description: "list_kill_node".to_string(),
+        index: 2, 
+        static_children: vec![],
+        reward: Box::new(|_, _, _, other| {
+            RewardResult{
+                reward_local: 0.,
+                target_id: None,
+                target_location: None,
+            }
+        }),
+        reward_connection: Box::new(|_, _, _count, _| {
+                1.
+            // 9,9,9, 1
+        }), 
+        requirement: Box::new(|_, c, other| {
+            RequirementResult {
+                valid: c.get_if_in_melee_range(other.get_location()),
+                dynamic_and_static_requirements: vec![vec![]],
+                target_id: None,
+                target_location: None,
+            }
+        }),
+        cost: Box::new(|_, _, _, _| { // total reward should be 10 with these costs
+            CostResult {
+                cost_base: 1., // so u dont just kill also pick up
+                cost_divider: 1.,
+            }
+        }), 
+        get_command: Some(Box::new(|map, c,_,_, other| {
+            CreatureCommand::AttackSimple("attacking_test", c, other)
+        }
+        )),
+        effect: Some(Box::new(|map, creature, reward, requirement, target | {
+            target.get_variable_change_on_death()
+        })),
+        filter: Box::new(|_, c1, other| {
+            if other.get_id() == c1.memory.creatures_remembered[0].id {
+                return false;
+            }
+            return true;
+        }),
+        }
+    );
+
+    // TODONEXT: I think the using requirements to make connections, BUT ALSO they are used
+    // for the fucking limit-algo. So I think it can conflict a lot. Need to make separate stuff?
+    // or maybe its already a bit separate cause of the VariableChange in RewardConnection?
+    // only when an item is added to inventory should it have requirements (pickup/craft)?
+    // OKAY the issue is nodes that use an item to craft. So for example, if we can use
+    // siltGrass to make a String item. then StringItem needs the SiltGrass requirement but
+    // that would make it connect to Kill node instead of pickup node!
+    // need to have two separate requirements? One for auto connections one for consuming requirements?
+    // wait why not get rid of the pickup Node? oh because we need its action?
+    // OR make a new Variable that is "Pickup"? so effect of kill is: Pickup(X)
+    // then pickup effect is SiltGrass.
+    // EffectEnum: Produce(Variable), Inventory(Variable)
+    // Change all requirement stuff uses to this?
+    // Wait can I just make Variable take in a fucking item as an enum? then can simplify conversions?
+    // can wrap that in Produce/Inventory too.
 
     // move to creaturelist node. requirement is none? but reward is based on child of attack node. 
 

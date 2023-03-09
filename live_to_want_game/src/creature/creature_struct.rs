@@ -1,6 +1,6 @@
 use std::{fmt::Formatter, cmp::max};
 use serde::{Deserialize, Serialize};
-use crate::{Location, RegionComponent, UID, map_state::Item, utils::Vector2, utils::Vu2, UserComponent, STANDARD_PREGNANCY_TIME, STANDARD_CHILD_TIME, FAST_GROWER_MULTIPLIER, SPECIES_SEX_RANGE, MAX_ATTACK_DISTANCE, DEFAULT_VISION_RANGE, ItemType, SoilComponent, SoilType, SoilHeight};
+use crate::{Location, RegionComponent, UID, map_state::Item, utils::Vector2, utils::Vu2, UserComponent, STANDARD_PREGNANCY_TIME, STANDARD_CHILD_TIME, FAST_GROWER_MULTIPLIER, SPECIES_SEX_RANGE, MAX_ATTACK_DISTANCE, DEFAULT_VISION_RANGE, ItemType, SoilComponent, SoilType, SoilHeight, reward_graph::VariableChange};
 
 use super::{ComponentMap, IDComponent, LocationComponent, HealthComponent, NameComponent, StarvationComponent, REPRODUCE_STARTING_CALORIES_MULTIPLIER};
 
@@ -50,6 +50,30 @@ impl CreatureState {
         ret.components.location_component = LocationComponent{location:loc.position};
         ret.components.region_component = RegionComponent{region:loc.region};
         ret
+    }
+
+    pub fn get_if_in_melee_range(&self, loc: Location) -> bool {
+        match self.get_location().distance_in_region(&loc) {
+            Some(d) => d <= MAX_ATTACK_DISTANCE,
+            None => false,
+        }
+    }
+
+    pub fn get_variable_change_on_death(&self) -> Vec<VariableChange> {
+        self.get_items_on_death().into_iter().map(|item| item.get_variable_change()).collect()
+    }
+
+    pub fn get_items_on_death(&self) -> Vec<Item> {
+        let mut drops = vec![];
+            for item in &self.inventory {
+                drops.push(item.clone());
+            }
+        if let Some(drop_items) = &self.components.death_items_component {
+            for item in &drop_items.items_to_drop {
+                drops.push(item.clone());
+            }
+        }
+        drops
     }
 
     pub fn get_item_based_on_soil(soil_type_cannot_grow: SoilType, height: SoilHeight) -> Item {

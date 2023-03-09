@@ -1,6 +1,6 @@
 use std::io::stderr;
 
-use crate::{Battle, Location, MAX_ATTACK_DISTANCE, MapState, creature::CreatureState, tasks::Event, tasks::EventChain, tasks::EventTarget, tasks::EventType, utils::UID, utils::Vu2, SIMPLE_ATTACK_BASE_DMG};
+use crate::{Battle, Location, MAX_ATTACK_DISTANCE, MapState, creature::CreatureState, tasks::Event, tasks::EventChain, tasks::EventTarget, tasks::EventType, utils::UID, utils::Vu2, SIMPLE_ATTACK_BASE_DMG, reward_graph::{Variable, VariableChange}};
 use rand::Rng;
 use core::fmt;
 use serde::{Deserialize, Serialize};
@@ -39,6 +39,34 @@ pub enum ItemType {
 impl Default for ItemType {
     fn default() -> Self { ItemType::Berry }
 }
+impl ItemType {
+    pub fn get_variable(&self) -> Variable {
+        match self {
+            ItemType::Meat => Variable::Meat,
+            ItemType::Bone => Variable::Bone,
+            ItemType::Skin => Variable::Skin,
+            ItemType::Berry => Variable::Berry,
+            ItemType::Fiber => Variable::Fiber,
+            ItemType::Wood => Variable::Wood,
+            ItemType::Spear => Variable::Spear,
+            ItemType::Shield => Variable::Shield,
+            ItemType::Arrow => Variable::Arrow,
+            ItemType::Bow => Variable::Bow,
+            ItemType::PSiltGrass => Variable::PSiltGrass,
+            ItemType::PSiltFlower => Variable::PSiltFlower,
+            ItemType::PSiltBush => Variable::PSiltBush,
+            ItemType::PSiltAll => Variable::PSiltAll,
+            ItemType::PSandGrass => Variable::PSandGrass,
+            ItemType::PSandFlower => Variable::PSandFlower,
+            ItemType::PSandBush => Variable::PSandBush,
+            ItemType::PSandAll => Variable::PSandAll,
+            ItemType::PClayGrass => Variable::PClayGrass,
+            ItemType::PClayFlower => Variable::PClayFlower,
+            ItemType::PClayBush => Variable::PClayBush,
+            ItemType::PClayAll => Variable::PClayAll,
+        }
+    }
+}
 
 #[derive(Debug)]
 #[derive(Default, Hash, PartialEq, Eq, Clone, Copy)]
@@ -51,6 +79,12 @@ impl Item {
     pub fn new(item_type: ItemType, quantity:u32) -> Self {
         Item {
             item_type, quantity
+        }
+    }
+    pub fn get_variable_change(&self) -> VariableChange {
+        return VariableChange {
+            variable: self.item_type.get_variable(),
+            change: self.quantity as i32,
         }
     }
 }

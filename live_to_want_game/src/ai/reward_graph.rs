@@ -183,7 +183,8 @@ impl RootNode {
             let mut added_vars = HashSet::new();
             for option_or in reqs.iter() {
                 for change in option_or {
-                    if added_vars.contains(&change.variable) {
+                    // Don't include None requirements. I guess it would be bizarre to have that tho anyway.
+                    if added_vars.contains(&change.variable) || change.variable == Variable::None {
                         continue;
                     }
                     added_vars.insert(change.variable);
