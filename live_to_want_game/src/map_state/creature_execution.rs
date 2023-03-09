@@ -2,6 +2,7 @@ use std::io::stderr;
 
 use crate::{Battle, Location, MAX_ATTACK_DISTANCE, MapState, creature::CreatureState, tasks::Event, tasks::EventChain, tasks::EventTarget, tasks::EventType, utils::UID, utils::Vu2, SIMPLE_ATTACK_BASE_DMG};
 use rand::Rng;
+use core::fmt;
 use serde::{Deserialize, Serialize};
 
 use super::MapLocation;
@@ -88,6 +89,21 @@ pub enum CreatureCommand<'b>{
     Sex(&'static str, &'b CreatureState, &'b CreatureState, u128), //
     UseItem(&'static str, InventoryHolder<'b>, Item),
 }
+impl fmt::Display for CreatureCommand<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match *self {
+            CreatureCommand::Nothing(d) => write!(f, "Nothing {}", d),
+            CreatureCommand::MoveTo(d, c, loc, frame) => write!(f, "MoveTo {} c:{} loc:{:#?} frame:{}", d, c.get_id(), loc, frame),
+            CreatureCommand::Chase(d, c, c2) => write!(f, "Chase {} chaser: {} target: {}", d, c.get_id(), c2.get_id()),
+            CreatureCommand::AttackBattle(d, c, c2, b_id) => write!(f, "AttackBattle {} c1:{} c2:{} battleID:{}", d, c.get_id(), c2.get_id(), b_id),
+            CreatureCommand::TakeItem(d, src, dst, item) => write!(f, "TakeItem {} {} {} {:#?}", d, src.get_id(), dst.get_id(), item),
+            CreatureCommand::AttackSimple(d, c, c2) => write!(f, "AttackSimple {} {} {}", d, c.get_id(), c2.get_id()),
+            CreatureCommand::Sex(d, c, c2, frame) => write!(f, "Sex {} {} {} {}", d, c.get_id(), c2.get_id(), frame),
+            CreatureCommand::UseItem(d, holder, item) => write!(f, "UseItem {} {} {:#?}", d, holder.get_id(), item),
+        }
+    }
+} 
+
 impl CreatureCommand<'_> {
     pub fn to_event_chain(&self) -> Option<EventChain> {
         // TODO: Need to at some point verify all creature commands are valid probably earlier than here, somewhere when we get input from AI/human players
@@ -109,7 +125,9 @@ impl CreatureCommand<'_> {
                     creature_list_targets: false,
                 });
             }
-            CreatureCommand::Chase(_, _, _) => {}
+            CreatureCommand::Chase(_, _, _) => {
+                todo!();
+            }
             CreatureCommand::AttackSimple(_, attacker, victim) => {
                 let dist = attacker.get_location().distance_in_region(&victim.get_location());
                 match dist {
@@ -430,4 +448,12 @@ fn get_item_from_vec_item(vec_inv: &Vec<Item>, item_type: ItemType) -> Option<It
 pub enum InventoryHolder<'a> {
     CreatureInventory(&'a CreatureState),
     LocationInventory(&'a MapLocation),
+}
+impl InventoryHolder<'_> {
+    fn get_id(&self) -> UID {
+        match self {
+            InventoryHolder::CreatureInventory(c) => c.get_id(),
+            InventoryHolder::LocationInventory(loc) => loc.id_component_items.id(),
+        }
+    }
 }

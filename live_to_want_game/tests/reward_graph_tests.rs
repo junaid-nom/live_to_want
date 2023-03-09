@@ -479,8 +479,6 @@ fn test_limit_algo_reward_graph() {
 }
 
 
-// TODONEXT: Make sure this graph is more like root -> child1 -> creature list -> creature list
-// to fully test out the indexing madness
 #[test]
 fn test_creature_list_node_reward_graph() {
     let openr = RegionCreationStruct::new(9,9, 0, vec![]);
@@ -689,6 +687,286 @@ fn test_creature_list_node_reward_graph() {
     // creature 2 is out because its ID is filtered out.
     // creaure 5 has highest reward but no requirements met
     // creature 4 has higher reward than creature 3 so its selected
+
+    let cmd = result_graph.get_final_command();
+
+    match cmd.unwrap() {
+        CreatureCommand::MoveTo(_, _, loc, _) => assert_eq!(loc.position, Vu2::new(5,4)),
+        _ => assert!(false)
+    }
+}
+
+// test with root -> creaturelist -> creaturelist
+#[test]
+fn test_creature_list_node_reward_graph_2layer() {
+    let openr = RegionCreationStruct::new(9,9, 0, vec![]);
+    let rgrid = vec![
+        vec![openr.clone()],
+    ];
+    //create map
+    let mut map = MapState::new(rgrid, 0);
+    let  region: &mut MapRegion = &mut map.regions[0][0];
+
+    let mut creature1 = CreatureState {
+        components: ComponentMap::default(),
+        memory: CreatureMemory { creatures_remembered: vec![] },
+        inventory: vec![
+            Item{ item_type: ItemType::Berry, quantity: 2 },
+            Item{ item_type: ItemType::Meat, quantity: 2 },
+        ],
+    };
+    let mut creature2 = CreatureState {
+        components: ComponentMap::default(),
+        memory: CreatureMemory { creatures_remembered: vec![] },
+        inventory: vec![
+            Item{ item_type: ItemType::Berry, quantity: 2 },
+        ],
+    };
+    let mut creature3 = CreatureState {
+        components: ComponentMap::default(),
+        memory: CreatureMemory { creatures_remembered: vec![] },
+        inventory: vec![
+            Item{ item_type: ItemType::Berry, quantity: 2 },
+            Item{ item_type: ItemType::Meat, quantity: 2 },
+        ],
+    };
+    let mut creature4 = CreatureState {
+        components: ComponentMap::default(),
+        memory: CreatureMemory { creatures_remembered: vec![] },
+        inventory: vec![
+            Item{ item_type: ItemType::Berry, quantity: 2 },
+            Item{ item_type: ItemType::Meat, quantity: 2 },
+            Item{ item_type: ItemType::Meat, quantity: 2 },
+        ],
+    };
+    let mut creature5 = CreatureState {
+        components: ComponentMap::default(),
+        memory: CreatureMemory { creatures_remembered: vec![] },
+        inventory: vec![
+            Item{ item_type: ItemType::Bone, quantity: 2 },
+            Item{ item_type: ItemType::Meat, quantity: 2 },
+            Item{ item_type: ItemType::Meat, quantity: 2 },
+            Item{ item_type: ItemType::Meat, quantity: 2 },
+        ],
+    };
+
+    creature1.components.location_component.location = Vu2::new(3,4);
+    creature2.components.location_component.location = Vu2::new(4,4);
+    creature3.components.location_component.location = Vu2::new(4,5);
+    creature4.components.location_component.location = Vu2::new(5,4);
+    creature5.components.location_component.location = Vu2::new(5,5);
+
+
+    let _c1_id = creature1.get_id();
+    let c2_id = creature2.get_id();
+    let c3_id = creature3.get_id();
+    let c4_id = creature4.get_id();
+    let c5_id = creature5.get_id();
+
+    creature1.memory.creatures_remembered.push(CreatureRemembered { location: creature2.get_location(), frame_updated: 0, id: c2_id });
+
+    creature1.memory.creatures_remembered.push(CreatureRemembered { location: creature3.get_location(), frame_updated: 0, id: c3_id });
+
+    creature1.memory.creatures_remembered.push(CreatureRemembered { location: creature4.get_location(), frame_updated: 0, id: c4_id });
+    creature1.memory.creatures_remembered.push(CreatureRemembered { location: creature4.get_location(), frame_updated: 0, id: c5_id });
+
+    region.grid[creature1.components.location_component.location].creatures.add_creature(
+        creature1, 0
+    );
+    region.grid[creature2.components.location_component.location].creatures.add_creature(
+        creature2, 0
+    );
+    region.grid[creature3.components.location_component.location].creatures.add_creature(
+        creature3, 0
+    );
+    region.grid[creature4.components.location_component.location].creatures.add_creature(
+        creature4, 0
+    );
+    region.grid[creature5.components.location_component.location].creatures.add_creature(
+        creature5, 0
+    );
+
+    let inbetween_node = Node::Reward(RewardNode {
+        static_requirements: vec![vec![VariableChange{ 
+            variable: reward_graph::Variable::Berry, 
+            change: 2 
+        }]],
+        description: "inbetween".to_string(),
+        index: 0, 
+        static_children: vec![
+            RewardNodeConnection{ 
+                base_multiplier: Some(0.5), 
+                child_index: 1, 
+                parent_index: 0, 
+                requirement: VariableChange { variable: Variable::None, change: 1 }, 
+            }
+        ], 
+        reward: Box::new(|_, _, _| {
+            RewardResult{
+                reward_local: 8.,
+                target_id: None,
+                target_location: None,
+            }
+        }),
+        reward_connection: Box::new(|_, _, _| {
+            1.
+        }), 
+        requirement: Box::new(|_, c| {
+            RequirementResult {
+                valid: c.get_inventory_of_item(ItemType::Berry) >= 2,
+                dynamic_and_static_requirements: vec![vec![]],
+                target_id: None,
+                target_location: None,
+            }
+        }), 
+        cost: Box::new(|_, _, _| { // total reward should be 2 with these costs
+            CostResult {
+                cost_base: 2.,
+                cost_divider: 3.,
+            }
+        }), 
+        get_command: Some(Box::new(|_, c,_,_| CreatureCommand::MoveTo("berryeat", c, Location::new0(), 0))), 
+        effect: None,
+        }
+    );
+
+    let list_node = Node::CreatureList(RewardNodeCreatureList {
+        static_requirements: vec![vec![
+            VariableChange{ 
+                variable: reward_graph::Variable::Fiber, 
+                change: 1
+            },
+            VariableChange{ 
+                variable: reward_graph::Variable::Wood, 
+                change: 1
+            },
+        ]],
+        description: "listnode_1".to_string(),
+        index: 1, 
+        static_children: vec![],
+        reward: Box::new(|_, _, _, other| {
+            RewardResult{
+                reward_local: other.inventory.len() as f32 * 1.0,
+                target_id: None,
+                target_location: None,
+            }
+        }),
+        reward_connection: Box::new(|_, _, _count, _| {
+                1.
+            // 9,9,9, 1
+        }), 
+        requirement: Box::new(|_, _c, other| {
+            RequirementResult {
+                valid: other.get_inventory_of_item(ItemType::Berry) > 0,
+                dynamic_and_static_requirements: vec![vec![]],
+                target_id: None,
+                target_location: None,
+            }
+        }), 
+        cost: Box::new(|_, _, _, _| { // total reward should be 10 with these costs
+            CostResult {
+                cost_base: 0.,
+                cost_divider: 1.,
+            }
+        }), 
+        get_command: Some(Box::new(|_, c,_,_, other| {
+            let loca = other.get_location();
+            CreatureCommand::MoveTo("a", c, loca, 0)
+        }
+        )), 
+        effect:  Some(Box::new(|_, _, _, _, _| vec![
+            VariableChange{ 
+                variable: reward_graph::Variable::Arrow, 
+                change: 1
+            },
+        ])),
+        filter: Box::new(|_, c1, other| {
+            if other.get_id() == c1.memory.creatures_remembered[0].id {
+                return false;
+            }
+            return true;
+        }),
+        }
+    );
+
+    // Should auto child to listnode1
+    let list_node_2 = Node::CreatureList(RewardNodeCreatureList {
+        static_requirements: vec![vec![
+            VariableChange{ 
+                variable: reward_graph::Variable::Arrow, 
+                change: 1
+            },
+        ]],
+        description: "listnode_2".to_string(),
+        index: 2, 
+        static_children: vec![],
+        reward: Box::new(|_, _, _, other| {
+            RewardResult{
+                reward_local: other.inventory.len() as f32 * 100.0,
+                target_id: None,
+                target_location: None,
+            }
+        }),
+        reward_connection: Box::new(|_, _, _count, _| {
+                1.
+            // 9,9,9, 1
+        }), 
+        requirement: Box::new(|_, _c, _other| {
+            RequirementResult {
+                valid: false,
+                dynamic_and_static_requirements: vec![vec![]],
+                target_id: None,
+                target_location: None,
+            }
+        }),
+        cost: Box::new(|_, _, _, _| { // total reward should be 10 with these costs
+            CostResult {
+                cost_base: 0.,
+                cost_divider: 1.,
+            }
+        }), 
+        get_command: Some(Box::new(|_, c,_,_, other| {
+            let mut loca = other.get_location();
+            loca.position = Vu2::new(999, 999);
+            CreatureCommand::MoveTo("a", c, loca, 0)
+        }
+        )),  
+        effect: None,
+        filter: Box::new(|_, c1, other| {
+            if other.get_id() == c1.memory.creatures_remembered[0].id {
+                return false;
+            }
+            return true;
+        }),
+        }
+    );
+
+    let root = RootNode{
+        description: "root".to_string(),
+        nodes: vec![inbetween_node, list_node, list_node_2],
+        children: vec![
+            RewardNodeConnection{ 
+                base_multiplier: Some(1.), 
+                child_index: 0,
+                parent_index: 0,
+                requirement: VariableChange { variable: Variable::None, change: 0 } 
+            },
+        ],
+    };
+
+    let result_graph = root.generate_result_graph(&map, map.get_creature_list()[0]);
+
+    println!("{:#?}", result_graph);
+    println!("2:{} 3:{} 4:{} 5:{}", c2_id, c3_id, c4_id, c5_id);
+
+    // creature 2 is out because its ID is filtered out.
+    // creaure 5 has highest reward but no requirements met
+    // creature 4 has higher reward than creature 3 so its selected
+
+    for node in &result_graph.nodes {
+        assert!(node.global_reward.reward_global_with_costs.is_some());
+        assert!(node.global_reward.reward_global_with_costs.unwrap() > 0.);
+    }
 
     let cmd = result_graph.get_final_command();
 

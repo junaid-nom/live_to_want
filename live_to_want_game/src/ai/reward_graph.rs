@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 use core::fmt;
-use std::{collections::{HashSet, BinaryHeap, HashMap}, hash::Hash};
+use std::{collections::{HashSet, BinaryHeap, HashMap}, hash::Hash, fmt::format};
 use crate::{UID, MapState, CreatureState, CreatureCommand, Location, ItemType};
 
 pub type NodeIndex = usize;
@@ -189,7 +189,9 @@ impl RootNode {
                     added_vars.insert(change.variable);
 
                     if root.requirement_map.contains_key(&change.variable) {
-                        root.requirement_map.get_mut(&change.variable).unwrap().push(node_result.original_node_index);
+                        if !root.requirement_map.get(&change.variable).unwrap().contains(&node_result.original_node_index) {
+                            root.requirement_map.get_mut(&change.variable).unwrap().push(node_result.original_node_index);
+                        }
                     } else {
                         root.requirement_map.insert(change.variable, vec![node_result.original_node_index]);
                     }
@@ -216,7 +218,7 @@ impl RootNode {
         root.children = vec![];
         for result_index in 0..root.nodes.len() {
             for root_child in &self.children {
-                println!("resultIndex: {} childIndex:{}", root.nodes[result_index].original_node_index, root_child.child_index);
+                //println!("original index of result node: {} childIndex:{}", root.nodes[result_index].original_node_index, root_child.child_index);
                 if root.nodes.get(result_index).unwrap().original_node_index == root_child.child_index {
                     root.children.push(result_index);
                 }
@@ -262,6 +264,8 @@ pub enum Node {
                 total_conns.push(conn.clone());
             }),
         };
+        //println!("Getting child req_map:{:#?}", req_map);
+        //println!("Getting child effects:{:#?}", effects);
         // add dynamic connections if they aren't already added
         effects.iter().for_each(|effect| {
             if let Some(dyn_conns) = req_map.get(&effect.variable) {
@@ -492,10 +496,9 @@ impl NodeResultRoot<'_> {
             return true;
         }
         if indexes_processed.contains(&index_to_process) {
-            eprintln!("There is a cycle in the graph (a nested child has a parent as their child), this means its impossible to compute! Last Node {} Nodes processed(random order): {:#?}", self.nodes[index_to_process].original_node_description.clone(), indexes_processed.iter().map(|i| {
+            panic!("There is a cycle in the graph (a nested child has a parent as their child), this means its impossible to compute! Last Node {} Nodes processed(random order): {:#?}\n Graph: {:#?}", self.nodes[index_to_process].original_node_description.clone(), indexes_processed.iter().map(|i| {
                 self.nodes[*i].original_node_description.clone()
-            }));
-            return false;
+            }), self);
         }
         indexes_processed.insert(index_to_process);
 
@@ -705,7 +708,7 @@ impl NodeResultRoot<'_> {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct NodeResult<'f> {
     pub index: NodeResultIndex,
     pub original_node_index: NodeIndex,
@@ -721,6 +724,30 @@ pub struct NodeResult<'f> {
     pub command_result: Option<CreatureCommand<'f>>,
     pub creature_target: Option<UID>,
 }
+impl fmt::Debug for NodeResult<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let cmd = match &self.command_result {
+            Some(ccmd) => format!("{}", ccmd),
+            None => format!("None"),
+        };
+
+        f.debug_struct("NodeResult")
+            .field("index", &self.index)
+            .field("original_node_index", &self.original_node_index)
+            .field("original_node_description", &self.original_node_description)
+            .field("reward_result", &self.reward_result)
+            .field("cost_result", &self.cost_result)
+            .field("requirement_result", &self.requirement_result)
+            .field("effects", &self.effects)
+            .field("children_result", &self.children_result)
+            .field("connection_results", &self.connection_results)
+            .field("global_reward", &self.global_reward)
+            .field("command_result", &cmd)
+            .field("creature_target", &self.creature_target)
+            .finish()
+    }
+}
+
 impl NodeResult<'_> {
     pub fn get_count(&self, map_state: &MapState, c_state: &CreatureState) -> f32 {
         if self.global_reward.reward_sum_total.is_none() {
