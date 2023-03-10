@@ -921,7 +921,7 @@ fn test_simple_attack<'a>() {
 fn test_soil_spread() {
     let openr = RegionCreationStruct::new(10,10, 0, vec![]);
     let rgrid = vec![
-        vec![openr.clone()],
+        vec![openr],
     ];
     //create map
     let mut map = MapState::new(rgrid, 0);

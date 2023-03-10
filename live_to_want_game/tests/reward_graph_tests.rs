@@ -11,7 +11,7 @@ fn test_1_tier_reward_graph() {
 
     let cant_do_node = Node::Reward(RewardNode {
         static_requirements: vec![vec![VariableChange{ 
-            variable: reward_graph::Variable::Bone, 
+            variable: reward_graph::Variable::InventoryItem(ItemType::Bone), 
             change: 2 
         }]],
         description: "cant_do bone".to_string(),
@@ -48,7 +48,7 @@ fn test_1_tier_reward_graph() {
 
     let can_do_low_reward = Node::Reward(RewardNode {
         static_requirements: vec![vec![VariableChange{ 
-            variable: reward_graph::Variable::Meat, 
+            variable: reward_graph::Variable::InventoryItem(ItemType::Meat),
             change: 2 
         }]],
         description: "cant_do meat".to_string(),
@@ -85,7 +85,7 @@ fn test_1_tier_reward_graph() {
 
     let can_do_high_reward = Node::Reward(RewardNode {
         static_requirements: vec![vec![VariableChange{ 
-            variable: reward_graph::Variable::Berry, 
+            variable: reward_graph::Variable::InventoryItem(ItemType::Berry), 
             change: 2 
         }]],
         description: "cant_do Berry".to_string(),
@@ -198,11 +198,11 @@ fn test_limit_algo_reward_graph() {
     let spear_node = Node::Reward(RewardNode {
         static_requirements: vec![vec![
             VariableChange{ 
-                variable: reward_graph::Variable::Bone, 
+                variable: reward_graph::Variable::InventoryItem(ItemType::Bone), 
                 change: 2
             },
             VariableChange{ 
-                variable: reward_graph::Variable::Wood, 
+                variable: reward_graph::Variable::InventoryItem(ItemType::Wood), 
                 change: 2
             },
         ]],
@@ -236,7 +236,7 @@ fn test_limit_algo_reward_graph() {
         get_command: Some(Box::new(|_, c,_,_| CreatureCommand::MoveTo("spear", c, Location::new0(), 0))), 
         effect:  Some(Box::new(|_, _, _, _| vec![
             VariableChange{ 
-                variable: reward_graph::Variable::Spear, 
+                variable: reward_graph::Variable::InventoryItem(ItemType::Spear), 
                 change: 1
             },
         ])),
@@ -246,11 +246,11 @@ fn test_limit_algo_reward_graph() {
     let shield_node = Node::Reward(RewardNode {
         static_requirements: vec![vec![
             VariableChange{ 
-                variable: reward_graph::Variable::Skin, 
+                variable: reward_graph::Variable::InventoryItem(ItemType::Skin), 
                 change: 2
             },
             VariableChange{ 
-                variable: reward_graph::Variable::Wood, 
+                variable: reward_graph::Variable::InventoryItem(ItemType::Wood), 
                 change: 3
             },
         ]],
@@ -284,7 +284,7 @@ fn test_limit_algo_reward_graph() {
         get_command: Some(Box::new(|_, c,_,_| CreatureCommand::MoveTo("shield", c, Location::new0(), 0))), 
         effect:  Some(Box::new(|_, _, _, _| vec![
             VariableChange{ 
-                variable: reward_graph::Variable::Shield, 
+                variable: reward_graph::Variable::InventoryItem(ItemType::Shield), 
                 change: 1
             },
         ])),
@@ -294,11 +294,11 @@ fn test_limit_algo_reward_graph() {
     let arrow_node = Node::Reward(RewardNode {
         static_requirements: vec![vec![
             VariableChange{ 
-                variable: reward_graph::Variable::Fiber, 
+                variable: reward_graph::Variable::InventoryItem(ItemType::Fiber), 
                 change: 1
             },
             VariableChange{ 
-                variable: reward_graph::Variable::Wood, 
+                variable: reward_graph::Variable::InventoryItem(ItemType::Wood), 
                 change: 1
             },
         ]],
@@ -338,7 +338,7 @@ fn test_limit_algo_reward_graph() {
         get_command: Some(Box::new(|_, c,_,_| CreatureCommand::MoveTo("arrow", c, Location::new0(), 0))), 
         effect:  Some(Box::new(|_, _, _, _| vec![
             VariableChange{ 
-                variable: reward_graph::Variable::Arrow, 
+                variable: reward_graph::Variable::InventoryItem(ItemType::Arrow), 
                 change: 1
             },
         ])),
@@ -354,19 +354,19 @@ fn test_limit_algo_reward_graph() {
                 base_multiplier: None, 
                 child_index: 0, 
                 parent_index: 3,
-                requirement: VariableChange { variable: Variable::Wood, change: 2 } 
+                requirement: VariableChange { variable: Variable::InventoryItem(ItemType::Wood), change: 2 } 
             },
             RewardNodeConnection{ 
                 base_multiplier: None, 
                 child_index: 1, 
                 parent_index: 3,
-                requirement: VariableChange { variable: Variable::Wood, change: 3 } 
+                requirement: VariableChange { variable: Variable::InventoryItem(ItemType::Wood), change: 3 } 
             },
             RewardNodeConnection{ 
                 base_multiplier: None, 
                 child_index: 2, 
                 parent_index: 3,
-                requirement: VariableChange { variable: Variable::Wood, change: 1 } 
+                requirement: VariableChange { variable: Variable::InventoryItem(ItemType::Wood), change: 1 } 
             },
 
         ],
@@ -397,7 +397,7 @@ fn test_limit_algo_reward_graph() {
         get_command: Some(Box::new(|_, c,_,_| CreatureCommand::MoveTo("wood", c, Location::new0(), 0))), 
         effect:  Some(Box::new(|_, _, _, _| vec![
             VariableChange{ 
-                variable: reward_graph::Variable::Wood, 
+                variable: reward_graph::Variable::InventoryItem(ItemType::Wood), 
                 change: 1
             },
         ])),
@@ -570,7 +570,7 @@ fn test_creature_list_node_reward_graph() {
 
     let inbetween_node = Node::Reward(RewardNode {
         static_requirements: vec![vec![VariableChange{ 
-            variable: reward_graph::Variable::Berry, 
+            variable: reward_graph::Variable::InventoryItem(ItemType::Berry), 
             change: 2 
         }]],
         description: "cant_do Berry".to_string(),
@@ -615,11 +615,11 @@ fn test_creature_list_node_reward_graph() {
     let list_node = Node::CreatureList(RewardNodeCreatureList {
         static_requirements: vec![vec![
             VariableChange{ 
-                variable: reward_graph::Variable::Fiber, 
+                variable: reward_graph::Variable::InventoryItem(ItemType::Fiber), 
                 change: 1
             },
             VariableChange{ 
-                variable: reward_graph::Variable::Wood, 
+                variable: reward_graph::Variable::InventoryItem(ItemType::Wood), 
                 change: 1
             },
         ]],
@@ -654,7 +654,7 @@ fn test_creature_list_node_reward_graph() {
         get_command: Some(Box::new(|_, c,_,_, other| CreatureCommand::MoveTo("a", c, other.get_location(), 0))), 
         effect:  Some(Box::new(|_, _, _, _, _| vec![
             VariableChange{ 
-                variable: reward_graph::Variable::Arrow, 
+                variable: reward_graph::Variable::InventoryItem(ItemType::Arrow), 
                 change: 1
             },
         ])),
@@ -788,7 +788,7 @@ fn test_creature_list_node_reward_graph_2layer() {
 
     let inbetween_node = Node::Reward(RewardNode {
         static_requirements: vec![vec![VariableChange{ 
-            variable: reward_graph::Variable::Berry, 
+            variable: reward_graph::Variable::InventoryItem(ItemType::Berry), 
             change: 2 
         }]],
         description: "inbetween".to_string(),
@@ -833,11 +833,11 @@ fn test_creature_list_node_reward_graph_2layer() {
     let list_node = Node::CreatureList(RewardNodeCreatureList {
         static_requirements: vec![vec![
             VariableChange{ 
-                variable: reward_graph::Variable::Fiber, 
+                variable: reward_graph::Variable::InventoryItem(ItemType::Fiber), 
                 change: 1
             },
             VariableChange{ 
-                variable: reward_graph::Variable::Wood, 
+                variable: reward_graph::Variable::InventoryItem(ItemType::Wood), 
                 change: 1
             },
         ]],
@@ -876,7 +876,7 @@ fn test_creature_list_node_reward_graph_2layer() {
         )), 
         effect:  Some(Box::new(|_, _, _, _, _| vec![
             VariableChange{ 
-                variable: reward_graph::Variable::Arrow, 
+                variable: reward_graph::Variable::InventoryItem(ItemType::Arrow), 
                 change: 1
             },
         ])),
@@ -893,7 +893,7 @@ fn test_creature_list_node_reward_graph_2layer() {
     let list_node_2 = Node::CreatureList(RewardNodeCreatureList {
         static_requirements: vec![vec![
             VariableChange{ 
-                variable: reward_graph::Variable::Arrow, 
+                variable: reward_graph::Variable::InventoryItem(ItemType::Arrow), 
                 change: 1
             },
         ]],
@@ -982,7 +982,7 @@ fn test_loop_in_reward_graph() {
     // make sure this fails
     let cant_do_node = Node::Reward(RewardNode {
         static_requirements: vec![vec![VariableChange{ 
-            variable: reward_graph::Variable::Bone, 
+            variable: reward_graph::Variable::InventoryItem(ItemType::Bone), 
             change: 2 
         }]],
         description: "cant_do bone".to_string(),
@@ -1026,7 +1026,7 @@ fn test_loop_in_reward_graph() {
 
     let can_do_low_reward = Node::Reward(RewardNode {
         static_requirements: vec![vec![VariableChange{ 
-            variable: reward_graph::Variable::Meat, 
+            variable: reward_graph::Variable::InventoryItem(ItemType::Meat), 
             change: 2 
         }]],
         description: "cant_do meat".to_string(),

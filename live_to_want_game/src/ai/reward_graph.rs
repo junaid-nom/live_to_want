@@ -7,36 +7,14 @@ pub type NodeIndex = usize;
 pub type NodeResultIndex = usize;
 
 pub fn get_count_of_variable(m: &MapState, c: &CreatureState, v: Variable) -> i32 {
-    // TODO get the count of each variable.
+    // get the count of each variable.
     // Most will be what does creature have in inventory.
     // others could be result of a function for example "whats my power level"
     // could even be something like "my rank in power compared to creatures near me"
     match v {
         Variable::None => 0,
-        Variable::Bone => c.get_inventory_of_item(ItemType::Bone) as i32,
-        Variable::Meat => c.get_inventory_of_item(ItemType::Meat) as i32,
-        Variable::Berry => c.get_inventory_of_item(ItemType::Berry) as i32,
-        Variable::Skin => c.get_inventory_of_item(ItemType::Skin) as i32,
-        Variable::Wood => c.get_inventory_of_item(ItemType::Wood) as i32,
-        Variable::Fiber => c.get_inventory_of_item(ItemType::Fiber) as i32,
-        Variable::Spear => c.get_inventory_of_item(ItemType::Spear) as i32,
-        Variable::Shield => c.get_inventory_of_item(ItemType::Shield) as i32,
-        Variable::Arrow => c.get_inventory_of_item(ItemType::Arrow) as i32,
-        Variable::Bow => c.get_inventory_of_item(ItemType::Bow) as i32,
-
-        // eat plant stuff
-        Variable::PSiltGrass => c.get_inventory_of_item(ItemType::PSiltGrass) as i32,
-        Variable::PSiltFlower => c.get_inventory_of_item(ItemType::PSiltFlower) as i32,
-        Variable::PSiltBush => c.get_inventory_of_item(ItemType::PSiltBush) as i32,
-        Variable::PSiltAll => c.get_inventory_of_item(ItemType::PSiltAll) as i32,
-        Variable::PSandGrass => c.get_inventory_of_item(ItemType::PSandGrass) as i32,
-        Variable::PSandFlower => c.get_inventory_of_item(ItemType::PSandFlower) as i32,
-        Variable::PSandBush => c.get_inventory_of_item(ItemType::PSandBush) as i32,
-        Variable::PSandAll => c.get_inventory_of_item(ItemType::PSandAll) as i32,
-        Variable::PClayGrass => c.get_inventory_of_item(ItemType::PClayGrass) as i32,
-        Variable::PClayFlower => c.get_inventory_of_item(ItemType::PClayFlower) as i32,
-        Variable::PClayBush => c.get_inventory_of_item(ItemType::PClayBush) as i32,
-        Variable::PClayAll => c.get_inventory_of_item(ItemType::PClayAll) as i32,
+        Variable::ProduceItem(item) => c.get_inventory_of_item(item) as i32,
+        Variable::InventoryItem(item) => c.get_inventory_of_item(item) as i32,
     }
 }
 
@@ -83,6 +61,9 @@ impl RootNode {
             original_node_descriptor: self.description.clone(),
             nodes: vec![],
             requirement_map: HashMap::new(),
+            
+            creature_id: c_state.get_id(),
+            frame: map_state.frame_count,
         };
 
         let uid_map = map_state.get_creatures_hashmap();
@@ -315,31 +296,33 @@ pub enum Node {
 #[derive(Deserialize, Serialize)]
 pub enum Variable {
     None,
-    Bone,
-    Meat,
-    Skin,
-    Berry,
-    Wood,
-    Fiber,
-    Spear,
-    Shield,
-    Arrow,
-    Bow,
+    // Bone,
+    // Meat,
+    // Skin,
+    // Berry,
+    // Wood,
+    // Fiber,
+    // Spear,
+    // Shield,
+    // Arrow,
+    // Bow,
 
     // pant foods:
-    PSiltGrass,
-    PSiltFlower,
-    PSiltBush,
-    PSiltAll,
-    PSandGrass,
-    PSandFlower,
-    PSandBush,
-    PSandAll,
-    PClayGrass,
-    PClayFlower,
-    PClayBush,
-    PClayAll,
+    // PSiltGrass,
+    // PSiltFlower,
+    // PSiltBush,
+    // PSiltAll,
+    // PSandGrass,
+    // PSandFlower,
+    // PSandBush,
+    // PSandAll,
+    // PClayGrass,
+    // PClayFlower,
+    // PClayBush,
+    // PClayAll,
 
+    ProduceItem(ItemType), // produces an item on the ground (kill a creature etc)
+    InventoryItem(ItemType), // pickup or craft
     // NOTE inbetween ingredients will need to be variables. Anything that is an inner OR. For example, if  (wood OR clay) AND glue makes a wall, then (wood OR clay) must be its own node and variable.
 }
 #[derive(Debug)]
@@ -490,6 +473,10 @@ pub struct NodeResultRoot<'f> {
     pub children: Vec<NodeIndex>,
     pub original_node_descriptor: String,
     pub requirement_map: HashMap<Variable, Vec<NodeIndex>>,
+
+    // Debug vars:
+    pub creature_id: UID,
+    pub frame: u128,
 }
 impl NodeResultRoot<'_> {
     pub fn calculate_global_reward(&mut self, og_root_node: &RootNode, map_state: &MapState, c_state: &CreatureState, c_targets: &HashMap<UID, &CreatureState>, index_to_process: usize, indexes_processed: &mut HashSet<usize>) -> bool {

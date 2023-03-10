@@ -312,14 +312,18 @@ pub fn run_frame_with_input(mut game_state: GameState, goal_root: Option<&GoalNo
     // TODO: Actually probably move the websocket stuff and the ai stuff to the beginning of this function?
 
     // want to move THEN AFTER do ai stuff so ai can react to the movement
+    // TODONEXT: Save the result graph for debugging purposes every frame.
+    // use tuples? to make a Some(EventChain, ResultGraph).
     let mut op_ecs: Vec<Option<EventChain>> = m.regions.par_iter().flat_map(|x| {
         x.par_iter().flat_map(|y| {
             y.grid.par_iter().flat_map(|xl| {
                 xl.par_iter().flat_map(|yl| {
                     if let Some(cit) = yl.creatures.get_par_iter() {
-                        
                         let ret: Vec<Option<EventChain>> = cit.map(
                             |c| {
+                                if c.components.ai_component.is_none() || !c.components.ai_component.unwrap().is_enabled_ai {
+                                    return None;
+                                }
                                 // TODOREVAMP: Comment out below and instead use evolutionary growing ai approach? Actually just combine this with evo approach.
                                 // So that we can just do both. Because old approach is great for running tests so good to keep. maybe put in a bool
                                 if let Some(reward_ai) = reward_root {
@@ -336,7 +340,6 @@ pub fn run_frame_with_input(mut game_state: GameState, goal_root: Option<&GoalNo
                                     }
                                 }
                                 
-
                                 None
                             }
                         ).collect();

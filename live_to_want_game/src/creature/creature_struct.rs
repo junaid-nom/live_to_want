@@ -60,7 +60,7 @@ impl CreatureState {
     }
 
     pub fn get_variable_change_on_death(&self) -> Vec<VariableChange> {
-        self.get_items_on_death().into_iter().map(|item| item.get_variable_change()).collect()
+        self.get_items_on_death().into_iter().map(|item| item.get_variable_change(true)).collect()
     }
 
     pub fn get_items_on_death(&self) -> Vec<Item> {

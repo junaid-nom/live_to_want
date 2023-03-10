@@ -290,3 +290,12 @@ https://code.visualstudio.com/docs/cpp/config-mingw
 
 Reopen powershell for changes to take affect ofc.
 C:\Users\xjuna\Documents\live_to_want\deep_ai
+
+### Regex examples:
+
+Find: `Gary([^A])`
+Replace: `GaryAllen$1`
+The `[^A]` means any char not A.
+any `()` "groups" it and then in replace you can put $1, $2, etc.
+So the ([^A]) in paranthesis so you can replace it later with the $1 to put it back.
+

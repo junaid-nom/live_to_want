@@ -49,10 +49,15 @@ fn test_eat_soil_creatures() {
         description: "pickup_PSiltGrass".to_string(),
         index: 1,
         static_requirements: vec![vec![VariableChange{ 
-            variable: reward_graph::Variable::PSiltGrass, 
-            change: 1
+            variable: reward_graph::Variable::ProduceItem(ItemType::PSiltGrass), 
+            change: 1,
         }]],
-        static_children: vec![RewardNodeConnection{ base_multiplier: Some(1.), child_index: 0, parent_index: 1, requirement: VariableChange { variable: Variable::PSiltGrass, change: 1 } }], 
+        static_children: vec![RewardNodeConnection{ 
+            base_multiplier: Some(1.), 
+            child_index: 0, 
+            parent_index: 1, 
+            requirement: VariableChange { variable: Variable::InventoryItem(ItemType::PSiltGrass), change: 1 } 
+        }],
         reward: Box::new(|_, _, _| {
             RewardResult{
                 reward_local: 0., // use child reward
@@ -95,8 +100,23 @@ fn test_eat_soil_creatures() {
                 return CreatureCommand::TakeItem("take plant",InventoryHolder::LocationInventory(victim), InventoryHolder::CreatureInventory(c), Item::new(ItemType::PSiltGrass, quantity));
             }
             panic!("impossible getting command when req false");
-        })), 
-        effect: None,
+        })),
+        effect: Some(Box::new(|m, c, _reward, _requirement | {
+            let items = m.find_items_in_range_to_creature(c, 2.);
+            let mut item_count = 0;
+            for item in items.iter() {
+                if item.item.item_type == ItemType::PSiltGrass {
+                    item_count+= item.item.quantity;
+                }
+            }
+            if item_count > 0 {
+                return vec![VariableChange { 
+                    variable: Variable::InventoryItem(ItemType::PSiltGrass), 
+                    change: item_count as i32, 
+                }];
+            }
+            vec![]
+        })),
         }
     );
 
@@ -116,7 +136,7 @@ fn test_eat_soil_creatures() {
         description: "list_kill_node".to_string(),
         index: 2, 
         static_children: vec![],
-        reward: Box::new(|_, _, _, other| {
+        reward: Box::new(|_, _, _, _other| {
             RewardResult{
                 reward_local: 0.,
                 target_id: None,
@@ -141,11 +161,11 @@ fn test_eat_soil_creatures() {
                 cost_divider: 1.,
             }
         }), 
-        get_command: Some(Box::new(|map, c,_,_, other| {
+        get_command: Some(Box::new(|_map, c,_,_, other| {
             CreatureCommand::AttackSimple("attacking_test", c, other)
         }
         )),
-        effect: Some(Box::new(|map, creature, reward, requirement, target | {
+        effect: Some(Box::new(|_map, _creature, _reward, _requirement, target | {
             target.get_variable_change_on_death()
         })),
         filter: Box::new(|_, c1, other| {
@@ -173,11 +193,59 @@ fn test_eat_soil_creatures() {
     // Wait can I just make Variable take in a fucking item as an enum? then can simplify conversions?
     // can wrap that in Produce/Inventory too.
 
-    // move to creaturelist node. requirement is none? but reward is based on child of attack node. 
+    // move to creaturelist node. requirement is none? but reward is based on child of attack node.
+    let move_to_node = Node::CreatureList(RewardNodeCreatureList {
+        static_requirements: vec![vec![]],
+        description: "move_to_node".to_string(),
+        index: 3, 
+        static_children: vec![RewardNodeConnection { 
+            base_multiplier: Some(1.0), 
+            child_index: 2, 
+            parent_index: 3, 
+            requirement: VariableChange { variable: Variable::None, change: 0, }, 
+        }],
+        reward: Box::new(|_, _, _, _other| {
+            RewardResult{
+                reward_local: 0.,
+                target_id: None,
+                target_location: None,
+            }
+        }),
+        reward_connection: Box::new(|_, _, _count, _| {
+                1.
+            // 9,9,9, 1
+        }), 
+        requirement: Box::new(|_, c, other| {
+            RequirementResult {
+                valid: true,
+                dynamic_and_static_requirements: vec![vec![]],
+                target_id: None,
+                target_location: None,
+            }
+        }),
+        cost: Box::new(|_, c, _, other| { // total reward should be 10 with these costs
+            CostResult {
+                cost_base: c.get_location().distance_in_region(&other.get_location()).unwrap() as f32 / 10.0, // prioritise close by
+                cost_divider: 1.,
+            }
+        }),
+        get_command: Some(Box::new(|map, c,_,_, other| {
+            CreatureCommand::MoveTo("move_to_creature", c, other.get_location(), map.frame_count)
+        }
+        )),
+        effect: None,
+        filter: Box::new(|_, c1, other| {
+            if other.get_id() == c1.memory.creatures_remembered[0].id {
+                return false;
+            }
+            return true;
+        }),
+        }
+    );
 
     let root = RootNode{
         description: "root".to_string(),
-        nodes: vec![use_food, pick_up_food],
+        nodes: vec![use_food, pick_up_food, list_kill_node, move_to_node],
         children: vec![
             RewardNodeConnection{ 
                 base_multiplier: Some(1.), 
@@ -189,75 +257,175 @@ fn test_eat_soil_creatures() {
     };
 
     let traits = EvolvingTraits {
-        eat_sand_silt: 1,
+        eat_sand_silt: 0,
         eat_sand_clay: 0,
-        eat_silt_clay: 1,
-        eat_grass_flower: 1,
-        eat_grass_bush: 1,
+        eat_silt_clay: 0,
+        eat_grass_flower: 100,
+        eat_grass_bush: 0,
         eat_grass_all: 0,
         eat_flower_bush: 0,
         eat_flower_all: 0,
-        eat_bush_all: 1,
-        ..Default::default()
-    };
-    // Test if they are all unique.
-    let component = EvolvingTraitsComponent {
-        adult_traits: traits.clone(),
-        traits: traits,
-        child_until_frame: 0,
-        born_on_frame: 0,
-    };
-    assert_eq!(4, component.get_calories_from_item_type(&ItemType::PSiltGrass));
-    assert_eq!(3, component.get_calories_from_item_type(&ItemType::PSiltFlower));
-    assert_eq!(4, component.get_calories_from_item_type(&ItemType::PSiltBush));
-    assert_eq!(3, component.get_calories_from_item_type(&ItemType::PSiltAll));
-    
-    assert_eq!(3, component.get_calories_from_item_type(&ItemType::PSandGrass));
-    assert_eq!(2, component.get_calories_from_item_type(&ItemType::PSandFlower));
-    assert_eq!(3, component.get_calories_from_item_type(&ItemType::PSandBush));
-    assert_eq!(2, component.get_calories_from_item_type(&ItemType::PSandAll));
-    
-    assert_eq!(3, component.get_calories_from_item_type(&ItemType::PClayGrass));
-    assert_eq!(2, component.get_calories_from_item_type(&ItemType::PClayFlower));
-    assert_eq!(3, component.get_calories_from_item_type(&ItemType::PClayBush));
-    assert_eq!(2, component.get_calories_from_item_type(&ItemType::PClayAll));
-
-    // inverse of above traits
-    let traits = EvolvingTraits {
-        eat_sand_silt: 0,
-        eat_sand_clay: 1,
-        eat_silt_clay: 0,
-        eat_grass_flower: 0,
-        eat_grass_bush: 0,
-        eat_grass_all: 1,
-        eat_flower_bush: 1,
-        eat_flower_all: 1,
         eat_bush_all: 0,
         ..Default::default()
     };
     // Test if they are all unique.
-    let component = EvolvingTraitsComponent {
+    let evolving_traits = EvolvingTraitsComponent {
         adult_traits: traits.clone(),
         traits: traits,
         child_until_frame: 0,
         born_on_frame: 0,
     };
-    assert_eq!(1, component.get_calories_from_item_type(&ItemType::PSiltGrass));
-    assert_eq!(2, component.get_calories_from_item_type(&ItemType::PSiltFlower));
-    assert_eq!(1, component.get_calories_from_item_type(&ItemType::PSiltBush));
-    assert_eq!(2, component.get_calories_from_item_type(&ItemType::PSiltAll));
-    
-    assert_eq!(2, component.get_calories_from_item_type(&ItemType::PSandGrass));
-    assert_eq!(3, component.get_calories_from_item_type(&ItemType::PSandFlower));
-    assert_eq!(2, component.get_calories_from_item_type(&ItemType::PSandBush));
-    assert_eq!(3, component.get_calories_from_item_type(&ItemType::PSandAll));
-    
-    assert_eq!(2, component.get_calories_from_item_type(&ItemType::PClayGrass));
-    assert_eq!(3, component.get_calories_from_item_type(&ItemType::PClayFlower));
-    assert_eq!(2, component.get_calories_from_item_type(&ItemType::PClayBush));
-    assert_eq!(3, component.get_calories_from_item_type(&ItemType::PClayAll));
-    
 
+    // Now make a region with a bunch of plants and a deer with:
+    // a starving component, ai component, and evolving traits component, movement component
+    // The deer should run around eating plants
+    // maybe make it so the plants don't bud so its simpler to predict
+
+    // run it for awhile, deer should run around and calories should change up and down when it eats
+
+    let openr = RegionCreationStruct::new(10,10, 0, vec![]);
+    let rgrid = vec![
+        vec![openr],
+    ];
+
+    let mut map = MapState::new(rgrid, 0);
+    let  region: &mut MapRegion = &mut map.regions[0][0];
+
+
+    let mut grass = CreatureState{
+        components: ComponentMap::default(),
+        inventory: Vec::new(),
+        memory: CreatureMemory::default(),
+    };
+    grass.components.region_component = RegionComponent {
+        region: Vu2{x: 0, y: 0},
+    };
+    grass.components.location_component = LocationComponent {
+        location: Vu2{x: 6, y: 1}
+    };
+    grass.components.health_component = Some(HealthComponent {
+        health:  SIMPLE_ATTACK_BASE_DMG * 3,
+        max_health: SIMPLE_ATTACK_BASE_DMG * 3,
+    });
+    grass.components.soil_component = Some(SoilComponent{
+        soil_height: SoilHeight::Grass,
+        soil_type_cannot_grow: SoilType::Silt,
+        soil_type_spread: SoilType::Sand,
+        frame_ready_to_spread: 0,
+        spread_rate: None,
+    });
+    grass.inventory.push(Item::new(ItemType::PSiltGrass, 1));
+    // Just to make sure the grass doesn't replicate with the inventory
+    grass.components.death_items_component = Some(
+        DeathItemsComponent { items_to_drop: vec![Item::new(ItemType::PSiltGrass, 1)] }
+    );
+
+    let mut grass2 = CreatureState{
+        components: ComponentMap::default(),
+        inventory: Vec::new(),
+        memory: CreatureMemory::default(),
+    };
+    grass2.components.region_component = RegionComponent {
+        region: Vu2{x: 0, y: 0},
+    };
+    grass2.components.location_component = LocationComponent {
+        location: Vu2{x: 8, y: 1}
+    };
+    grass2.components.health_component = Some(HealthComponent {
+        health:  SIMPLE_ATTACK_BASE_DMG * 3,
+        max_health: SIMPLE_ATTACK_BASE_DMG * 3,
+    });
+    grass2.components.soil_component = Some(SoilComponent{
+        soil_height: SoilHeight::Grass,
+        soil_type_cannot_grow: SoilType::Silt,
+        soil_type_spread: SoilType::Sand,
+        frame_ready_to_spread: 0,
+        spread_rate: None,
+    });
+    grass2.inventory.push(Item::new(ItemType::PSiltGrass, 1));
+    // Just to make sure the grass doesn't replicate with the inventory
+    grass2.components.death_items_component = Some(
+        DeathItemsComponent { items_to_drop: vec![Item::new(ItemType::PSiltGrass, 1)] }
+    );
+
+    let mut bush = CreatureState{
+        components: ComponentMap::default(),
+        inventory: Vec::new(),
+        memory: CreatureMemory::default(),
+    };
+    bush.components.region_component = RegionComponent {
+        region: Vu2{x: 0, y: 0},
+    };
+    bush.components.location_component = LocationComponent {
+        location: Vu2{x: 1, y: 4}
+    };
+    bush.components.health_component = Some(HealthComponent {
+        health:  SIMPLE_ATTACK_BASE_DMG * 3,
+        max_health: SIMPLE_ATTACK_BASE_DMG * 3,
+    });
+    bush.components.soil_component = Some(SoilComponent{
+        soil_height: SoilHeight::Bush,
+        soil_type_cannot_grow: SoilType::Silt,
+        soil_type_spread: SoilType::Sand,
+        frame_ready_to_spread: 0,
+        spread_rate: None,
+    });
+    bush.inventory.push(Item::new(ItemType::PSiltBush, 1));
+    // Just to make sure the grass doesn't replicate with the inventory
+    bush.components.death_items_component = Some(
+        DeathItemsComponent { items_to_drop: vec![Item::new(ItemType::PSiltBush, 1)] }
+    );
+
+    for row in &mut region.grid {
+        for loc in row {
+            loc.creatures.set_soil(SoilType::Clay);
+        }
+    }
+
+
+    //evolving_traits
+    let mut deer1 = CreatureState{
+        components: ComponentMap::default(),
+        inventory: Vec::new(),
+        memory: CreatureMemory::default(),
+    };
+    deer1.components.region_component = RegionComponent {
+        region: Vu2{x: 0, y: 0},
+    };
+    deer1.components.location_component = LocationComponent {
+        location: Vu2{x: 1, y: 1}
+    };
+    deer1.components.health_component = Some(HealthComponent {
+        health:  SIMPLE_ATTACK_BASE_DMG * 10,
+        max_health: SIMPLE_ATTACK_BASE_DMG * 10,
+    });
+    deer1.components.evolving_traits = Some(evolving_traits);
+    deer1.components.movement_component = Some(MovementComponent {
+        frames_to_move: STANDARD_FRAMES_TO_MOVE as usize,
+        destination: Location::new(Vu2 { x: 0, y: 0 }, Vu2 { x: 0, y: 0 },),
+        frame_ready_to_move: 0,
+        moving: false,
+    });
+    deer1.components.starvation_component = Some(StarvationComponent { calories: 1000, metabolism: 20 });
+
+    let creatures = vec![grass, grass2, bush, deer1];
+    for creature in creatures {
+        region.grid[creature.get_location().position].creatures.add_creature(
+            creature, 0
+        );
+    }
+
+    let mut game_state = GameState {
+        map_state:map
+    };
+    
+    for _ in 0..26 {
+        println!("Frame: {}", game_state.map_state.frame_count);
+        //println!("\ncreatures:{}", game_state.map_state.get_creature_strings());
+        println!("{}", game_state.map_state.get_creature_map_strings(Vu2 { x: 0, y: 0 }));
+        game_state = run_frame(game_state, None, Some(&root));
+    }
+    println!("{}", game_state.map_state.get_creature_map_strings(Vu2 { x: 0, y: 0 }));
 }
 
 // Put some budding blockers. Also some deer. Watch the deer be moved around because of the trees

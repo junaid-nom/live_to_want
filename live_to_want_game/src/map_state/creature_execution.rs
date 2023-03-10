@@ -40,30 +40,11 @@ impl Default for ItemType {
     fn default() -> Self { ItemType::Berry }
 }
 impl ItemType {
-    pub fn get_variable(&self) -> Variable {
-        match self {
-            ItemType::Meat => Variable::Meat,
-            ItemType::Bone => Variable::Bone,
-            ItemType::Skin => Variable::Skin,
-            ItemType::Berry => Variable::Berry,
-            ItemType::Fiber => Variable::Fiber,
-            ItemType::Wood => Variable::Wood,
-            ItemType::Spear => Variable::Spear,
-            ItemType::Shield => Variable::Shield,
-            ItemType::Arrow => Variable::Arrow,
-            ItemType::Bow => Variable::Bow,
-            ItemType::PSiltGrass => Variable::PSiltGrass,
-            ItemType::PSiltFlower => Variable::PSiltFlower,
-            ItemType::PSiltBush => Variable::PSiltBush,
-            ItemType::PSiltAll => Variable::PSiltAll,
-            ItemType::PSandGrass => Variable::PSandGrass,
-            ItemType::PSandFlower => Variable::PSandFlower,
-            ItemType::PSandBush => Variable::PSandBush,
-            ItemType::PSandAll => Variable::PSandAll,
-            ItemType::PClayGrass => Variable::PClayGrass,
-            ItemType::PClayFlower => Variable::PClayFlower,
-            ItemType::PClayBush => Variable::PClayBush,
-            ItemType::PClayAll => Variable::PClayAll,
+    pub fn get_variable(&self, produce_not_inventory: bool) -> Variable {
+        if produce_not_inventory {
+            Variable::ProduceItem(self.clone())
+        } else {
+            Variable::InventoryItem(self.clone())
         }
     }
 }
@@ -81,9 +62,9 @@ impl Item {
             item_type, quantity
         }
     }
-    pub fn get_variable_change(&self) -> VariableChange {
+    pub fn get_variable_change(&self, produce_not_inventory: bool) -> VariableChange {
         return VariableChange {
-            variable: self.item_type.get_variable(),
+            variable: self.item_type.get_variable(produce_not_inventory),
             change: self.quantity as i32,
         }
     }
@@ -115,7 +96,7 @@ impl CreatureCommandUser {
 pub enum CreatureCommand<'b>{
     Nothing(&'static str),
     // str here is for debugging purposes and is usually just the name of the node
-    MoveTo(&'static str, &'b CreatureState, Location, u128), // Assume this sets the destination not instantly move to
+    MoveTo(&'static str, &'b CreatureState, Location, u128), // Assume this sets the destination not instantly move to. frame is CURRENT frame
     Chase(&'static str, &'b CreatureState, &'b CreatureState),
     AttackBattle(&'static str, &'b CreatureState, &'b CreatureState, UID), // attacker, victim, 3rd is battle list uid
     TakeItem(&'static str, InventoryHolder<'b>, InventoryHolder<'b>, Item), // victim, taker, item
@@ -127,7 +108,7 @@ impl fmt::Display for CreatureCommand<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match *self {
             CreatureCommand::Nothing(d) => write!(f, "Nothing {}", d),
-            CreatureCommand::MoveTo(d, c, loc, frame) => write!(f, "MoveTo {} c:{} loc:{:#?} frame:{}", d, c.get_id(), loc, frame),
+            CreatureCommand::MoveTo(d, c, loc, frame) => write!(f, "MoveTo {} c:{} loc:{:#?} currentframe:{}", d, c.get_id(), loc, frame),
             CreatureCommand::Chase(d, c, c2) => write!(f, "Chase {} chaser: {} target: {}", d, c.get_id(), c2.get_id()),
             CreatureCommand::AttackBattle(d, c, c2, b_id) => write!(f, "AttackBattle {} c1:{} c2:{} battleID:{}", d, c.get_id(), c2.get_id(), b_id),
             CreatureCommand::TakeItem(d, src, dst, item) => write!(f, "TakeItem {} {} {} {:#?}", d, src.get_id(), dst.get_id(), item),

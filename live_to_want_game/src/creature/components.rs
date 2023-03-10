@@ -210,7 +210,7 @@ impl HealthComponent {
 #[derive(PartialEq, Hash, Eq)]
 #[derive(Deserialize, Serialize)]
 pub struct AIComponent {
-    pub ai_id: UID,
+    pub is_enabled_ai: bool,
 }
 impl Component for AIComponent {
     fn get_visible() -> bool {
