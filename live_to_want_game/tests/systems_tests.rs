@@ -511,6 +511,7 @@ fn test_sex_reproduction<'a>() {
         item_type: ItemType::Berry,
         quantity: 1,
     });
+    deer1.components.ai_component = Some(AIComponent { is_enabled_ai: true, });
 
     let mut deer2 =CreatureState{
         components: ComponentMap::default(),
@@ -546,6 +547,7 @@ fn test_sex_reproduction<'a>() {
         litter_size: 1,
         partner_genes: EvolvingTraits{ ..Default::default() },
     });
+    deer2.components.ai_component = Some(AIComponent { is_enabled_ai: true, });
 
 
     let mut deer3 = CreatureState{
@@ -586,6 +588,7 @@ fn test_sex_reproduction<'a>() {
         litter_size: 1,
         partner_genes: EvolvingTraits{ ..Default::default() },
     });
+    deer3.components.ai_component = Some(AIComponent { is_enabled_ai: true, });
     
 
     let mut deer4 = CreatureState{
@@ -625,6 +628,7 @@ fn test_sex_reproduction<'a>() {
         litter_size: 1,
         partner_genes: EvolvingTraits{ ..Default::default() },
     });
+    deer4.components.ai_component = Some(AIComponent { is_enabled_ai: true, });
 
 
     let mut deer5 = CreatureState{
@@ -664,6 +668,7 @@ fn test_sex_reproduction<'a>() {
         litter_size: 1,
         partner_genes: EvolvingTraits{ ..Default::default() },
     });
+    deer5.components.ai_component = Some(AIComponent { is_enabled_ai: true, });
 
     println!("pregnancy time: {} child time: {}", STANDARD_PREGNANCY_TIME, STANDARD_CHILD_TIME);
 
@@ -831,6 +836,7 @@ fn test_simple_attack<'a>() {
         },
         ..Default::default()
     });
+    deer1.components.ai_component = Some(AIComponent { is_enabled_ai: true, });
 
     deer1.inventory.push(Item{
         item_type: ItemType::Berry,
@@ -860,6 +866,7 @@ fn test_simple_attack<'a>() {
         },
         ..Default::default()
     });
+    deer2.components.ai_component = Some(AIComponent { is_enabled_ai: true, });
 
     deer1.setup_creature(0, false);// must use frame become adult if you want adult or assert fails
     deer2.setup_creature(0, false);// must use frame become adult if you want adult or assert fails

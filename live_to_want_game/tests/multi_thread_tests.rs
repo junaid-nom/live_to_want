@@ -341,6 +341,7 @@ fn test_chain_multithread_battle<'a>() {
         item_type: ItemType::Berry,
         quantity: 1,
     });
+    deer1.components.ai_component = Some(AIComponent { is_enabled_ai: true, });
 
     let mut deer2 =CreatureState{
         components: ComponentMap::default(),
@@ -360,6 +361,7 @@ fn test_chain_multithread_battle<'a>() {
     deer2.components.battle_component = Some(BattleComponent {
         in_battle: None,
     });
+    deer2.components.ai_component = Some(AIComponent { is_enabled_ai: true, });
 
     let mut deer3 = CreatureState{
         components: ComponentMap::default(),
@@ -379,6 +381,7 @@ fn test_chain_multithread_battle<'a>() {
     deer3.components.battle_component = Some(BattleComponent {
         in_battle: None,
     });
+    deer3.components.ai_component = Some(AIComponent { is_enabled_ai: true, });
     
     let deer1_id = deer1.components.id_component.id();
     let deer2_id = deer2.components.id_component.id();

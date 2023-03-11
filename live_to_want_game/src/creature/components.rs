@@ -43,6 +43,7 @@ pub static CANNIBAL_PREGNANCY_CHILD_CALORIES_MULTIPLIER: f32 = 0.1; // so 100 wo
 pub static CANNIBAL_PREGNANCY_DEATH_WEIGHT_MULTIPLIER: f32 = 1.0; // so 100 would give u 10x starting calories!
 
 pub static DEFAULT_VISION_RANGE: f32 = 5.;
+pub static FAR_SIGHT_INCREASE_VISION_RANGE: f32 = 1. / MUTATION_CHANGE as f32;
 
 pub static DEFAULT_SOIL_SPREAD_RATE: u32 = STANDARD_FRAMES_TO_MOVE as u32 * 20;
 pub static DEFAULT_BUD_RATE: u32 = STANDARD_FRAMES_TO_MOVE as u32 * 10;
@@ -491,6 +492,8 @@ pub struct EvolvingTraits {
     pub maleness: i32, // all animals are hermaphrodite, maleness makes it so u have less chance of being the one who becomes pregnant when sex. Need to also implement ways for animals to detect males in their AI and if they are also male themselves, this might cause male-male competition to evolve hopefully?
     pub fast_grower: i32, // decreases time as child once out of womb, but increases metabolism
     pub cannibal_childbirth: i32, // chance to die in childbirth, but babies born with a lot of calories
+    pub far_sight: i32, // increases vision range
+
 
     //Unimplemented:
     pub hamstring: i32, // lowers speed of victim after attacksimple? need to make a whole status effect component for this? or add to movement componenet (prob that?)? how to do duration though and magnitude? debug stack shud prob make a whoel component then for status conditions?
@@ -527,6 +530,7 @@ impl EvolvingTraits {
             girth: (self.girth as f32 * multiplier) as i32,
             more_mutations: (self.more_mutations as f32 * multiplier) as i32,
             cannibal_childbirth: (self.cannibal_childbirth as f32 * multiplier) as i32,
+            far_sight: (self.far_sight as f32 * multiplier) as i32,
             eat_sand_silt: (self.eat_sand_silt as f32 * multiplier) as i32,
             eat_sand_clay: (self.eat_sand_clay as f32 * multiplier) as i32,
             eat_silt_clay: (self.eat_silt_clay as f32 * multiplier) as i32,
@@ -571,6 +575,7 @@ impl EvolvingTraits {
             girth: EvolvingTraits::mix_traits(self.girth, mate.girth),
             more_mutations: EvolvingTraits::mix_traits(self.more_mutations, mate.more_mutations),
             cannibal_childbirth: EvolvingTraits::mix_traits(self.cannibal_childbirth, mate.cannibal_childbirth),
+            far_sight: EvolvingTraits::mix_traits(self.far_sight, mate.far_sight),
 
             eat_sand_silt: EvolvingTraits::mix_traits(self.eat_sand_silt, mate.eat_sand_silt),
             eat_sand_clay: EvolvingTraits::mix_traits(self.eat_sand_clay, mate.eat_sand_clay),
@@ -583,6 +588,7 @@ impl EvolvingTraits {
             eat_flower_all: EvolvingTraits::mix_traits(self.eat_flower_all, mate.eat_flower_all),
             eat_bush_all: EvolvingTraits::mix_traits(self.eat_bush_all, mate.eat_bush_all),
 
+            
             // TODO: duplicate the above with carnivore_eat_x_y 
             // then make it so animals who have the above traits will drop
             // meat based on those traits. The meat being 1:1 with the traits.
@@ -824,9 +830,8 @@ impl EvolvingTraitsComponent {
     }
 
     pub fn get_vision_range(&self) -> f32 {
-        // TODO: make a trait for vision range
-        // maybe encorporate different senses like smell and stuff eventually
-        DEFAULT_VISION_RANGE
+        // TODO: maybe encorporate different senses like smell and stuff eventually
+        DEFAULT_VISION_RANGE + (FAR_SIGHT_INCREASE_VISION_RANGE * self.traits.far_sight as f32)
     }
 
     pub fn get_mutated(&self, mutations: u32) -> EvolvingTraitsComponent {

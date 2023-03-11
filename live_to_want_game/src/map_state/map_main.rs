@@ -1,6 +1,6 @@
 use std::{convert::TryInto, fmt, ops::Index, ops::IndexMut, sync::Arc, sync::Mutex, vec::Drain, collections::HashMap};
 
-use crate::{BattleList, Neighbor, SoilComponent, SoilHeight, UID, Vu2, creature::CreatureState, creature::IDComponent, get_2d_vec, make_string_at_least_length, make_string_at_most_length, utils::Vector2, EventChain, Event, EventType, SoilType, ItemType};
+use crate::{BattleList, Neighbor, SoilComponent, SoilHeight, UID, Vu2, creature::CreatureState, creature::IDComponent, get_2d_vec, make_string_at_least_length, make_string_at_most_length, utils::Vector2, EventChain, Event, EventType, SoilType, ItemType, reward_graph::NodeResultRoot};
 use rand::prelude::*;
 extern crate rayon;
 use rayon::prelude::*;
@@ -109,11 +109,19 @@ impl RegionCreationStruct {
 #[derive(Debug)]
 #[derive(Default)]
 #[derive(Clone, Deserialize, Serialize)]
+pub struct DebugMapState {
+    pub ai: Vec<NodeResultRoot>,
+}
+
+#[derive(Debug)]
+#[derive(Default)]
+#[derive(Clone, Deserialize, Serialize)]
 pub struct MapState {
     pub regions: RegionGrid,
     pub frame_count: u128,
     pub battle_list: BattleList,
     pub user_creatures: HashMap<String, MapLocation>,
+    pub debug_info: Option<DebugMapState>,
 }
 impl MapState {
     pub fn new(mut rstructs: Vec<Vec<RegionCreationStruct>>, current_frame: u128) -> Self {
@@ -159,6 +167,7 @@ impl MapState {
             frame_count: current_frame,
             battle_list: BattleList::new(),
             user_creatures: HashMap::new(),
+            debug_info: None,
         };
         ret.update_nav();
         ret

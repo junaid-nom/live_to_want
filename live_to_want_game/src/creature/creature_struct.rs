@@ -1,4 +1,4 @@
-use std::{fmt::Formatter, cmp::max};
+use std::{fmt::Formatter, cmp::max, collections::HashMap};
 use serde::{Deserialize, Serialize};
 use crate::{Location, RegionComponent, UID, map_state::Item, utils::Vector2, utils::Vu2, UserComponent, STANDARD_PREGNANCY_TIME, STANDARD_CHILD_TIME, FAST_GROWER_MULTIPLIER, SPECIES_SEX_RANGE, MAX_ATTACK_DISTANCE, DEFAULT_VISION_RANGE, ItemType, SoilComponent, SoilType, SoilHeight, reward_graph::VariableChange};
 
@@ -64,14 +64,32 @@ impl CreatureState {
     }
 
     pub fn get_items_on_death(&self) -> Vec<Item> {
+        let mut item_hash = HashMap::new();
         let mut drops = vec![];
             for item in &self.inventory {
-                drops.push(item.clone());
+                if item_hash.contains_key(&item.item_type) {
+                    let count = item_hash.get_mut(&item.item_type).unwrap();
+                    *count += item.quantity;
+                } else {
+                    item_hash.insert(item.item_type, item.quantity);
+                }
             }
         if let Some(drop_items) = &self.components.death_items_component {
             for item in &drop_items.items_to_drop {
-                drops.push(item.clone());
+                if item_hash.contains_key(&item.item_type) {
+                    let count = item_hash.get_mut(&item.item_type).unwrap();
+                    *count += item.quantity;
+                } else {
+                    item_hash.insert(item.item_type, item.quantity);
+                }
             }
+        }
+
+        for (k,v) in item_hash {
+            drops.push(Item{
+                item_type: k,
+                quantity: v,
+            })
         }
         drops
     }

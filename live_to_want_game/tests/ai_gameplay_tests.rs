@@ -8,12 +8,15 @@ use strum::IntoEnumIterator;
 #[test]
 fn test_eat_soil_creatures() {
     // Create reward graph that has:
-    // Find Food (wander) -> Chase Food (creature list) -> attack food -> pick up food items -> eat items
-    // eat items should be only thing with reward? rest use the connection stuff minus by their effort level
+    // Move to Food (creature list) -> attack food (creature list) -> pick up food items -> eat items
+    // eat items should be only thing with reward. rest use the connection stuff minus by their effort level
     let use_food = Node::Reward(RewardNode {
         description: "use_PSiltGrass".to_string(),
         index: 0,
-        static_requirements: vec![vec![]],
+        static_requirements: vec![vec![VariableChange{ 
+            variable: reward_graph::Variable::InventoryItem(ItemType::PSiltGrass), 
+            change: 1,
+        }]],
         static_children: vec![], 
         reward: Box::new(|_, c, _| {
             let item_type = ItemType::PSiltGrass;
@@ -53,10 +56,11 @@ fn test_eat_soil_creatures() {
             change: 1,
         }]],
         static_children: vec![RewardNodeConnection{ 
-            base_multiplier: Some(1.), 
+            base_multiplier: None,
             child_index: 0, 
             parent_index: 1, 
-            requirement: VariableChange { variable: Variable::InventoryItem(ItemType::PSiltGrass), change: 1 } 
+            category: Variable::InventoryItem(ItemType::PSiltGrass),
+            dont_match_targets: false,
         }],
         reward: Box::new(|_, _, _| {
             RewardResult{
@@ -101,36 +105,21 @@ fn test_eat_soil_creatures() {
             }
             panic!("impossible getting command when req false");
         })),
-        effect: Some(Box::new(|m, c, _reward, _requirement | {
-            let items = m.find_items_in_range_to_creature(c, 2.);
-            let mut item_count = 0;
-            for item in items.iter() {
-                if item.item.item_type == ItemType::PSiltGrass {
-                    item_count+= item.item.quantity;
-                }
-            }
-            if item_count > 0 {
-                return vec![VariableChange { 
-                    variable: Variable::InventoryItem(ItemType::PSiltGrass), 
-                    change: item_count as i32, 
-                }];
-            }
-            vec![]
+        effect: Some(Box::new(|_m, _c, _reward, _requirement | {
+            // Should be STATIC 1. Because the nodes connecting to this will do the multiplication based on amount
+            // also if this does not produce any result sometimes, the child will panic because the category
+            // wont match with the effect.
+            return vec![VariableChange { 
+                variable: Variable::InventoryItem(ItemType::PSiltGrass), 
+                change: 1, 
+            }]
         })),
         }
     );
 
-    // attack nearby plant requirement is nearby plant creature. cost is lets say divisor of 2
-    // local reward is 0. command is attack target mentioned in requirement result.
-    // or maybe use creaturelist? and just requirement is they are in range of 2?
-    // fuck idk in real game prob need 1 kill node that attaches to every item drop possible?
-    // I think I have to use the effect and requirement variable change stuff??
-    // TODO: ACtually I think all I have to do is set the reward multiplier to None
-    // then set the effect to be everything the creature will drop.
-    // and set the requirement of "pick up item" to be 1 of the item.
-    // and then it'll work? Should make a separate test to confirm? Or maybe this test
-    // will confirm for me
-
+    // Need to make it so connections are auto made based on what creature drops dynamically.
+    // This can be done by making the effect something and the (would be) child node requirement match.
+    // so effect: Produce(Grass) -> auto links with any node with requirement: Produce(Grass)
     let list_kill_node = Node::CreatureList(RewardNodeCreatureList {
         static_requirements: vec![vec![]],
         description: "list_kill_node".to_string(),
@@ -169,7 +158,7 @@ fn test_eat_soil_creatures() {
             target.get_variable_change_on_death()
         })),
         filter: Box::new(|_, c1, other| {
-            if other.get_id() == c1.memory.creatures_remembered[0].id {
+            if other.get_id() == c1.get_id() {
                 return false;
             }
             return true;
@@ -177,7 +166,7 @@ fn test_eat_soil_creatures() {
         }
     );
 
-    // TODONEXT: I think the using requirements to make connections, BUT ALSO they are used
+    // using requirements to make connections, BUT ALSO they are used
     // for the fucking limit-algo. So I think it can conflict a lot. Need to make separate stuff?
     // or maybe its already a bit separate cause of the VariableChange in RewardConnection?
     // only when an item is added to inventory should it have requirements (pickup/craft)?
@@ -193,7 +182,7 @@ fn test_eat_soil_creatures() {
     // Wait can I just make Variable take in a fucking item as an enum? then can simplify conversions?
     // can wrap that in Produce/Inventory too.
 
-    // move to creaturelist node. requirement is none? but reward is based on child of attack node.
+    // move to creaturelist node. requirement is none. but reward is based on child of attack node.
     let move_to_node = Node::CreatureList(RewardNodeCreatureList {
         static_requirements: vec![vec![]],
         description: "move_to_node".to_string(),
@@ -202,7 +191,8 @@ fn test_eat_soil_creatures() {
             base_multiplier: Some(1.0), 
             child_index: 2, 
             parent_index: 3, 
-            requirement: VariableChange { variable: Variable::None, change: 0, }, 
+            category: Variable::None,
+            dont_match_targets: false,
         }],
         reward: Box::new(|_, _, _, _other| {
             RewardResult{
@@ -215,7 +205,7 @@ fn test_eat_soil_creatures() {
                 1.
             // 9,9,9, 1
         }), 
-        requirement: Box::new(|_, c, other| {
+        requirement: Box::new(|_, _c, _other| {
             RequirementResult {
                 valid: true,
                 dynamic_and_static_requirements: vec![vec![]],
@@ -235,7 +225,7 @@ fn test_eat_soil_creatures() {
         )),
         effect: None,
         filter: Box::new(|_, c1, other| {
-            if other.get_id() == c1.memory.creatures_remembered[0].id {
+            if other.get_id() == c1.get_id() {
                 return false;
             }
             return true;
@@ -251,7 +241,8 @@ fn test_eat_soil_creatures() {
                 base_multiplier: Some(1.), 
                 child_index: 3, 
                 parent_index: 0,
-                requirement: VariableChange { variable: Variable::None, change: 0 }
+                category: Variable::None,
+                dont_match_targets: false,
             },
         ],
     };
@@ -266,6 +257,7 @@ fn test_eat_soil_creatures() {
         eat_flower_bush: 0,
         eat_flower_all: 0,
         eat_bush_all: 0,
+        far_sight: 200,
         ..Default::default()
     };
     // Test if they are all unique.
@@ -407,6 +399,8 @@ fn test_eat_soil_creatures() {
         moving: false,
     });
     deer1.components.starvation_component = Some(StarvationComponent { calories: 1000, metabolism: 20 });
+    deer1.components.ai_component = Some(AIComponent { is_enabled_ai: true });
+    deer1.components.vision_component = Some(VisionComponent { visible_creatures: vec![] });
 
     let creatures = vec![grass, grass2, bush, deer1];
     for creature in creatures {
@@ -419,11 +413,12 @@ fn test_eat_soil_creatures() {
         map_state:map
     };
     
-    for _ in 0..26 {
+    println!("\ncreatures:{}", game_state.map_state.get_creature_strings());
+    for _ in 0..1 {
         println!("Frame: {}", game_state.map_state.frame_count);
-        //println!("\ncreatures:{}", game_state.map_state.get_creature_strings());
         println!("{}", game_state.map_state.get_creature_map_strings(Vu2 { x: 0, y: 0 }));
         game_state = run_frame(game_state, None, Some(&root));
+        println!("{:#?}", game_state.map_state.debug_info.as_ref().unwrap().ai[0]);
     }
     println!("{}", game_state.map_state.get_creature_map_strings(Vu2 { x: 0, y: 0 }));
 }

@@ -9,6 +9,7 @@ use std::ops::Deref;
 use std::{fmt::{Debug, Formatter}, borrow::Borrow};
 use std::sync::{Arc, atomic::AtomicU64};
 use core::fmt;
+use ai::reward_graph::NodeResultRoot;
 use ai::reward_graph::RootNode;
 use rand::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -166,7 +167,9 @@ pub fn run_frame_with_input(mut game_state: GameState, goal_root: Option<&GoalNo
         })
     }).collect();
     let (blocked_blockers, mut blocked_nonblockers): (Vec<CreatureState>, Vec<CreatureState>) = blocked_creatures.into_par_iter().
-    reduce(|| (Vec::new(), Vec::new()),|(mut tl1, mut tl2), (l1, l2)| {
+    reduce(|| (Vec::new(), Vec::new()),
+    |(mut tl1, mut tl2), (l1, l2)| 
+    {
         tl1.extend(l1.into_iter());
         tl2.extend(l2.into_iter());
         (tl1, tl2)
@@ -314,33 +317,36 @@ pub fn run_frame_with_input(mut game_state: GameState, goal_root: Option<&GoalNo
     // want to move THEN AFTER do ai stuff so ai can react to the movement
     // TODONEXT: Save the result graph for debugging purposes every frame.
     // use tuples? to make a Some(EventChain, ResultGraph).
-    let mut op_ecs: Vec<Option<EventChain>> = m.regions.par_iter().flat_map(|x| {
+    let hash = m.get_creatures_hashmap();
+    let ai_event_chains: Vec<(Option<EventChain>, Option<NodeResultRoot>)> = m.regions.par_iter().flat_map(|x| {
         x.par_iter().flat_map(|y| {
             y.grid.par_iter().flat_map(|xl| {
                 xl.par_iter().flat_map(|yl| {
                     if let Some(cit) = yl.creatures.get_par_iter() {
-                        let ret: Vec<Option<EventChain>> = cit.map(
+                        let ret: Vec<(Option<EventChain>, Option<NodeResultRoot>)>  = cit.map(
                             |c| {
                                 if c.components.ai_component.is_none() || !c.components.ai_component.unwrap().is_enabled_ai {
-                                    return None;
+                                    return (None, None);
                                 }
-                                // TODOREVAMP: Comment out below and instead use evolutionary growing ai approach? Actually just combine this with evo approach.
-                                // So that we can just do both. Because old approach is great for running tests so good to keep. maybe put in a bool
+                                // We can just do both ai systems. Because old approach is great for running tests so good to keep. maybe put in a bool
                                 if let Some(reward_ai) = reward_root {
-                                    match reward_ai.generate_result_graph(&m, c).get_final_command() {
-                                        Some(cc) => {return cc.to_event_chain();}
-                                        None => {return None;}
+                                    let result_root = reward_ai.generate_result_graph(&m, c, &hash);
+                                    match result_root.get_final_command(reward_ai, &m, c, &hash) {
+                                        Some(cc) => {
+                                            return (cc.to_event_chain(), Some(result_root));
+                                        }
+                                        None => {return (None, Some(result_root));}
                                     }
                                 }
                                 
                                 if let Some(goal_ai) = goal_root {
                                     match GoalCacheNode::get_final_command(&goal_ai, &m, &c) {
-                                        Some(cc) => {return cc.to_event_chain();}
-                                        None => {return None;}
+                                        Some(cc) => {return (cc.to_event_chain(), None);}
+                                        None => {return (None, None);}
                                     }
                                 }
                                 
-                                None
+                                (None, None)
                             }
                         ).collect();
                         return ret;
@@ -352,7 +358,24 @@ pub fn run_frame_with_input(mut game_state: GameState, goal_root: Option<&GoalNo
         })
     }).collect();
 
-
+    
+    // Split the node graphs from the event chains.
+    // Its parallelized but I wonder if its slower cause of all the vec!s lol?
+    let (mut event_chains, ai_node_results): (Vec<Option<EventChain>>, Vec<NodeResultRoot>) = ai_event_chains.into_par_iter()
+    .map(|(a, b)| (
+        vec![a], 
+        match b {
+            Some(b) => vec![b],
+            None => vec![],
+        }
+        )) 
+        .reduce(|| (Vec::new(), Vec::new()),
+            |(mut tl1, mut tl2), (l1, l2)| 
+            {
+                tl1.extend(l1.into_iter());
+                tl2.extend(l2.into_iter());
+                (tl1, tl2)
+            });
     // Attack creature command will produce EventChain that will set creatures to battle and have a new target BattleList.
     // The last BattleList event will add the Battle to the list of Battles.
     // Battle is new datatype that will have 2 BattlerInfo for the creatures battling.
@@ -367,9 +390,9 @@ pub fn run_frame_with_input(mut game_state: GameState, goal_root: Option<&GoalNo
     let mut battle_effects: Vec<Option<EventChain>> = m.battle_list.battles.par_iter_mut().map( |battle| {
         battle.update()
     }).collect();
-    op_ecs.append(&mut battle_effects);
+    event_chains.append(&mut battle_effects);
 
-    let event_chains = unwrap_option_list(op_ecs);
+    let event_chains = unwrap_option_list(event_chains);
     process_events_from_mapstate(&mut m, event_chains);
 
     // Death system
@@ -428,7 +451,7 @@ pub fn run_frame_with_input(mut game_state: GameState, goal_root: Option<&GoalNo
         
     }).collect();
     process_events_from_mapstate(&mut m, unwrap_option_list(dead_events));
-
+    m.debug_info = Some(DebugMapState { ai: ai_node_results });
     GameState {
         map_state: m,
     }

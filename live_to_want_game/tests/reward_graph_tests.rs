@@ -128,19 +128,22 @@ fn test_1_tier_reward_graph() {
                 base_multiplier: Some(1.), 
                 child_index: 0, 
                 parent_index: 0,
-                requirement: VariableChange { variable: Variable::None, change: 0 } 
+                category: Variable::None,
+                dont_match_targets: false,
             },
             RewardNodeConnection{ 
                 base_multiplier: Some(1.), 
                 child_index: 1, 
                 parent_index: 0,
-                requirement: VariableChange { variable: Variable::None, change: 0 } 
+                category: Variable::None,
+                dont_match_targets: false,
             },
             RewardNodeConnection{ 
                 base_multiplier: Some(1.), 
                 child_index: 2, 
                 parent_index: 0,
-                requirement: VariableChange { variable: Variable::None, change: 0 } 
+                category: Variable::None,
+                dont_match_targets: false,
             }
         ],
     };
@@ -153,7 +156,8 @@ fn test_1_tier_reward_graph() {
             Item{ item_type: ItemType::Meat, quantity: 2 },
         ],
     };
-    let result_graph = root.generate_result_graph(&map, &creature);
+    let hash = map.get_creatures_hashmap();
+    let result_graph = root.generate_result_graph(&map, &creature, &hash);
 
     // TODO: og node not set. global rewards not set. move to new file
     println!("{:#?}", result_graph);
@@ -167,7 +171,7 @@ fn test_1_tier_reward_graph() {
     assert_eq!(result_graph.nodes[1].global_reward.reward_global_with_costs.unwrap(), 1.);
     assert_eq!(result_graph.nodes[2].global_reward.reward_global_with_costs.unwrap(), 2.);
 
-    let cmd = result_graph.get_final_command();
+    let cmd = result_graph.get_final_command(&root, &map, &creature, &hash);
 
     match cmd.unwrap() {
         CreatureCommand::MoveTo(name, _, _, _) => assert_eq!(name, "berryeat"),
@@ -350,23 +354,26 @@ fn test_limit_algo_reward_graph() {
         description: "wood".to_string(),
         index: 3, 
         static_children: vec![
-            RewardNodeConnection{ 
+            RewardNodeConnection{
                 base_multiplier: None, 
                 child_index: 0, 
                 parent_index: 3,
-                requirement: VariableChange { variable: Variable::InventoryItem(ItemType::Wood), change: 2 } 
+                category: Variable::InventoryItem(ItemType::Wood),
+                dont_match_targets: false,
             },
             RewardNodeConnection{ 
                 base_multiplier: None, 
                 child_index: 1, 
                 parent_index: 3,
-                requirement: VariableChange { variable: Variable::InventoryItem(ItemType::Wood), change: 3 } 
+                category: Variable::InventoryItem(ItemType::Wood),
+                dont_match_targets: false,
             },
             RewardNodeConnection{ 
                 base_multiplier: None, 
                 child_index: 2, 
                 parent_index: 3,
-                requirement: VariableChange { variable: Variable::InventoryItem(ItemType::Wood), change: 1 } 
+                category: Variable::InventoryItem(ItemType::Wood),
+                dont_match_targets: false,
             },
 
         ],
@@ -408,11 +415,12 @@ fn test_limit_algo_reward_graph() {
         description: "root".to_string(),
         nodes: vec![spear_node, shield_node, arrow_node, wood_node],
         children: vec![
-            RewardNodeConnection{ 
+            RewardNodeConnection{
                 base_multiplier: Some(1.), 
                 child_index: 3, 
                 parent_index: 0,
-                requirement: VariableChange { variable: Variable::None, change: 0 } 
+                category: Variable::None,
+                dont_match_targets: false,
             },
         ],
     };
@@ -428,7 +436,8 @@ fn test_limit_algo_reward_graph() {
             Item{ item_type: ItemType::Arrow, quantity: 1 },
         ],
     };
-    let result_graph = root.generate_result_graph(&map, &creature);
+    let hash = map.get_creatures_hashmap();
+    let result_graph = root.generate_result_graph(&map, &creature, &hash);
 
     // check the limit reward thingy for the wood node, and the final rewards for the childen nodes.
     println!("{:#?}", result_graph);
@@ -470,7 +479,7 @@ fn test_limit_algo_reward_graph() {
     }
     assert_eq!(result_graph.nodes[3].global_reward.reward_global_with_costs.unwrap(), 6.0);
 
-    let cmd = result_graph.get_final_command();
+    let cmd = result_graph.get_final_command(&root, &map, &creature, &hash);
 
     match cmd.unwrap() {
         CreatureCommand::MoveTo(name, _, _, _) => assert_eq!(name, "wood"),
@@ -580,7 +589,8 @@ fn test_creature_list_node_reward_graph() {
                 base_multiplier: Some(0.5), 
                 child_index: 1, 
                 parent_index: 0, 
-                requirement: VariableChange { variable: Variable::None, change: 1 }, 
+                category: Variable::None,
+                dont_match_targets: false,
             }
         ], 
         reward: Box::new(|_, _, _| {
@@ -674,12 +684,14 @@ fn test_creature_list_node_reward_graph() {
                 base_multiplier: Some(1.), 
                 child_index: 0, 
                 parent_index: 0,
-                requirement: VariableChange { variable: Variable::None, change: 0 } 
+                category: Variable::None,
+                dont_match_targets: false,
             },
         ],
     };
-
-    let result_graph = root.generate_result_graph(&map, map.get_creature_list()[0]);
+    
+    let hash = map.get_creatures_hashmap();
+    let result_graph = root.generate_result_graph(&map, map.get_creature_list()[0], &hash);
 
     println!("{:#?}", result_graph);
     println!("2:{} 3:{} 4:{} 5:{}", c2_id, c3_id, c4_id, c5_id);
@@ -688,7 +700,7 @@ fn test_creature_list_node_reward_graph() {
     // creaure 5 has highest reward but no requirements met
     // creature 4 has higher reward than creature 3 so its selected
 
-    let cmd = result_graph.get_final_command();
+    let cmd = result_graph.get_final_command(&root, &map, map.get_creature_list()[0], &hash);
 
     match cmd.unwrap() {
         CreatureCommand::MoveTo(_, _, loc, _) => assert_eq!(loc.position, Vu2::new(5,4)),
@@ -798,7 +810,8 @@ fn test_creature_list_node_reward_graph_2layer() {
                 base_multiplier: Some(0.5), 
                 child_index: 1, 
                 parent_index: 0, 
-                requirement: VariableChange { variable: Variable::None, change: 1 }, 
+                category: Variable::None,
+                dont_match_targets: false,
             }
         ], 
         reward: Box::new(|_, _, _| {
@@ -889,7 +902,7 @@ fn test_creature_list_node_reward_graph_2layer() {
         }
     );
 
-    // Should auto child to listnode1
+    // Should auto child to listnode1 from requirements/effect pairings
     let list_node_2 = Node::CreatureList(RewardNodeCreatureList {
         static_requirements: vec![vec![
             VariableChange{ 
@@ -945,16 +958,18 @@ fn test_creature_list_node_reward_graph_2layer() {
         description: "root".to_string(),
         nodes: vec![inbetween_node, list_node, list_node_2],
         children: vec![
-            RewardNodeConnection{ 
+            RewardNodeConnection{
                 base_multiplier: Some(1.), 
                 child_index: 0,
                 parent_index: 0,
-                requirement: VariableChange { variable: Variable::None, change: 0 } 
+                category: Variable::None,
+                dont_match_targets: false,
             },
         ],
     };
-
-    let result_graph = root.generate_result_graph(&map, map.get_creature_list()[0]);
+    
+    let hash = map.get_creatures_hashmap();
+    let result_graph = root.generate_result_graph(&map, map.get_creature_list()[0], &hash);
 
     println!("{:#?}", result_graph);
     println!("2:{} 3:{} 4:{} 5:{}", c2_id, c3_id, c4_id, c5_id);
@@ -967,8 +982,7 @@ fn test_creature_list_node_reward_graph_2layer() {
         assert!(node.global_reward.reward_global_with_costs.is_some());
         assert!(node.global_reward.reward_global_with_costs.unwrap() > 0.);
     }
-
-    let cmd = result_graph.get_final_command();
+    let cmd = result_graph.get_final_command(&root, &map, map.get_creature_list()[0], &hash);
 
     match cmd.unwrap() {
         CreatureCommand::MoveTo(_, _, loc, _) => assert_eq!(loc.position, Vu2::new(5,4)),
@@ -992,7 +1006,8 @@ fn test_loop_in_reward_graph() {
                 base_multiplier: Some(1.), 
                 child_index: 1, 
                 parent_index: 0, 
-                requirement: VariableChange{ variable: Variable::None, change: 1 } 
+                category: Variable::None,
+                dont_match_targets: false,
             }
         ], 
         reward: Box::new(|_, _, _| {
@@ -1036,7 +1051,8 @@ fn test_loop_in_reward_graph() {
                 base_multiplier: Some(1.), 
                 child_index: 0, 
                 parent_index: 1, 
-                requirement: VariableChange{ variable: Variable::None, change: 1 } 
+                category: Variable::None,
+                dont_match_targets: false,
             }
         ], 
         reward: Box::new(|_, _, _| {
@@ -1076,19 +1092,22 @@ fn test_loop_in_reward_graph() {
                 base_multiplier: Some(1.), 
                 child_index: 0, 
                 parent_index: 0,
-                requirement: VariableChange { variable: Variable::None, change: 0 } 
+                category: Variable::None,
+                dont_match_targets: false,
             },
             RewardNodeConnection{ 
                 base_multiplier: Some(1.), 
                 child_index: 1, 
                 parent_index: 0,
-                requirement: VariableChange { variable: Variable::None, change: 0 } 
+                category: Variable::None,
+                dont_match_targets: false,
             },
             RewardNodeConnection{ 
                 base_multiplier: Some(1.), 
                 child_index: 2, 
                 parent_index: 0,
-                requirement: VariableChange { variable: Variable::None, change: 0 } 
+                category: Variable::None,
+                dont_match_targets: false,
             }
         ],
     };
@@ -1101,5 +1120,6 @@ fn test_loop_in_reward_graph() {
             Item{ item_type: ItemType::Meat, quantity: 2 },
         ],
     };
-    let result_graph = root.generate_result_graph(&map, &creature);
+    let hash = map.get_creatures_hashmap();
+    let _result_graph = root.generate_result_graph(&map, &creature, &hash); // will fail
 }
