@@ -639,8 +639,9 @@ fn test_sex_reproduction<'a>() {
     deer5.components.region_component = RegionComponent {
         region: Vu2{x: 0, y: 0},
     };
+    let attack_range = MAX_ATTACK_DISTANCE.ceil() as usize;
     deer5.components.location_component = LocationComponent {
-        location: Vu2{x: 2 + MAX_ATTACK_DISTANCE, y: 2 + MAX_ATTACK_DISTANCE}
+        location: Vu2{x: 1 + attack_range, y: 1 + attack_range}
     };
     deer5.components.health_component = Some(HealthComponent {
         health:  10,

@@ -279,3 +279,30 @@ fn test_movement_fat_region() {
     assert_eq!(creature.components.region_component.region, dst_region);
     assert_eq!(creature.components.location_component.location, dst_position);
 }
+
+#[test]
+pub fn test_euclidean_distance(){
+    let loc1 = Location{
+        region: Vu2 { x: 0, y: 0 },
+        position: Vu2 { x: 3, y: 4 },
+    };
+
+    let loc2 = Location{
+        region: Vu2 { x: 0, y: 0 },
+        position: Vu2 { x: 0, y: 0 },
+    };
+
+    let loc3 = Location{
+        region: Vu2 { x: 0, y: 1 },
+        position: Vu2 { x: 0, y: 0 },
+    };
+
+    let loc4 = Location{
+        region: Vu2 { x: 0, y: 0 },
+        position: Vu2 { x: 3+3, y: 4+4 },
+    };
+
+    assert_eq!(loc1.distance_in_region_euclidean(&loc2), Some(5.));
+    assert_eq!(loc1.distance_in_region_euclidean(&loc3), None);
+    assert_eq!(loc1.distance_in_region_euclidean(&loc4), Some(5.));
+}

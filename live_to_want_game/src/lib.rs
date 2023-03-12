@@ -330,9 +330,10 @@ pub fn run_frame_with_input(mut game_state: GameState, goal_root: Option<&GoalNo
                                 }
                                 // We can just do both ai systems. Because old approach is great for running tests so good to keep. maybe put in a bool
                                 if let Some(reward_ai) = reward_root {
-                                    let result_root = reward_ai.generate_result_graph(&m, c, &hash);
+                                    let mut result_root = reward_ai.generate_result_graph(&m, c, &hash);
                                     match result_root.get_final_command(reward_ai, &m, c, &hash) {
-                                        Some(cc) => {
+                                        Some((cc, debug_cmd)) => {
+                                            result_root.final_node_descriptor = Some(debug_cmd);
                                             return (cc.to_event_chain(), Some(result_root));
                                         }
                                         None => {return (None, Some(result_root));}

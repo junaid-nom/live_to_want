@@ -11,7 +11,7 @@ fn test_eat_soil_creatures() {
     // Move to Food (creature list) -> attack food (creature list) -> pick up food items -> eat items
     // eat items should be only thing with reward. rest use the connection stuff minus by their effort level
     let use_food = Node::Reward(RewardNode {
-        description: "use_PSiltGrass".to_string(),
+        description: "use_eat_PSiltGrass".to_string(),
         index: 0,
         static_requirements: vec![vec![VariableChange{ 
             variable: reward_graph::Variable::InventoryItem(ItemType::PSiltGrass), 
@@ -58,7 +58,7 @@ fn test_eat_soil_creatures() {
         static_children: vec![RewardNodeConnection{ 
             base_multiplier: None,
             child_index: 0, 
-            parent_index: 1, 
+            parent_index: 1,
             category: Variable::InventoryItem(ItemType::PSiltGrass),
             dont_match_targets: false,
         }],
@@ -244,6 +244,15 @@ fn test_eat_soil_creatures() {
                 category: Variable::None,
                 dont_match_targets: false,
             },
+            // Need to add a root node to the pickup node as well so that you don't
+            // require a Creature around to be connected to root.
+            RewardNodeConnection{
+                base_multiplier: Some(1.), 
+                child_index: 1, 
+                parent_index: 0,
+                category: Variable::None,
+                dont_match_targets: false,
+            },
         ],
     };
 
@@ -402,6 +411,8 @@ fn test_eat_soil_creatures() {
     deer1.components.ai_component = Some(AIComponent { is_enabled_ai: true });
     deer1.components.vision_component = Some(VisionComponent { visible_creatures: vec![] });
 
+    let deer_id = deer1.get_id();
+
     let creatures = vec![grass, grass2, bush, deer1];
     for creature in creatures {
         region.grid[creature.get_location().position].creatures.add_creature(
@@ -414,17 +425,25 @@ fn test_eat_soil_creatures() {
     };
     
     println!("\ncreatures:{}", game_state.map_state.get_creature_strings());
-    for _ in 0..80 {
+    for _ in 0..70 {
         println!("Frame: {}", game_state.map_state.frame_count);
         println!("{}", game_state.map_state.get_creature_map_strings(Vu2 { x: 0, y: 0 }));
         game_state = run_frame(game_state, None, Some(&root));
-        //println!("{:#?}", game_state.map_state.debug_info.as_ref().unwrap().ai[0]);
+        println!("{:#?}", game_state.map_state.debug_info.as_ref().unwrap().ai[0].final_node_descriptor);
+        println!("Ground: {:#?}", game_state.map_state.get_ground_item_list());
+        println!("Creature: {:#?}", game_state.map_state.get_creature_item_list());
 
+        let creatures_map = game_state.map_state.get_creatures_hashmap();
+        println!("Calories: {:#?} adult percent: {}", &creatures_map.get(&deer_id).unwrap().components.starvation_component.as_ref().unwrap().calories,  &creatures_map.get(&deer_id).unwrap().get_adult_percent(game_state.map_state.frame_count));
         // TODONEXT: Attack range seems too far wtf? can hit 2 tiles away.
         // also the above is awkward because what if an item is dropped too far away from you to pick up, need to be able to move to item->pickup. Maybe can just put it in the command itself for pickup. If too far to pickup->move to.
-        // both grass killed by frame 53.
+        // both grass killed by frame 63.
     }
     println!("{}", game_state.map_state.get_creature_map_strings(Vu2 { x: 0, y: 0 }));
+    println!("{:#?}", game_state.map_state.debug_info.as_ref().unwrap().ai[0]);
+
+    let creatures_map = game_state.map_state.get_creatures_hashmap();
+    println!("Calories: {:#?}", &creatures_map.get(&deer_id).unwrap().components.starvation_component.as_ref().unwrap().calories);
 }
 
 // Put some budding blockers. Also some deer. Watch the deer be moved around because of the trees

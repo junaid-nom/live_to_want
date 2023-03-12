@@ -173,7 +173,7 @@ fn test_1_tier_reward_graph() {
 
     let cmd = result_graph.get_final_command(&root, &map, &creature, &hash);
 
-    match cmd.unwrap() {
+    match cmd.unwrap().0 {
         CreatureCommand::MoveTo(name, _, _, _) => assert_eq!(name, "berryeat"),
         _ => assert!(false)
     }
@@ -481,7 +481,7 @@ fn test_limit_algo_reward_graph() {
 
     let cmd = result_graph.get_final_command(&root, &map, &creature, &hash);
 
-    match cmd.unwrap() {
+    match cmd.unwrap().0 {
         CreatureCommand::MoveTo(name, _, _, _) => assert_eq!(name, "wood"),
         _ => assert!(false)
     }
@@ -702,7 +702,7 @@ fn test_creature_list_node_reward_graph() {
 
     let cmd = result_graph.get_final_command(&root, &map, map.get_creature_list()[0], &hash);
 
-    match cmd.unwrap() {
+    match cmd.unwrap().0 {
         CreatureCommand::MoveTo(_, _, loc, _) => assert_eq!(loc.position, Vu2::new(5,4)),
         _ => assert!(false)
     }
@@ -984,7 +984,7 @@ fn test_creature_list_node_reward_graph_2layer() {
     }
     let cmd = result_graph.get_final_command(&root, &map, map.get_creature_list()[0], &hash);
 
-    match cmd.unwrap() {
+    match cmd.unwrap().0 {
         CreatureCommand::MoveTo(_, _, loc, _) => assert_eq!(loc.position, Vu2::new(5,4)),
         _ => assert!(false)
     }

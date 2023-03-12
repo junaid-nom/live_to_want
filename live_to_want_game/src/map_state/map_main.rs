@@ -989,6 +989,20 @@ impl Location{
             position: Vu2::new(0,0)
         }
     }
+
+    pub fn distance_in_region_euclidean (&self, other: &Location) -> Option<f32> {
+        if other.region != self.region {
+            return None;
+        } else {
+            let x_dist = (other.position.x as i32 - self.position.x as i32).abs();
+            let y_dist = (other.position.y as i32 - self.position.y as i32).abs();
+            let mut dist = x_dist * x_dist ;
+            dist += y_dist * y_dist;
+            let dist_f: f32 = dist as f32;
+            Some(dist_f.sqrt())
+        }
+    }
+
     pub fn distance_in_region(&self, other: &Location) -> Option<usize> {
         if other.region != self.region {
             return None;

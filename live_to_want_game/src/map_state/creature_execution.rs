@@ -144,10 +144,10 @@ impl CreatureCommand<'_> {
                 todo!();
             }
             CreatureCommand::AttackSimple(_, attacker, victim) => {
-                let dist = attacker.get_location().distance_in_region(&victim.get_location());
+                let dist = attacker.get_location().distance_in_region_euclidean(&victim.get_location());
                 match dist {
                     Some(dist) => {
-                        if dist > MAX_ATTACK_DISTANCE {
+                        if dist as f32 > MAX_ATTACK_DISTANCE {
                             println!("Trying to attack enemy out of range!");
                             return None
                         }
@@ -184,7 +184,7 @@ impl CreatureCommand<'_> {
                 // Create two events that set in battle and battle started = false for the creatures.
                 // And a AddBattle event that will add a battle to a list of battles on mapState.
 
-                let dist = attacker.get_location().distance_in_region(&victim.get_location());
+                let dist = attacker.get_location().distance_in_region_euclidean(&victim.get_location());
                 match dist {
                     Some(dist) => {
                         if dist > MAX_ATTACK_DISTANCE {

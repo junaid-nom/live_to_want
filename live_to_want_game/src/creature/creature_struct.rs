@@ -53,7 +53,7 @@ impl CreatureState {
     }
 
     pub fn get_if_in_melee_range(&self, loc: Location) -> bool {
-        match self.get_location().distance_in_region(&loc) {
+        match self.get_location().distance_in_region_euclidean(&loc) {
             Some(d) => d <= MAX_ATTACK_DISTANCE,
             None => false,
         }
@@ -177,7 +177,7 @@ impl CreatureState {
     }
 
     pub fn can_sex(&self, other_id: u64, other_species: i32, other_location: Location, frame: u128) -> bool {
-        let dist = self.get_location().distance_in_region(&other_location);
+        let dist = self.get_location().distance_in_region_euclidean(&other_location);
         match dist {
             Some(dist) => {
                 if dist > MAX_ATTACK_DISTANCE {

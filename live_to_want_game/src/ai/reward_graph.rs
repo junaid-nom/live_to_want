@@ -64,6 +64,7 @@ impl RootNode {
             
             creature_id: c_state.get_id(),
             frame: map_state.frame_count,
+            final_node_descriptor: None,
         };
 
         // TODO: Eventually the creatures remembered list should be culled based on frame
@@ -470,6 +471,7 @@ pub struct NodeResultRoot {
     // Debug vars:
     pub creature_id: UID,
     pub frame: u128,
+    pub final_node_descriptor: Option<String>,
 }
 impl NodeResultRoot {
     pub fn calculate_global_reward(&mut self, og_root_node: &RootNode, map_state: &MapState, c_state: &CreatureState, c_targets: &HashMap<UID, &CreatureState>, index_to_process: usize, indexes_processed: &mut HashSet<usize>) -> bool {
@@ -656,6 +658,7 @@ impl NodeResultRoot {
         self.nodes[index_to_process].connection_results = Some(conn_results);
 
         let mut reward_sum_total = self.nodes[index_to_process].reward_result.reward_local;
+
         for var_result in &self.nodes[index_to_process].global_reward.rewards_per_result_change {
             reward_sum_total += var_result.reward;
         }
@@ -665,13 +668,25 @@ impl NodeResultRoot {
         return true;
     }
 
-    pub fn get_final_command<'l>(&self, og_root_node: &RootNode, map_state: &'l MapState, c_state: &'l CreatureState, c_targets: &'l HashMap<UID, &CreatureState>) -> Option<CreatureCommand<'l>> {
+    pub fn get_final_command<'l>(&self, og_root_node: &RootNode, map_state: &'l MapState, c_state: &'l CreatureState, c_targets: &'l HashMap<UID, &CreatureState>) -> Option<(CreatureCommand<'l>, String)> {
         // make sure the map is same frame as the result for safety.
         if map_state.frame_count != self.frame {
             panic!("Trying to use map state with different frame than this result node!");
         }
         let mut best_node: Option<&NodeResult> = None;
         for node_result in self.nodes.iter() {
+            // Nodes can have None global rewards if they are disconnected from root. 
+            // Which can happen when they are meant to connect from dynamic requirement-effect connections and 
+            // there are no nodes that have the effect for the requirement.
+            if node_result.global_reward.reward_global_with_costs.is_none() {
+                assert!(
+                    node_result.requirement_result.dynamic_and_static_requirements.iter().map(|r| r.len()).sum::<usize>() > 0
+                );
+                continue;
+            }
+            if node_result.global_reward.reward_global_with_costs.unwrap() <= 0. {
+                continue;
+            }
             if 
                 node_result.requirement_result.valid && 
                 node_result.has_command && 
@@ -680,8 +695,7 @@ impl NodeResultRoot {
                     ||
                     node_result.global_reward.reward_global_with_costs.unwrap() >= 
                     best_node.unwrap().global_reward.reward_global_with_costs.unwrap()
-                )
-                 {
+                ) {
                     best_node = Some(node_result);
             }
         }
@@ -692,7 +706,7 @@ impl NodeResultRoot {
                 Node::Reward(n) => n.get_command.as_ref().unwrap()(map_state, c_state, &best_node.reward_result, &best_node.requirement_result),
                 Node::CreatureList(nl) => nl.get_command.as_ref().unwrap()(map_state, c_state, &best_node.reward_result, &best_node.requirement_result, c_targets.get(&best_node.creature_target.unwrap()).unwrap()),
             };
-            return Some(cmd);
+            return Some((cmd, best_node.original_node_description.clone()));
         }
         None
     }
