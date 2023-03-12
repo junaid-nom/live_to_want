@@ -414,11 +414,15 @@ fn test_eat_soil_creatures() {
     };
     
     println!("\ncreatures:{}", game_state.map_state.get_creature_strings());
-    for _ in 0..1 {
+    for _ in 0..80 {
         println!("Frame: {}", game_state.map_state.frame_count);
         println!("{}", game_state.map_state.get_creature_map_strings(Vu2 { x: 0, y: 0 }));
         game_state = run_frame(game_state, None, Some(&root));
-        println!("{:#?}", game_state.map_state.debug_info.as_ref().unwrap().ai[0]);
+        //println!("{:#?}", game_state.map_state.debug_info.as_ref().unwrap().ai[0]);
+
+        // TODONEXT: Attack range seems too far wtf? can hit 2 tiles away.
+        // also the above is awkward because what if an item is dropped too far away from you to pick up, need to be able to move to item->pickup. Maybe can just put it in the command itself for pickup. If too far to pickup->move to.
+        // both grass killed by frame 53.
     }
     println!("{}", game_state.map_state.get_creature_map_strings(Vu2 { x: 0, y: 0 }));
 }
