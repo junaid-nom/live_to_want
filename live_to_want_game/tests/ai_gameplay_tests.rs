@@ -383,8 +383,8 @@ fn test_eat_soil_creatures() {
         }
     }
 
-
-    //evolving_traits
+    let starting_calories = 1000;
+    let metabolism = 10;
     let mut deer1 = CreatureState{
         components: ComponentMap::default(),
         inventory: Vec::new(),
@@ -407,11 +407,12 @@ fn test_eat_soil_creatures() {
         frame_ready_to_move: 0,
         moving: false,
     });
-    deer1.components.starvation_component = Some(StarvationComponent { calories: 1000, metabolism: 20 });
+    deer1.components.starvation_component = Some(StarvationComponent { calories: starting_calories, metabolism: metabolism });
     deer1.components.ai_component = Some(AIComponent { is_enabled_ai: true });
     deer1.components.vision_component = Some(VisionComponent { visible_creatures: vec![] });
 
     let deer_id = deer1.get_id();
+    let deer_grass_calories = deer1.components.evolving_traits.as_ref().unwrap().get_calories_from_item_type(&ItemType::PSiltGrass);
 
     let creatures = vec![grass, grass2, bush, deer1];
     for creature in creatures {
@@ -425,7 +426,8 @@ fn test_eat_soil_creatures() {
     };
     
     println!("\ncreatures:{}", game_state.map_state.get_creature_strings());
-    for _ in 0..70 {
+    let frames = 70;
+    for _ in 0..frames {
         println!("Frame: {}", game_state.map_state.frame_count);
         println!("{}", game_state.map_state.get_creature_map_strings(Vu2 { x: 0, y: 0 }));
         game_state = run_frame(game_state, None, Some(&root));
@@ -437,13 +439,17 @@ fn test_eat_soil_creatures() {
         println!("Calories: {:#?} adult percent: {}", &creatures_map.get(&deer_id).unwrap().components.starvation_component.as_ref().unwrap().calories,  &creatures_map.get(&deer_id).unwrap().get_adult_percent(game_state.map_state.frame_count));
         // TODONEXT: Attack range seems too far wtf? can hit 2 tiles away.
         // also the above is awkward because what if an item is dropped too far away from you to pick up, need to be able to move to item->pickup. Maybe can just put it in the command itself for pickup. If too far to pickup->move to.
-        // both grass killed by frame 63.
+        // both grass killed and eaten by frame 69.
     }
     println!("{}", game_state.map_state.get_creature_map_strings(Vu2 { x: 0, y: 0 }));
     println!("{:#?}", game_state.map_state.debug_info.as_ref().unwrap().ai[0]);
 
     let creatures_map = game_state.map_state.get_creatures_hashmap();
-    println!("Calories: {:#?}", &creatures_map.get(&deer_id).unwrap().components.starvation_component.as_ref().unwrap().calories);
+    let calories: i32 = creatures_map.get(&deer_id).unwrap().components.starvation_component.as_ref().unwrap().calories;
+    let num_grass_dropped = 4.;
+    let expected_calories = starting_calories as f32 - (frames as  f32 * metabolism as f32 * MOVING_INCREASED_METABOLISM_FACTOR) + (num_grass_dropped *deer_grass_calories as f32);
+    println!("Calories: {:#?} expected: {}", calories, expected_calories);
+    assert!(expected_calories < calories as f32);
 }
 
 // Put some budding blockers. Also some deer. Watch the deer be moved around because of the trees

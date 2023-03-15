@@ -1,6 +1,6 @@
 use rand::Rng;
 
-use crate::{EventTarget, Location, Vu2, map_state::MapState, tasks::Event, tasks::EventChain, tasks::EventType, MOVING_INCREASED_METABOLISM_FACTOR, EvolvingTraitsComponent, EvolvingTraits, REPRODUCE_STARTING_CALORIES_MULTIPLIER, STANDARD_METABOLISM, STANDARD_PREGNANCY_LIVE_WEIGHT, THICK_HIDE_METABOLISM_MULTIPLIER, FAST_GROWER_CALORIE_MULTIPLIER, MOVE_SPEED_METABOLISM_MULTIPLIER, STANDARD_PREGNANCY_METABOLISM_MULTIPLIER, LITTER_SIZE_METABOLISM_MULTIPLIER, UID, SoilHeight};
+use crate::{EventTarget, Location, Vu2, map_state::MapState, tasks::Event, tasks::EventChain, tasks::EventType, MOVING_INCREASED_METABOLISM_FACTOR, EvolvingTraitsComponent, EvolvingTraits, REPRODUCE_STARTING_CALORIES_MULTIPLIER, STANDARD_METABOLISM, STANDARD_PREGNANCY_LIVE_WEIGHT, THICK_HIDE_METABOLISM_MULTIPLIER, FAST_GROWER_CALORIE_MULTIPLIER, MOVE_SPEED_METABOLISM_MULTIPLIER, STANDARD_PREGNANCY_METABOLISM_MULTIPLIER, LITTER_SIZE_METABOLISM_MULTIPLIER, UID, SoilHeight, SIMPLE_ATTACK_BASE_DMG};
 
 use super::{CreatureState, STARVING_SLOW_METABOLISM_FACTOR};
 
@@ -181,13 +181,14 @@ pub fn starvation_system(c: &mut CreatureState, frame: u128) {
         if let Some(h) = c.components.health_component.as_mut() {
             let starving = s.calories <= 0;
             if starving {
-                h.health -= 1;
+                h.health -= SIMPLE_ATTACK_BASE_DMG / 10;
             }
             let mut multiplier = if starving {STARVING_SLOW_METABOLISM_FACTOR} else {1.0};
             let mut is_moving = false;
             if let Some(movement) = c.components.movement_component.as_ref() {
                 is_moving = movement.moving;
             }
+            //println!("Calories: {} moving: {} mult:{}", s.calories, is_moving, multiplier);
             // If you have evo traits, use that to determine penalty for moving, otherwise use the flat constant
             if let Some(traits) = c.components.evolving_traits.as_ref() {
                 // TODONEXT: integrate move_speed, fast_grower, thick_hide, is_pregnant and litter_size
@@ -203,21 +204,25 @@ pub fn starvation_system(c: &mut CreatureState, frame: u128) {
                 }
 
                 if is_child {
-                    multiplier *= 1. + (traits.traits.fast_grower as f32 * FAST_GROWER_CALORIE_MULTIPLIER);
+                    let child_mult = 1. + (traits.traits.fast_grower as f32 * FAST_GROWER_CALORIE_MULTIPLIER);
+                    
+                    multiplier *= child_mult;
                     // Children need less calories than adults by the percent they are adults.
                     multiplier *= adult_percent;
+                    //println!("child mult: {} adult:{} total: {}", child_mult, adult_percent, multiplier);
                 }
 
                 multiplier *= 1. + (traits.traits.thick_hide as f32 * THICK_HIDE_METABOLISM_MULTIPLIER);
 
                 if is_moving {
                     multiplier *= MOVING_INCREASED_METABOLISM_FACTOR;
-                    multiplier *= traits.traits.move_speed as f32 * MOVE_SPEED_METABOLISM_MULTIPLIER;
+                    multiplier *= 1. + (traits.traits.move_speed as f32 * MOVE_SPEED_METABOLISM_MULTIPLIER);
                 }
             } else if is_moving {
                 multiplier *= MOVING_INCREASED_METABOLISM_FACTOR;
                 // Pregnant?
             }
+            println!("Final Calories: {} moving: {} mult:{} metabo:{}", s.calories, is_moving, multiplier, s.metabolism);
             s.calories -= (s.metabolism as f32 * multiplier) as i32;
 
         } else {
