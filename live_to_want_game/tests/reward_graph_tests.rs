@@ -622,7 +622,7 @@ fn test_creature_list_node_reward_graph() {
         }
     );
 
-    let list_node = Node::CreatureList(RewardNodeCreatureList {
+    let list_node = Node::ListNode(RewardNodeCreatureList {
         static_requirements: vec![vec![
             VariableChange{ 
                 variable: reward_graph::Variable::InventoryItem(ItemType::Fiber), 
@@ -843,7 +843,7 @@ fn test_creature_list_node_reward_graph_2layer() {
         }
     );
 
-    let list_node = Node::CreatureList(RewardNodeCreatureList {
+    let list_node = Node::ListNode(RewardNodeCreatureList {
         static_requirements: vec![vec![
             VariableChange{ 
                 variable: reward_graph::Variable::InventoryItem(ItemType::Fiber), 
@@ -903,7 +903,7 @@ fn test_creature_list_node_reward_graph_2layer() {
     );
 
     // Should auto child to listnode1 from requirements/effect pairings
-    let list_node_2 = Node::CreatureList(RewardNodeCreatureList {
+    let list_node_2 = Node::ListNode(RewardNodeCreatureList {
         static_requirements: vec![vec![
             VariableChange{ 
                 variable: reward_graph::Variable::InventoryItem(ItemType::Arrow), 

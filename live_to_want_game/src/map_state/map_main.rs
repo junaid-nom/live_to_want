@@ -625,6 +625,22 @@ impl MapState {
         ret
     }
 
+    pub fn get_ground_item_list_for_region(&self, region: Vu2) -> Vec<(&Item, Location)> {
+        let mut ret = vec![];
+        
+        let mr = &self.regions[region];
+        let xlen = mr.grid.len();
+        let ylen = mr.grid[0].len();
+        for y in 0..ylen {
+            for x in 0..xlen {
+                mr.grid[x][y].items.iter().for_each(|c| {
+                    ret.push((c, Location::new(region, Vu2::new(x, y))));
+                });
+            }
+        }
+        ret
+    }
+
     pub fn get_creature_item_list(&self) -> Vec<(&Item, UID)> {
         let creatures = self.get_creature_list();
         

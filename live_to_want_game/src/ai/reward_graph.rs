@@ -78,7 +78,14 @@ impl RootNode {
                 creatures_remembered.push(uid_map.get(seen).unwrap());
             }
         }
-        
+
+        // Add notable locations here to targets. For now just locations with items in them.
+        let mut notable_locations = HashSet::new();
+        for (item, location) in map_state.get_ground_item_list_for_region(c_state.get_location().region) {
+            if !notable_locations.contains(&location) {
+                notable_locations.insert(location);
+            }
+        }
 
         let mut result_to_og_idx_map: HashMap<NodeIndex, Vec<NodeResultIndex>> = HashMap::new();
 
@@ -105,25 +112,41 @@ impl RootNode {
                         effects: effects,
                         connection_results: None, // need to wait for global results of children to compute this
                         original_node_index: n.index,
-                        creature_target: None,
+                        list_target: None,
                         has_command: n.get_command.is_some(),
                     };
                     root.nodes.push(new);
                     result_to_og_idx_map.insert(n.index, vec![idx]);
                 },
-                Node::CreatureList(nl) => {
+                Node::ListNode(nl) => {
                     result_to_og_idx_map.insert(nl.index, vec![]);
                     // get the filtered list of targets. then make a NodeResult for all of them
-                    let filter = |target: &CreatureState| -> bool {
+                    let filter = |target: &NodeTarget| -> bool {
                         nl.filter.as_ref()(map_state, c_state, target)
                     };
-                    let mut targets = vec![];
-                    for c in &creatures_remembered {
-                        if filter(c) {
-                            targets.push(*c);
+                    let mut targets: Vec<NodeTarget> = vec![];
+                    for target_type in &nl.target_types {
+                        match target_type {
+                            NodeTargetType::CreatureTarget => {
+                                for c in &creatures_remembered {
+                                    let target = NodeTarget::CreatureTarget(c);
+                                    if filter(&target) {
+                                        targets.push(target);
+                                    }
+                                }
+                            },
+                            NodeTargetType::LocationTarget => {
+                                for loc in &notable_locations {
+                                    let target = NodeTarget::LocationTarget(*loc);
+                                    if filter(&target) {
+                                        targets.push(target);
+                                    }
+                                }
+                            },
                         }
                     }
-                    for target in targets {
+                    
+                    for target in &targets {
                         // make a NodeResult for em
                         let mut requirement = nl.requirement.as_ref()(map_state, c_state, target);
                         requirement.dynamic_and_static_requirements.extend(nl.static_requirements.clone());
@@ -136,7 +159,7 @@ impl RootNode {
                         let idx = root.nodes.len();
                         let new = NodeResult {
                             index: idx,
-                            original_node_description: format!("{}:{}", nl.description.clone(), target.get_id()), // NOTE: Is this worth? Every frame copying over the description. All to make debug print easier?
+                            original_node_description: format!("{}:{:#?}", nl.description.clone(), target.get_id()), // NOTE: Is this worth? Every frame copying over the description. All to make debug print easier?
                             requirement_result: requirement,
                             reward_result: reward,
                             cost_result: cost,
@@ -145,7 +168,7 @@ impl RootNode {
                             effects: effects,
                             connection_results: None, // need to wait for global results of children to compute this
                             original_node_index: nl.index,
-                            creature_target: Some(target.get_id()),
+                            list_target: Some(target.get_id()),
                             has_command: nl.get_command.is_some(),
                         };
                         root.nodes.push(new);
@@ -193,7 +216,7 @@ impl RootNode {
                         let child_result_node = root.nodes.get(*result_child_idx).unwrap();
                         // for creatureListNode being child to another creatureListNode usually only want
                         // to do the connection if they have a matching target.
-                        if node_result.creature_target.is_none() || child_result_node.creature_target.is_none() || node_result.creature_target.unwrap() == child_result_node.creature_target.unwrap() || conn_og.dont_match_targets {
+                        if node_result.list_target.is_none() || child_result_node.list_target.is_none() || node_result.list_target.as_ref().unwrap() == child_result_node.list_target.as_ref().unwrap() || conn_og.dont_match_targets {
                             // Transform og index to result indexes
                             let mut result_conn = conn_og.clone();
                             result_conn.parent_index = node_result.index;
@@ -244,7 +267,7 @@ impl RootNode {
 #[derive(Debug, Clone)]
 pub enum Node {
     Reward(RewardNode),
-    CreatureList(RewardNodeCreatureList),
+    ListNode(RewardNodeCreatureList),
 } impl Node {
     pub fn get_children(&self, root: &RootNode, req_map: &HashMap<Variable, Vec<NodeIndex>>, effects: &Vec<VariableChange>) -> Vec<RewardNodeConnection> {
         let mut total_conns: Vec<RewardNodeConnection> = vec![];
@@ -256,7 +279,7 @@ pub enum Node {
                 added_already.insert(conn.child_index);
                 total_conns.push(conn.clone());
             }),
-            Node::CreatureList(r) => r.static_children.iter().for_each(|conn| {
+            Node::ListNode(r) => r.static_children.iter().for_each(|conn| {
                 assert!(!added_already.contains(&conn.child_index));
                 added_already.insert(conn.child_index);
                 total_conns.push(conn.clone());
@@ -285,24 +308,24 @@ pub enum Node {
 
         total_conns
     }
-    pub fn get_child_multiplier(&self, count: f32, m: &MapState, c: &CreatureState, c_target: Option<&CreatureState>) -> f32 {
+    pub fn get_child_multiplier(&self, count: f32, m: &MapState, c: &CreatureState, target: Option<&NodeTarget>) -> f32 {
         match self {
             Node::Reward(n) => n.reward_connection.as_ref()(m, c, count),
-            Node::CreatureList(nl) => nl.reward_connection.as_ref()(m, c, count, c_target.unwrap()),
+            Node::ListNode(nl) => nl.reward_connection.as_ref()(m, c, count, target.unwrap()),
         }
     }
 
     pub fn get_index(&self) -> NodeIndex {
         match self {
             Node::Reward(n) => n.index,
-            Node::CreatureList(nl) => nl.index,
+            Node::ListNode(nl) => nl.index,
         }
     }
 
     pub fn get_static_requirements(&self) -> &Vec<Vec<VariableChange>> {
         match self {
             Node::Reward(n) => &n.static_requirements,
-            Node::CreatureList(nl) => &nl.static_requirements,
+            Node::ListNode(nl) => &nl.static_requirements,
         }
     }
 
@@ -357,6 +380,40 @@ pub struct RewardNode {
          .finish()
     }
 }
+
+#[derive(Clone)]
+// must be 1:1 with NodeTargetID
+pub enum NodeTarget<'a> {
+    CreatureTarget(&'a CreatureState),
+    LocationTarget(Location),
+}
+impl NodeTarget<'_> {
+    pub fn get_id(&self) -> NodeTargetID {
+        match self {
+            NodeTarget::CreatureTarget(c) => NodeTargetID::CreatureTarget(c.get_id()),
+            NodeTarget::LocationTarget(loc) => NodeTargetID::LocationTarget(*loc),
+        }
+    }
+}
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+// must be 1:1 with NodeTarget
+pub enum NodeTargetID { 
+    CreatureTarget(UID),
+    LocationTarget(Location),
+} impl NodeTargetID {
+    pub fn get_node_target<'l>(&self, c_targets: &'l HashMap<UID, &CreatureState>) -> NodeTarget<'l> {
+        match &self {
+            NodeTargetID::CreatureTarget(c_uid) => NodeTarget::CreatureTarget(*c_targets.get(&c_uid).unwrap()),
+            NodeTargetID::LocationTarget(loc) => NodeTarget::LocationTarget(*loc),
+        }
+    }
+ }
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+pub enum NodeTargetType { 
+    CreatureTarget,
+    LocationTarget,
+}
+
 #[derive(Clone)]
 pub struct RewardNodeCreatureList {
     pub description: String,  // just for debugging/comments
@@ -364,13 +421,14 @@ pub struct RewardNodeCreatureList {
     pub static_children: Vec<RewardNodeConnection>,
     pub static_requirements: Vec<Vec<VariableChange>>,
     //pub parents: Vec<usize>,
-    pub reward: Box<fn(&MapState, &CreatureState, &RequirementResult, &CreatureState) -> RewardResult>,
-    pub reward_connection: Box<fn(&MapState, &CreatureState, f32, &CreatureState) -> f32>,
-    pub requirement: Box<fn(&MapState, &CreatureState, &CreatureState) -> RequirementResult>,
-    pub cost: Box<fn(&MapState, &CreatureState, &RequirementResult, &CreatureState) -> CostResult>,
-    pub get_command: Option<Box<for<'f> fn(&'f MapState, &'f CreatureState, &RewardResult, &RequirementResult, &'f CreatureState) -> CreatureCommand<'f>>>, // Is None if this node does not lead to a category and is more of an organizing node
-    pub effect: Option<Box<fn(&MapState, &CreatureState, &RewardResult, &RequirementResult, &CreatureState) -> Vec<VariableChange>>>, // Used to get current of self already
-    pub filter: Box<fn(&MapState, &CreatureState, &CreatureState)->bool>, // will take all known CreatureStates, then use this filter on them, to produce one NodeResult for each one.
+    pub reward: Box<fn(&MapState, &CreatureState, &RequirementResult, &NodeTarget) -> RewardResult>,
+    pub reward_connection: Box<fn(&MapState, &CreatureState, f32, &NodeTarget) -> f32>,
+    pub requirement: Box<fn(&MapState, &CreatureState, &NodeTarget) -> RequirementResult>,
+    pub cost: Box<fn(&MapState, &CreatureState, &RequirementResult, &NodeTarget) -> CostResult>,
+    pub get_command: Option<Box<for<'f> fn(&'f MapState, &'f CreatureState, &RewardResult, &RequirementResult, NodeTarget) -> CreatureCommand<'f>>>, // Is None if this node does not lead to a category and is more of an organizing node
+    pub effect: Option<Box<fn(&MapState, &CreatureState, &RewardResult, &RequirementResult, &NodeTarget) -> Vec<VariableChange>>>, // Used to get current of self already
+    pub filter: Box<fn(&MapState, &CreatureState, &NodeTarget)->bool>, // will take all known targets of the valid types, then use this filter on them, to produce one NodeResult for each one.
+    pub target_types: HashSet<NodeTargetType>, // invalid NodeTargetID that are just meant to denote what NodeTarget types to use for this node
 } impl fmt::Debug for RewardNodeCreatureList {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("RewardNodeCreatureList")
@@ -493,9 +551,11 @@ impl NodeResultRoot {
         for child in self.nodes[index_to_process].children_result.clone() {
             self.calculate_global_reward(og_root_node, map_state, c_state, c_targets, child.child_index, indexes_processed);
         }
+        
+        
 
-        let c_target = match self.nodes[index_to_process].creature_target  {
-            Some(target) => Some(*c_targets.get(&target).unwrap()),
+        let target = match &self.nodes[index_to_process].list_target {
+            Some(target_id) => Some(target_id.get_node_target(c_targets)),
             None => None,
         };
         // all children must have been processed now.
@@ -604,7 +664,7 @@ impl NodeResultRoot {
                     child_count, 
                     map_state, 
                     c_state, 
-                    c_target
+                    target.as_ref()
                 );
                 cat_results.push(ConnectionResult{
                     category: variable,
@@ -630,7 +690,7 @@ impl NodeResultRoot {
                     top.child_count + top.parent_count, 
                     map_state,
                     c_state, 
-                    c_target
+                    target.as_ref()
                 );
                 top.total_reward.insert(0, get_global_reward_for_connection(
                     top.multiplier_child, 
@@ -704,7 +764,10 @@ impl NodeResultRoot {
             let original_node = og_root_node.nodes.get(best_node.original_node_index).unwrap();
             let cmd = match original_node {
                 Node::Reward(n) => n.get_command.as_ref().unwrap()(map_state, c_state, &best_node.reward_result, &best_node.requirement_result),
-                Node::CreatureList(nl) => nl.get_command.as_ref().unwrap()(map_state, c_state, &best_node.reward_result, &best_node.requirement_result, c_targets.get(&best_node.creature_target.unwrap()).unwrap()),
+                Node::ListNode(nl) => {
+                    let target = best_node.list_target.as_ref().unwrap().get_node_target(c_targets);
+                    nl.get_command.as_ref().unwrap()(map_state, c_state, &best_node.reward_result, &best_node.requirement_result, target)
+                },
             };
             return Some((cmd, best_node.original_node_description.clone()));
         }
@@ -726,7 +789,7 @@ pub struct NodeResult {
     pub connection_results: Option<Vec<BinaryHeap<ConnectionResult>>>,
     pub global_reward: NodeRewardGlobal,
     pub has_command: bool,
-    pub creature_target: Option<UID>,
+    pub list_target: Option<NodeTargetID>,
 }
 impl fmt::Debug for NodeResult {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -742,7 +805,7 @@ impl fmt::Debug for NodeResult {
             .field("connection_results", &self.connection_results)
             .field("global_reward", &self.global_reward)
             //.field("command_result", &cmd)
-            .field("creature_target", &self.creature_target)
+            .field("creature_target", &self.list_target)
             .finish()
     }
 }

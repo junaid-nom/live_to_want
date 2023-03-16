@@ -13,7 +13,7 @@ fn test_eat_soil_creatures() {
     let use_food = Node::Reward(RewardNode {
         description: "use_eat_PSiltGrass".to_string(),
         index: 0,
-        static_requirements: vec![vec![VariableChange{ 
+        static_requirements: vec![vec![VariableChange{
             variable: reward_graph::Variable::InventoryItem(ItemType::PSiltGrass), 
             change: 1,
         }]],
@@ -120,7 +120,7 @@ fn test_eat_soil_creatures() {
     // Need to make it so connections are auto made based on what creature drops dynamically.
     // This can be done by making the effect something and the (would be) child node requirement match.
     // so effect: Produce(Grass) -> auto links with any node with requirement: Produce(Grass)
-    let list_kill_node = Node::CreatureList(RewardNodeCreatureList {
+    let list_kill_node = Node::ListNode(RewardNodeCreatureList {
         static_requirements: vec![vec![]],
         description: "list_kill_node".to_string(),
         index: 2, 
@@ -183,7 +183,7 @@ fn test_eat_soil_creatures() {
     // can wrap that in Produce/Inventory too.
 
     // move to creaturelist node. requirement is none. but reward is based on child of attack node.
-    let move_to_node = Node::CreatureList(RewardNodeCreatureList {
+    let move_to_node = Node::ListNode(RewardNodeCreatureList {
         static_requirements: vec![vec![]],
         description: "move_to_node".to_string(),
         index: 3, 
@@ -450,6 +450,16 @@ fn test_eat_soil_creatures() {
     let expected_calories = starting_calories as f32 - (frames as  f32 * metabolism as f32 * MOVING_INCREASED_METABOLISM_FACTOR) + (num_grass_dropped *deer_grass_calories as f32);
     println!("Calories: {:#?} expected: {}", calories, expected_calories);
     assert!(expected_calories < calories as f32);
+
+
+    // TODONEXT: Add to the ai to move to items on the ground.
+    // place a siltgrass in the far corner it can move to and just pick up.
+    // Will probably need a new type of list-node for Notable-Locations?
+    // So basically for each ground-item-> add its location to notable-locations
+    // list in creature vision. Then have a location-list node that goes through them.
+    // maybe instead make a generic "ListNodeTarget" enum that can be a creature or location.
+    // then the functions take in ListNodeTarget not &CreatureState.
+    // can expand easily then. if its not the expected target type _=> panic!() in all our functions 
 }
 
 // Put some budding blockers. Also some deer. Watch the deer be moved around because of the trees
