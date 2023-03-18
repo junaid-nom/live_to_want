@@ -129,6 +129,16 @@ Vs Low range(melee) but very fast and u can move while attacking.
 Or VERY high attack speed but immobile, so equiping with high def stuff could help? or something.
 
 # TODO Eventually:
+
+## AI upgrades
+New NodeListTarget::ItemTarget(ItemType). This can then be used to make nodes like "PickUpItem" for all items(nearby/in inventory). And it would dynamically
+set the effect based on the item.
+
+Can also probably use it for "UseItem" and it would have dynamic requirements. And the reward would be a big match on all item types, which is probably good cause then reminds devs whenever a new item is added, to figure out its reward function.
+
+
+
+
 ## Integrate with a Client
 Lets use unreal so I can put unreal on resume and because it looks better out of the box.
 C++ libraries might also help? Or maybe it will be awful.

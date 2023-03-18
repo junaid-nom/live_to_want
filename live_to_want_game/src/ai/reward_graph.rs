@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use strum::IntoEnumIterator;
 use core::fmt;
 use std::{collections::{HashSet, BinaryHeap, HashMap}, hash::Hash, fmt::format};
 use crate::{UID, MapState, CreatureState, CreatureCommand, Location, ItemType};
@@ -13,8 +14,8 @@ pub fn get_count_of_variable(m: &MapState, c: &CreatureState, v: Variable) -> i3
     // could even be something like "my rank in power compared to creatures near me"
     match v {
         Variable::None => 0,
-        Variable::ProduceItem(item) => c.get_inventory_of_item(item) as i32,
-        Variable::InventoryItem(item) => c.get_inventory_of_item(item) as i32,
+        Variable::DropItem(item) => c.get_inventory_of_item(item) as i32,
+        Variable::HaveItem(item) => c.get_inventory_of_item(item) as i32,
     }
 }
 
@@ -81,8 +82,9 @@ impl RootNode {
 
         // Add notable locations here to targets. For now just locations with items in them.
         let mut notable_locations = HashSet::new();
-        for (item, location) in map_state.get_ground_item_list_for_region(c_state.get_location().region) {
-            if !notable_locations.contains(&location) {
+        let c_loc = c_state.get_location();
+        for (_, location) in map_state.get_ground_item_list_for_region(c_state.get_location().region) {
+            if !notable_locations.contains(&location) && c_loc.distance_in_region(&location).unwrap() as f32 <= c_state.get_vision_range() {
                 notable_locations.insert(location);
             }
         }
@@ -135,12 +137,15 @@ impl RootNode {
                                     }
                                 }
                             },
-                            NodeTargetType::LocationTarget => {
+                            NodeTargetType::LocationItemTarget => {
                                 for loc in &notable_locations {
-                                    let target = NodeTarget::LocationTarget(*loc);
-                                    if filter(&target) {
-                                        targets.push(target);
+                                    for item in &map_state[loc].items {
+                                        let target = NodeTarget::LocationItemTarget(*loc, item.item_type);
+                                        if filter(&target) {
+                                            targets.push(target);
+                                        }
                                     }
+                                    
                                 }
                             },
                         }
@@ -267,9 +272,9 @@ impl RootNode {
 #[derive(Debug, Clone)]
 pub enum Node {
     Reward(RewardNode),
-    ListNode(RewardNodeCreatureList),
+    ListNode(RewardNodeList),
 } impl Node {
-    pub fn get_children(&self, root: &RootNode, req_map: &HashMap<Variable, Vec<NodeIndex>>, effects: &Vec<VariableChange>) -> Vec<RewardNodeConnection> {
+    pub fn get_children(&self, _root: &RootNode, req_map: &HashMap<Variable, Vec<NodeIndex>>, effects: &Vec<VariableChange>) -> Vec<RewardNodeConnection> {
         let mut total_conns: Vec<RewardNodeConnection> = vec![];
         let mut added_already: HashSet<NodeIndex> = HashSet::new();
         // add static connections
@@ -336,8 +341,8 @@ pub enum Node {
 #[derive(Deserialize, Serialize)]
 pub enum Variable {
     None,
-    ProduceItem(ItemType), // produces an item on the ground (kill a creature etc)
-    InventoryItem(ItemType), // pickup or craft
+    DropItem(ItemType), // produces an item on the ground (kill a creature etc)
+    HaveItem(ItemType), // pickup or craft
     // NOTE inbetween ingredients will need to be variables. Anything that is an inner OR. For example, if  (wood OR clay) AND glue makes a wall, then (wood OR clay) must be its own node and variable.
 }
 #[derive(Debug)]
@@ -346,6 +351,11 @@ pub enum Variable {
 pub struct VariableChange {
     pub variable: Variable,
     pub change: i32,
+}
+impl VariableChange {
+    pub fn new(variable: Variable, change: i32) -> Self {
+        VariableChange { variable, change }
+    }
 }
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct RewardNodeConnection {
@@ -385,13 +395,27 @@ pub struct RewardNode {
 // must be 1:1 with NodeTargetID
 pub enum NodeTarget<'a> {
     CreatureTarget(&'a CreatureState),
-    LocationTarget(Location),
+    LocationItemTarget(Location, ItemType),
 }
-impl NodeTarget<'_> {
+impl<'a> NodeTarget<'a> {
     pub fn get_id(&self) -> NodeTargetID {
         match self {
             NodeTarget::CreatureTarget(c) => NodeTargetID::CreatureTarget(c.get_id()),
-            NodeTarget::LocationTarget(loc) => NodeTargetID::LocationTarget(*loc),
+            NodeTarget::LocationItemTarget(loc, item) => NodeTargetID::LocationItemTarget(*loc, *item),
+        }
+    }
+
+    pub fn as_creature(& self) -> &'a CreatureState {
+        match self {
+            NodeTarget::CreatureTarget(c) => c,
+            _ => panic!("Unwraping as creaturestate when target is not creature target"),
+        }
+    }
+
+    pub fn as_location_item(& self) -> (&Location, &ItemType) {
+        match self {
+            NodeTarget::LocationItemTarget(loc, itype) => (loc, itype),
+            _ => panic!("Unwraping as creaturestate when target is not creature target"),
         }
     }
 }
@@ -399,23 +423,23 @@ impl NodeTarget<'_> {
 // must be 1:1 with NodeTarget
 pub enum NodeTargetID { 
     CreatureTarget(UID),
-    LocationTarget(Location),
+    LocationItemTarget(Location, ItemType),
 } impl NodeTargetID {
     pub fn get_node_target<'l>(&self, c_targets: &'l HashMap<UID, &CreatureState>) -> NodeTarget<'l> {
         match &self {
             NodeTargetID::CreatureTarget(c_uid) => NodeTarget::CreatureTarget(*c_targets.get(&c_uid).unwrap()),
-            NodeTargetID::LocationTarget(loc) => NodeTarget::LocationTarget(*loc),
+            NodeTargetID::LocationItemTarget(loc, item) => NodeTarget::LocationItemTarget(*loc, *item),
         }
     }
  }
-#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq, Hash)]
 pub enum NodeTargetType { 
     CreatureTarget,
-    LocationTarget,
+    LocationItemTarget,
 }
 
 #[derive(Clone)]
-pub struct RewardNodeCreatureList {
+pub struct RewardNodeList {
     pub description: String,  // just for debugging/comments
     pub index: NodeIndex,
     pub static_children: Vec<RewardNodeConnection>,
@@ -425,11 +449,11 @@ pub struct RewardNodeCreatureList {
     pub reward_connection: Box<fn(&MapState, &CreatureState, f32, &NodeTarget) -> f32>,
     pub requirement: Box<fn(&MapState, &CreatureState, &NodeTarget) -> RequirementResult>,
     pub cost: Box<fn(&MapState, &CreatureState, &RequirementResult, &NodeTarget) -> CostResult>,
-    pub get_command: Option<Box<for<'f> fn(&'f MapState, &'f CreatureState, &RewardResult, &RequirementResult, NodeTarget) -> CreatureCommand<'f>>>, // Is None if this node does not lead to a category and is more of an organizing node
+    pub get_command: Option<Box<for<'f> fn(&'f MapState, &'f CreatureState, &RewardResult, &RequirementResult, NodeTarget<'f>) -> CreatureCommand<'f>>>, // Is None if this node does not lead to a category and is more of an organizing node
     pub effect: Option<Box<fn(&MapState, &CreatureState, &RewardResult, &RequirementResult, &NodeTarget) -> Vec<VariableChange>>>, // Used to get current of self already
     pub filter: Box<fn(&MapState, &CreatureState, &NodeTarget)->bool>, // will take all known targets of the valid types, then use this filter on them, to produce one NodeResult for each one.
     pub target_types: HashSet<NodeTargetType>, // invalid NodeTargetID that are just meant to denote what NodeTarget types to use for this node
-} impl fmt::Debug for RewardNodeCreatureList {
+} impl fmt::Debug for RewardNodeList {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("RewardNodeCreatureList")
          .field("description", &self.description)

@@ -52,15 +52,15 @@ impl CreatureState {
         ret
     }
 
-    pub fn get_if_in_melee_range(&self, loc: Location) -> bool {
-        match self.get_location().distance_in_region_euclidean(&loc) {
+    pub fn get_if_in_melee_range(&self, loc: &Location) -> bool {
+        match self.get_location().distance_in_region_euclidean(loc) {
             Some(d) => d <= MAX_ATTACK_DISTANCE,
             None => false,
         }
     }
 
-    pub fn get_variable_change_on_death(&self) -> Vec<VariableChange> {
-        self.get_items_on_death().into_iter().map(|item| item.get_variable_change(true)).collect()
+    pub fn get_variable_change_on_death(&self, drop_not_have: bool) -> Vec<VariableChange> {
+        self.get_items_on_death().into_iter().map(|item| item.get_variable_change(drop_not_have)).collect()
     }
 
     pub fn get_items_on_death(&self) -> Vec<Item> {

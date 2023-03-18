@@ -9,7 +9,7 @@ use super::MapLocation;
 
 #[derive(Debug, Clone, Copy)]
 #[derive(PartialEq, Hash, Eq)]
-#[derive(Deserialize, Serialize)]
+#[derive(Deserialize, Serialize, strum_macros::EnumIter)]
 pub enum ItemType {
     Meat,
     Bone,
@@ -42,9 +42,9 @@ impl Default for ItemType {
 impl ItemType {
     pub fn get_variable(&self, produce_not_inventory: bool) -> Variable {
         if produce_not_inventory {
-            Variable::ProduceItem(self.clone())
+            Variable::DropItem(self.clone())
         } else {
-            Variable::InventoryItem(self.clone())
+            Variable::HaveItem(self.clone())
         }
     }
 }
@@ -62,9 +62,9 @@ impl Item {
             item_type, quantity
         }
     }
-    pub fn get_variable_change(&self, produce_not_inventory: bool) -> VariableChange {
+    pub fn get_variable_change(&self, drop_not_have: bool) -> VariableChange {
         return VariableChange {
-            variable: self.item_type.get_variable(produce_not_inventory),
+            variable: self.item_type.get_variable(drop_not_have),
             change: self.quantity as i32,
         }
     }

@@ -114,7 +114,6 @@ pub struct DebugMapState {
 }
 
 #[derive(Debug)]
-#[derive(Default)]
 #[derive(Clone, Deserialize, Serialize)]
 pub struct MapState {
     pub regions: RegionGrid,
@@ -122,6 +121,22 @@ pub struct MapState {
     pub battle_list: BattleList,
     pub user_creatures: HashMap<String, MapLocation>,
     pub debug_info: Option<DebugMapState>,
+}
+impl Default for MapState {
+    fn default() -> Self {
+        // create a single region with frame 0 
+        MapState::new(
+            // Set minimum size of 1,1 to prevent crazy index errors in helper funcs
+            vec![vec![RegionCreationStruct::new(1,1, 0, vec![])]], 
+            0)
+    }
+}
+impl Index<&Location> for MapState {
+    type Output = MapLocation;
+
+    fn index(&self, index: &Location) -> &Self::Output {
+        &self.regions[index.region].grid[index.position]
+    }
 }
 impl MapState {
     pub fn new(mut rstructs: Vec<Vec<RegionCreationStruct>>, current_frame: u128) -> Self {
