@@ -1,6 +1,6 @@
 use std::io::stderr;
 
-use crate::{Battle, Location, MAX_ATTACK_DISTANCE, MapState, creature::CreatureState, tasks::Event, tasks::EventChain, tasks::EventTarget, tasks::EventType, utils::UID, utils::Vu2, SIMPLE_ATTACK_BASE_DMG, reward_graph::{Variable, VariableChange}};
+use crate::{Battle, Location, MAX_ATTACK_DISTANCE, MapState, creature::CreatureState, tasks::Event, tasks::EventChain, tasks::EventTarget, tasks::EventType, utils::UID, utils::Vu2, SIMPLE_ATTACK_BASE_DMG, reward_graph::{Effect, EffectChange}};
 use rand::Rng;
 use core::fmt;
 use serde::{Deserialize, Serialize};
@@ -40,11 +40,11 @@ impl Default for ItemType {
     fn default() -> Self { ItemType::Berry }
 }
 impl ItemType {
-    pub fn get_variable(&self, produce_not_inventory: bool) -> Variable {
+    pub fn get_variable(&self, produce_not_inventory: bool) -> Effect {
         if produce_not_inventory {
-            Variable::DropItem(self.clone())
+            Effect::DropItem(self.clone())
         } else {
-            Variable::HaveItem(self.clone())
+            Effect::HaveItem(self.clone())
         }
     }
 }
@@ -62,9 +62,9 @@ impl Item {
             item_type, quantity
         }
     }
-    pub fn get_variable_change(&self, drop_not_have: bool) -> VariableChange {
-        return VariableChange {
-            variable: self.item_type.get_variable(drop_not_have),
+    pub fn get_variable_change(&self, drop_not_have: bool) -> EffectChange {
+        return EffectChange {
+            effect: self.item_type.get_variable(drop_not_have),
             change: self.quantity as i32,
         }
     }

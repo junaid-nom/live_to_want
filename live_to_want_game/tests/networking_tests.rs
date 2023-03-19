@@ -26,6 +26,8 @@ async fn run_simple_server_test() {
     // a string message. make sure the string message arrives with the right username
 
     let mut server = ConnectionManager::new(ip_port.clone()).await;
+
+    // First client that sends Hello there then upon reading a reply, sends hello there2
     test_client_with_func(ip_port.clone(), Box::new(|mut stream: TcpStream| {
         stream.write(&wrap_ser_message(GameMessage::LoginMsg(User{
             username: "test".to_string(),
@@ -33,26 +35,41 @@ async fn run_simple_server_test() {
         }), 0)).unwrap();
         
         stream.write(&wrap_ser_message(GameMessage::StringMsg("Hello There\n!".to_string()), 0)).unwrap();
-        println!("Sent Hello  From Client");
+        println!("Sent Hello  From Client1");
 
         let mut stream_reader = BufReader::new(stream.try_clone().unwrap());
         let mut data = String::new();
-        match stream_reader.read_line(&mut data) {
-            Ok(_) => {
-                //let msg = &data[0..n];
-                data.pop();
-                let message: GameMessageWrap = serde_json::from_str(&data).unwrap();
-                println!("Client got msg: {:?}", message);
-
-                stream.write(&wrap_ser_message(GameMessage::StringMsg("Hello There2!".to_string()), 0)).unwrap();
-                println!("Sent hello reply to server from client");
-            },
-            Err(e) => {
-                println!("Failed to receive data: {}", e);
+        loop {
+            match stream_reader.read_line(&mut data) {
+                Ok(_) => {
+                    //let msg = &data[0..n];
+                    data.pop();
+                    let message: GameMessageWrap = serde_json::from_str(&data).unwrap();
+                    println!("Client1 got msg: {:?}", message);
+    
+                    match message.message {
+                        GameMessage::StringMsg(_) => {
+                            stream.write(&wrap_ser_message(GameMessage::StringMsg("Hello There2!".to_string()), 0)).unwrap();
+                            println!("Sent hello reply to server from client1");
+                            return;
+                        },
+                        GameMessage::LoginReplyMsg(succ, _) => {
+                            assert!(succ);
+                            println!("Client1 got login reply msg");
+                        },
+                        _ => panic!("Unexpected message type for client1!"),
+                        //GameMessage::DropConnection(_) => todo!(),
+                    }
+                    
+                },
+                Err(e) => {
+                    println!("Failed to receive data for client1: {}", e);
+                }
             }
         }
     }));
 
+    // login as test2 and send a hellothere 2 msg.
     test_client_with_func(ip_port.clone(), Box::new(|mut stream: TcpStream| {
         stream.write(&wrap_ser_message(GameMessage::LoginMsg(User{
             username: "test2".to_string(),
@@ -62,31 +79,39 @@ async fn run_simple_server_test() {
         stream.write(&wrap_ser_message(GameMessage::StringMsg("Hello There2!".to_string()), 0)).unwrap();
     }));
 
-    let mut got_test = false;
-    let mut got_test2 = false;
-    while !got_test || !got_test2 {
+    let mut got_msg_client1_first = false;
+    let mut got_msg_client1_second = false;
+    let mut got_msg_client2_first = false;
+    let mut got_msg_client2_second = false;
+    while !got_msg_client1_first || !got_msg_client2_first {
         let msgs = server.process_logins_and_get_messages();
+        // login messages should be handled by the process ^ func, so won't be in msgs.
         msgs.into_iter().for_each(
             |g| {
+                if got_msg_client1_first && got_msg_client2_first {
+                    eprintln!("Got more than two messages this shouldn't happen yet!");
+                    assert!(!(got_msg_client1_first && got_msg_client2_first));
+                }
                 let test_string = if g.username == "test".to_string() {
                     "Hello There\n!".to_string()
                 } else { "Hello There2!".to_string() };
 
                 if g.username == "test".to_string() {
-                    got_test = true;
+                    got_msg_client1_first = true;
                 }
                 else if g.username == "test2".to_string() {
-                    got_test2 = true;
+                    got_msg_client2_first = true;
                 }
 
                 match g.message {
                     GameMessage::StringMsg(m) => {
                         assert_eq!(m, test_string);
-                        println!("Got hello there message: {:?}", m);
+                        println!("Got hello there message from {:#?}: {:?}", g.username, m);
                     },
                     _ => panic!("Should get string message!")
                 }
 
+                // Will prompt second message from user1?
                 server.send_message(GameMessage::StringMsg("ServerMsg".to_string()), g.username.clone());
             }
         );
@@ -121,9 +146,7 @@ async fn run_simple_server_test() {
     }));
     
 
-    let mut got_test = false;
-    let mut got_test2 = false;
-    while !got_test || !got_test2 {
+    while !got_msg_client1_second || !got_msg_client2_second {
         let msgs = server.process_logins_and_get_messages();
         msgs.into_iter().for_each(
             |g| {
@@ -132,10 +155,10 @@ async fn run_simple_server_test() {
                 } else { "yes".to_string() };
 
                 if g.username == "test".to_string() {
-                    got_test = true;
+                    got_msg_client1_second = true;
                 }
                 else if g.username == "test2".to_string() {
-                    got_test2 = true;
+                    got_msg_client2_second = true;
                 }
 
                 match g.message {
@@ -150,7 +173,7 @@ async fn run_simple_server_test() {
             }
         );
     }
-    println!("GOT IT!");
+    println!("END TEST!");
 }
 
 

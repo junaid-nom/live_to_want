@@ -35,10 +35,16 @@ async fn start_server(ip_port: String, send_to_server: Sender<GameMessageWrap>, 
                                     Ok(_) => {},
                                     Err(e) => {
                                         eprintln!("failed to write to client channel (client dc?); err = {:?}", e);
-                                        all_send_to_server.send(GameMessageWrap{
+                                        let result = all_send_to_server.send(GameMessageWrap{
                                             message: GameMessage::DropConnection(game_msg_wrap.conn_id),
                                             conn_id: 0,
-                                        }).unwrap();
+                                        });
+                                        match result {
+                                            Ok(_) => {},
+                                            Err(e) => {
+                                                eprintln!("failed to write to server channel (server dc?); err = {:?}", e);
+                                            },
+                                        }
                                         client_connections.remove(&game_msg_wrap.conn_id);
                                     },
                                 }

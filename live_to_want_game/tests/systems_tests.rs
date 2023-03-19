@@ -2,7 +2,7 @@ extern crate rayon;
 use std::{rc::Rc, cell::RefCell};
 
 use rayon::prelude::*;
-use live_to_want_game::{*, reward_graph::{RootNode, Node, RewardNode, RewardResult, RequirementResult, VariableChange, CostResult, RewardNodeConnection, Variable, ConnectionResult, RewardNodeList}};
+use live_to_want_game::{*, reward_graph::{RootNode, Node, RewardNode, RewardResult, RequirementResult, EffectChange, CostResult, RewardNodeConnection, Effect, ConnectionResult, RewardNodeList}};
 use strum::IntoEnumIterator;
 
 #[test]
@@ -200,18 +200,21 @@ fn starvation_moving() {
         inventory: Vec::new(),
         memory: CreatureMemory::default(),
     };
+    let metabolism = 100;
+    let starting_calories = 1000;
     deer1.components.starvation_component = Some(StarvationComponent { 
-        calories: 1000, 
-        metabolism: 100,
+        calories: starting_calories, 
+        metabolism: metabolism,
     });
     deer1.components.health_component = Some(HealthComponent {
         health:  SIMPLE_ATTACK_BASE_DMG * 10,
         max_health: SIMPLE_ATTACK_BASE_DMG * 10,
     });
+    let move_speed_trait = 60;
     deer1.components.evolving_traits = Some(EvolvingTraitsComponent {
         adult_traits: EvolvingTraits{
             species: 0,
-            move_speed: 60,
+            move_speed: move_speed_trait,
             ..Default::default()
         },
         child_until_frame: 1,
@@ -227,7 +230,7 @@ fn starvation_moving() {
     starvation_system(&mut deer1, 10);
     let calories = deer1.components.starvation_component.unwrap().calories;
     println!("Calories: {}", calories);
-    assert_eq!(calories, (1000. - (100. * MOVING_INCREASED_METABOLISM_FACTOR * (0.3 * 60.))) as i32);
+    assert_eq!(calories, (starting_calories as f32 - (metabolism as f32 * MOVING_INCREASED_METABOLISM_FACTOR * (1. + MOVE_SPEED_METABOLISM_MULTIPLIER * move_speed_trait as f32))) as i32);
 }
 #[test]
 fn starvation_child() {
@@ -1635,5 +1638,3 @@ fn test_chain_budding_system_blockers<'a>() {
     assert_eq!(game_state.map_state.get_ground_item_list()[0].0.quantity, 2);
     assert_eq!(game_state.map_state.get_creature_item_list().len(), 0);
 }
-
-

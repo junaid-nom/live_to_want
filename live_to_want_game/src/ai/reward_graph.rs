@@ -7,15 +7,15 @@ use crate::{UID, MapState, CreatureState, CreatureCommand, Location, ItemType};
 pub type NodeIndex = usize;
 pub type NodeResultIndex = usize;
 
-pub fn get_count_of_variable(m: &MapState, c: &CreatureState, v: Variable) -> i32 {
-    // get the count of each variable.
+pub fn get_count_of_effect(_m: &MapState, c: &CreatureState, e: Effect) -> i32 {
+    // get the count of each effect.
     // Most will be what does creature have in inventory.
     // others could be result of a function for example "whats my power level"
     // could even be something like "my rank in power compared to creatures near me"
-    match v {
-        Variable::None => 0,
-        Variable::DropItem(item) => c.get_inventory_of_item(item) as i32,
-        Variable::HaveItem(item) => c.get_inventory_of_item(item) as i32,
+    match e {
+        Effect::None => 0,
+        Effect::DropItem(item) => c.get_inventory_of_item(item) as i32,
+        Effect::HaveItem(item) => c.get_inventory_of_item(item) as i32,
     }
 }
 
@@ -23,26 +23,26 @@ pub fn get_global_reward_for_connection(child_multiplier: f32, global_reward: f3
     return base_multiplier * child_multiplier * global_reward;
 }
 
-pub fn get_smallest_variable_change_from_vec_vec(changes :&Vec<Vec<VariableChange>>, variable: Variable) -> Option<VariableChange> {
-    let mut lowest_var_change: Option<VariableChange> = None;
+pub fn get_smallest_effect_change_from_vec_vec(changes :&Vec<Vec<EffectChange>>, effect: Effect) -> Option<EffectChange> {
+    let mut lowest_effect_change: Option<EffectChange> = None;
 
-    for vc_list in changes {
-        for vc in vc_list {
-            if vc.variable == variable {
-                if lowest_var_change.is_none() || vc.change < lowest_var_change.unwrap().change {
-                    lowest_var_change = Some(*vc);
+    for ec_list in changes {
+        for ec in ec_list {
+            if ec.effect == effect {
+                if lowest_effect_change.is_none() || ec.change < lowest_effect_change.unwrap().change {
+                    lowest_effect_change = Some(*ec);
                 } 
             }
         }
     }
 
-    lowest_var_change
+    lowest_effect_change
 }
 
-pub fn get_variable_change_from_effects(category: Variable, effects: &Vec<VariableChange>) -> Option<VariableChange> {
-    for vc in effects.iter() {
-        if vc.variable == category {
-            return Some(*vc);
+pub fn get_effect_change_from_effects(category: Effect, effects: &Vec<EffectChange>) -> Option<EffectChange> {
+    for ec in effects.iter() {
+        if ec.effect == category {
+            return Some(*ec);
         }
     }
 
@@ -187,21 +187,21 @@ impl RootNode {
         // need to get the req map first
         for node_result in &root.nodes {
             let reqs = &node_result.requirement_result.dynamic_and_static_requirements;
-            let mut added_vars = HashSet::new();
+            let mut added_effects = HashSet::new();
             for option_or in reqs.iter() {
                 for change in option_or {
                     // Don't include None requirements. I guess it would be bizarre to have that tho anyway.
-                    if added_vars.contains(&change.variable) || change.variable == Variable::None {
+                    if added_effects.contains(&change.effect) || change.effect == Effect::None {
                         continue;
                     }
-                    added_vars.insert(change.variable);
+                    added_effects.insert(change.effect);
 
-                    if root.requirement_map.contains_key(&change.variable) {
-                        if !root.requirement_map.get(&change.variable).unwrap().contains(&node_result.original_node_index) {
-                            root.requirement_map.get_mut(&change.variable).unwrap().push(node_result.original_node_index);
+                    if root.requirement_map.contains_key(&change.effect) {
+                        if !root.requirement_map.get(&change.effect).unwrap().contains(&node_result.original_node_index) {
+                            root.requirement_map.get_mut(&change.effect).unwrap().push(node_result.original_node_index);
                         }
                     } else {
-                        root.requirement_map.insert(change.variable, vec![node_result.original_node_index]);
+                        root.requirement_map.insert(change.effect, vec![node_result.original_node_index]);
                     }
                 }
             }
@@ -256,13 +256,7 @@ impl RootNode {
         // First step of that is to calculate it on its children recurssively
         for i in 0..root.children.len() {
             let mut indexs_processed = HashSet::new();
-            // Converting the UID of creature target, to the creature state itself
-            // is gonna be REALLY confusing. Couldn't just be a reference to 
-            // a COPY of the CreatureState in the MEMORY of the Creature doing this AI,
-            // because then will need to update the memory for all creatures currently in view constantly.
-            // ok so can't do that copy idea.
-            // instead make a hashmap of UID->CreatureState from map_state
-            // creature memory just stores UID and last location seen? only of important friendly stuff?
+            // make a hashmap of UID->CreatureState from map_state
             root.calculate_global_reward( &self, map_state, c_state, &uid_map, root.children[i], &mut indexs_processed);
         }
 
@@ -274,7 +268,7 @@ pub enum Node {
     Reward(RewardNode),
     ListNode(RewardNodeList),
 } impl Node {
-    pub fn get_children(&self, _root: &RootNode, req_map: &HashMap<Variable, Vec<NodeIndex>>, effects: &Vec<VariableChange>) -> Vec<RewardNodeConnection> {
+    pub fn get_children(&self, _root: &RootNode, req_map: &HashMap<Effect, Vec<NodeIndex>>, effects: &Vec<EffectChange>) -> Vec<RewardNodeConnection> {
         let mut total_conns: Vec<RewardNodeConnection> = vec![];
         let mut added_already: HashSet<NodeIndex> = HashSet::new();
         // add static connections
@@ -294,16 +288,15 @@ pub enum Node {
         //println!("Getting child effects:{:#?}", effects);
         // add dynamic connections if they aren't already added
         effects.iter().for_each(|effect| {
-            if let Some(dyn_conns) = req_map.get(&effect.variable) {
+            if let Some(dyn_conns) = req_map.get(&effect.effect) {
                 for child in dyn_conns {
                     if !added_already.contains(child) {
                         added_already.insert(*child);
-                        //let req = get_smallest_variable_change_from_vec_vec(&root.nodes.get(*child).unwrap().get_static_requirements(), effect.variable).unwrap().change;
                         total_conns.push(RewardNodeConnection {
                             base_multiplier: None,
                             child_index: *child,
                             parent_index: self.get_index(),
-                            category: effect.variable,
+                            category: effect.effect,
                             dont_match_targets: true, // not sure about this. but shouldn't matter usually. for the one test I got that is listnode->listnode (test_creature_list_node_reward_graph_2layer) it needs this to be true.
                         });
                     }
@@ -327,7 +320,7 @@ pub enum Node {
         }
     }
 
-    pub fn get_static_requirements(&self) -> &Vec<Vec<VariableChange>> {
+    pub fn get_static_requirements(&self) -> &Vec<Vec<EffectChange>> {
         match self {
             Node::Reward(n) => &n.static_requirements,
             Node::ListNode(nl) => &nl.static_requirements,
@@ -339,31 +332,30 @@ pub enum Node {
 #[derive(Debug)]
 #[derive(Copy, Clone, Hash, PartialEq, Eq)]
 #[derive(Deserialize, Serialize)]
-pub enum Variable {
+pub enum Effect {
     None,
     DropItem(ItemType), // produces an item on the ground (kill a creature etc)
     HaveItem(ItemType), // pickup or craft
-    // NOTE inbetween ingredients will need to be variables. Anything that is an inner OR. For example, if  (wood OR clay) AND glue makes a wall, then (wood OR clay) must be its own node and variable.
+    // NOTE inbetween ingredients will need to be effects. Anything that is an inner OR. For example, if  (wood OR clay) AND glue makes a wall, then (wood OR clay) must be its own node and effect.
 }
 #[derive(Debug)]
 #[derive(Copy, Clone, Hash, PartialEq, Eq)]
 #[derive(Deserialize, Serialize)]
-pub struct VariableChange {
-    pub variable: Variable,
+pub struct EffectChange {
+    pub effect: Effect,
     pub change: i32,
 }
-impl VariableChange {
-    pub fn new(variable: Variable, change: i32) -> Self {
-        VariableChange { variable, change }
+impl EffectChange {
+    pub fn new(effect: Effect, change: i32) -> Self {
+        EffectChange { effect, change }
     }
 }
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct RewardNodeConnection {
-    pub base_multiplier: Option<f32>, // Needed for variable None connections. should be None and auto calculated via effects of parent node and requirements of child node
+    pub base_multiplier: Option<f32>, // Needed for effect None connections. should be None and auto calculated via effects of parent node and requirements of child node. unused for connections based on effects even static ones
     pub child_index: NodeIndex,
     pub parent_index: NodeIndex, // debug only
-     // multiplier is: 1/requirement.change * effect(for that variable). Based on actual requirement and effects of the nodes not this connection thing
-    pub category: Variable,
+    pub category: Effect,
     pub dont_match_targets: bool, // Normally when ListNode is child to another ListNode then it should only match the connections based on target matching. For example: Move node -> kill node. reward of the move node for creature 1 is based on the kill node ONLY for creature 1 as well not all creatures. setting this to true will disable that (so far only used for tests?). 
 }
 #[derive(Clone)]
@@ -371,14 +363,14 @@ pub struct RewardNode {
     pub description: String,  // just for debugging/comments
     pub index: NodeIndex,
     pub static_children: Vec<RewardNodeConnection>,
-    pub static_requirements: Vec<Vec<VariableChange>>,
+    pub static_requirements: Vec<Vec<EffectChange>>,
     //pub parents: Vec<NodeIndex>,
     pub reward: Box<fn(&MapState, &CreatureState, &RequirementResult) -> RewardResult>,
     pub reward_connection: Box<fn(&MapState, &CreatureState, f32) -> f32>,
     pub requirement: Box<fn(&MapState, &CreatureState) -> RequirementResult>,
     pub cost: Box<fn(&MapState, &CreatureState, &RequirementResult) -> CostResult>,
     pub get_command: Option<Box<for<'f> fn(&'f MapState, &'f CreatureState, &RewardResult, &RequirementResult) -> CreatureCommand<'f>>>, // Is None if this node does not lead to a category and is more of an organizing node
-    pub effect: Option<Box<fn(&MapState, &CreatureState, &RewardResult, &RequirementResult) -> Vec<VariableChange>>> // Used to get current of self already
+    pub effect: Option<Box<fn(&MapState, &CreatureState, &RewardResult, &RequirementResult) -> Vec<EffectChange>>> // Used to get current of self already
 } impl fmt::Debug for RewardNode {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("RewardNode")
@@ -443,14 +435,14 @@ pub struct RewardNodeList {
     pub description: String,  // just for debugging/comments
     pub index: NodeIndex,
     pub static_children: Vec<RewardNodeConnection>,
-    pub static_requirements: Vec<Vec<VariableChange>>,
+    pub static_requirements: Vec<Vec<EffectChange>>,
     //pub parents: Vec<usize>,
     pub reward: Box<fn(&MapState, &CreatureState, &RequirementResult, &NodeTarget) -> RewardResult>,
     pub reward_connection: Box<fn(&MapState, &CreatureState, f32, &NodeTarget) -> f32>,
     pub requirement: Box<fn(&MapState, &CreatureState, &NodeTarget) -> RequirementResult>,
     pub cost: Box<fn(&MapState, &CreatureState, &RequirementResult, &NodeTarget) -> CostResult>,
     pub get_command: Option<Box<for<'f> fn(&'f MapState, &'f CreatureState, &RewardResult, &RequirementResult, NodeTarget<'f>) -> CreatureCommand<'f>>>, // Is None if this node does not lead to a category and is more of an organizing node
-    pub effect: Option<Box<fn(&MapState, &CreatureState, &RewardResult, &RequirementResult, &NodeTarget) -> Vec<VariableChange>>>, // Used to get current of self already
+    pub effect: Option<Box<fn(&MapState, &CreatureState, &RewardResult, &RequirementResult, &NodeTarget) -> Vec<EffectChange>>>, // Used to get current of self already
     pub filter: Box<fn(&MapState, &CreatureState, &NodeTarget)->bool>, // will take all known targets of the valid types, then use this filter on them, to produce one NodeResult for each one.
     pub target_types: HashSet<NodeTargetType>, // invalid NodeTargetID that are just meant to denote what NodeTarget types to use for this node
 } impl fmt::Debug for RewardNodeList {
@@ -469,7 +461,7 @@ pub struct RewardNodeList {
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct RequirementResult{
     pub valid: bool,
-    pub dynamic_and_static_requirements: Vec<Vec<VariableChange>>, //requirements split by OR // total requirements are actually the dynamic requirements extended by the static requirements. dynamic ones are generated by the requirements function and are rare, most should be static.
+    pub dynamic_and_static_requirements: Vec<Vec<EffectChange>>, //requirements split by OR // total requirements are actually the dynamic requirements extended by the static requirements. dynamic ones are generated by the requirements function and are rare, most should be static.
     pub target_id: Option<UID>,
     pub target_location: Option<Location>,
 }
@@ -497,7 +489,7 @@ pub struct ConnectionResult {
     pub parent_count: f32,
     pub parent_count_total: i32,
     pub parent_to_child_count_ratio: f32,
-    pub category: Variable,
+    pub category: Effect,
 } 
 impl PartialEq for ConnectionResult {
     fn eq(&self, other: &Self) -> bool {
@@ -531,14 +523,14 @@ impl Ord for ConnectionResult {
 
 #[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
 // Is typically just connectionResult, but with computed 
-pub struct VariableReward{
+pub struct EffectReward{
     pub reward: f32, // for None category, this will be sum of all conn_results otherwise is the max for that category
-    pub category: Variable,
+    pub category: Effect,
 }
 #[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
 pub struct NodeRewardGlobal{
     // local reward is stored in the RewardResult
-    pub rewards_per_result_change: Vec<VariableReward>,
+    pub rewards_per_result_change: Vec<EffectReward>,
     pub reward_sum_total: Option<f32>, // includes local reward
     pub reward_global_with_costs: Option<f32>,
 }
@@ -548,7 +540,7 @@ pub struct NodeResultRoot {
     pub nodes: Vec<NodeResult>,
     pub children: Vec<NodeIndex>,
     pub original_node_descriptor: String,
-    pub requirement_map: HashMap<Variable, Vec<NodeIndex>>,
+    pub requirement_map: HashMap<Effect, Vec<NodeIndex>>,
 
     // Debug vars:
     pub creature_id: UID,
@@ -589,9 +581,8 @@ impl NodeResultRoot {
         let mut conn_by_categories: Vec<Vec<RewardNodeConnection>> = vec![];
         // Remember the indexes of the NodeResults are different than the Nodes because 
         // of the creature list nodes.
-        // TODO NEXT: THIS SHOULD BE THE NODERESULT ITER NOT ORIGINAL NODE?
 
-        // Ground conns by variable
+        // Ground conns by effect
         self.nodes[index_to_process].children_result.iter().for_each(|conn| {
             let mut existing = false;
             for cvec in conn_by_categories.iter_mut() {
@@ -609,9 +600,9 @@ impl NodeResultRoot {
         let mut conn_results: Vec<BinaryHeap<ConnectionResult>> = Vec::new();
         for conn_list_noderesult in conn_by_categories.iter() {
             let mut cat_results: BinaryHeap<ConnectionResult> = BinaryHeap::new();
-            let variable = conn_list_noderesult[0].category;
+            let effect = conn_list_noderesult[0].category;
 
-            if variable == Variable::None {
+            if effect == Effect::None {
                 // For None category, we SUM all child connections.
                 // Since they have no requirements connected to this node, we don't need
                 // to do the LIMIT algorithm below or care about counts and other stuff
@@ -620,7 +611,7 @@ impl NodeResultRoot {
                 for connection_resultnode in conn_list_noderesult {
                     let base_mult = connection_resultnode.base_multiplier.unwrap();
                     let conn_result = ConnectionResult{
-                        category: variable,
+                        category: effect,
                         base_multiplier: base_mult,
                         multiplier_child: 1.,
                         total_reward: vec![get_global_reward_for_connection(1., self.nodes[connection_resultnode.child_index].global_reward.reward_global_with_costs.unwrap(), base_mult)],
@@ -634,21 +625,21 @@ impl NodeResultRoot {
                     total_sum+= conn_result.total_reward[0];
                     cat_results.push(conn_result);
                 }
-                let final_max = VariableReward{
+                let final_max = EffectReward{
                     reward: total_sum,
-                    category: variable,
+                    category: effect,
                 };
                 self.nodes[index_to_process].global_reward.rewards_per_result_change.push(final_max);
                 conn_results.push(cat_results);
                 continue;
             }
 
-            // If requirement for child connections are not None Variable then we need
+            // If requirement for child connections are not None Effect then we need
             // to get the MAX connection reward, essentially if doing an action gives some wood and
             // some fiber, that actions reward would be (Best thing to do with wood) + (Best thing to do with fiber)
 
             // Getting the best thing to do is based on what items we already have
-            // to figure this out below is the LIMIT ALGORITHM.
+            // to figure this out below is the RESERVE ALGORITHM.
             // Imagine you need Wood as just 1 ingredient to create a bow.
             // If you have enough wood already for 10 bows, then the reward
             // for getting more wood should be reward for making an 11th bow.
@@ -657,30 +648,28 @@ impl NodeResultRoot {
             // one by one. So 1 wood to bow because its the highest reward, then the 2nd to 
             // shield. then the 3rd and 4th and 5th to shield because extra shields are more valuable
             // because shields break more often, but then 6th to Bow because we have so many shields.
-            // It gets crazy when there nested rewards, so if Shield also is used to create SpikedShield
+            // It gets crazy when there are nested rewards, so if Shield also is used to create SpikedShield
             // then we need to recussively check Shield's children based on different numbers of shield we have already.
             // thats computationally expensive and annoying to program so instead we Estimate 
             // the reward of additional items for an item with the reward_connection function
             // which takes in a Count as a parameter.
-            let parent_count = get_count_of_variable(map_state, c_state, variable);
-            let var_effect = get_variable_change_from_effects(variable, &self.nodes[index_to_process].effects).unwrap().change as f32;
+            let parent_count = get_count_of_effect(map_state, c_state, effect);
+            let effect_change = get_effect_change_from_effects(effect, &self.nodes[index_to_process].effects).unwrap().change as f32;
             for connection_node_result in conn_list_noderesult {
-                let requirement_needed_in_child = get_smallest_variable_change_from_vec_vec(&self.nodes[connection_node_result.child_index].requirement_result.dynamic_and_static_requirements, variable);
+                let requirement_needed_in_child = get_smallest_effect_change_from_vec_vec(&self.nodes[connection_node_result.child_index].requirement_result.dynamic_and_static_requirements, effect);
                 if requirement_needed_in_child == None {
-                    eprintln!("have a Variable connection but child requirement does not actually have this Variable as its requirement. Graph is wrong! parent:{} child:{} variable:{:#?}", index_to_process, connection_node_result.child_index, variable);
-                    panic!("have a Variable connection but child requirement does not have requirement.");
+                    eprintln!("have a effect connection but child requirement does not actually have this Effect as its requirement. Graph is wrong! parent:{} child:{} effect:{:#?}", index_to_process, connection_node_result.child_index, effect);
+                    panic!("have a effect connection but child requirement does not have requirement.");
                 }
                 let conn_requirement_needed = requirement_needed_in_child.unwrap().change as f32;
 
                 // now just need to get "actually exists" of the child. this can be done by
-                // for each of its effects, get their count, then for each variable get its 
+                // for each of its effects, get their count, then for each effect get its 
                 // reward proportion by finding its rewards_per_requirement/reward_sum_total
                 let child_count = self.nodes[connection_node_result.child_index].get_count(map_state, c_state);
                 assert!(child_count >= 0.);
 
-                // if its none that means that node doesn't actually require this category?
-                // or its None category? AGG maybe None requirement shouldn't exist!
-                let base_multiplier = var_effect / conn_requirement_needed;
+                let base_multiplier = effect_change / conn_requirement_needed;
                 assert!(connection_node_result.base_multiplier.is_none()); // only None connections should have a hardCoded base multiplier
 
                 let og_node_idx = self.nodes[connection_node_result.child_index].original_node_index;
@@ -691,7 +680,7 @@ impl NodeResultRoot {
                     target.as_ref()
                 );
                 cat_results.push(ConnectionResult{
-                    category: variable,
+                    category: effect,
                     base_multiplier: base_multiplier,
                     multiplier_child: multiplier_child,
                     total_reward: vec![get_global_reward_for_connection(
@@ -709,7 +698,7 @@ impl NodeResultRoot {
             }
 
             let increment_best_child = |mut top: ConnectionResult| -> ConnectionResult {
-                top.parent_count += var_effect * top.parent_to_child_count_ratio;
+                top.parent_count += effect_change * top.parent_to_child_count_ratio;
                 top.multiplier_child = (&og_root_node).nodes.get(self.nodes[top.child_index_node_result].original_node_index).unwrap().get_child_multiplier(
                     top.child_count + top.parent_count, 
                     map_state,
@@ -730,7 +719,7 @@ impl NodeResultRoot {
             }
             // Now add one more that's essentially the reward for "What happens if I get one more of this node's effects"
             let best = cat_results.pop().unwrap();
-            let final_max = VariableReward{
+            let final_max = EffectReward{
                 reward: best.total_reward[0],
                 category: best.category,
             };
@@ -743,8 +732,8 @@ impl NodeResultRoot {
 
         let mut reward_sum_total = self.nodes[index_to_process].reward_result.reward_local;
 
-        for var_result in &self.nodes[index_to_process].global_reward.rewards_per_result_change {
-            reward_sum_total += var_result.reward;
+        for effect_result in &self.nodes[index_to_process].global_reward.rewards_per_result_change {
+            reward_sum_total += effect_result.reward;
         }
         self.nodes[index_to_process].global_reward.reward_sum_total = Some(reward_sum_total);
         let final_reward = (reward_sum_total - self.nodes[index_to_process].cost_result.cost_base) / self.nodes[index_to_process].cost_result.cost_divider;
@@ -807,7 +796,7 @@ pub struct NodeResult {
     pub reward_result: RewardResult, //contains local reward
     pub cost_result: CostResult,
     pub requirement_result: RequirementResult,
-    pub effects: Vec<VariableChange>,
+    pub effects: Vec<EffectChange>,
     pub children_result: Vec<RewardNodeConnection>,
     // Filled out as you do global reward:
     pub connection_results: Option<Vec<BinaryHeap<ConnectionResult>>>,
@@ -843,9 +832,9 @@ impl NodeResult {
         // get reward from children and calculate count based on contribution to total reward
         let total_sum = self.global_reward.reward_sum_total.unwrap();
         let mut total_count = 0.;
-        for var_result in &self.global_reward.rewards_per_result_change {
-            if var_result.category != Variable::None {
-                total_count += (var_result.reward/total_sum) * get_count_of_variable(map_state, c_state, var_result.category) as f32;
+        for effect_result in &self.global_reward.rewards_per_result_change {
+            if effect_result.category != Effect::None {
+                total_count += (effect_result.reward/total_sum) * get_count_of_effect(map_state, c_state, effect_result.category) as f32;
             }
         }
 
@@ -858,7 +847,7 @@ impl NodeResult {
                 total_effect += effect.change;
             }
             for effect in &self.effects {
-                let count =  get_count_of_variable(map_state, c_state, effect.variable);
+                let count =  get_count_of_effect(map_state, c_state, effect.effect);
                 total_count += count as f32 / total_effect as f32 * local_proportion;
             }
         }

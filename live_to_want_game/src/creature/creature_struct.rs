@@ -1,6 +1,6 @@
 use std::{fmt::Formatter, cmp::max, collections::HashMap};
 use serde::{Deserialize, Serialize};
-use crate::{Location, RegionComponent, UID, map_state::Item, utils::Vector2, utils::Vu2, UserComponent, STANDARD_PREGNANCY_TIME, STANDARD_CHILD_TIME, FAST_GROWER_MULTIPLIER, SPECIES_SEX_RANGE, MAX_ATTACK_DISTANCE, DEFAULT_VISION_RANGE, ItemType, SoilComponent, SoilType, SoilHeight, reward_graph::VariableChange};
+use crate::{Location, RegionComponent, UID, map_state::Item, utils::Vector2, utils::Vu2, UserComponent, STANDARD_PREGNANCY_TIME, STANDARD_CHILD_TIME, FAST_GROWER_MULTIPLIER, SPECIES_SEX_RANGE, MAX_ATTACK_DISTANCE, DEFAULT_VISION_RANGE, ItemType, SoilComponent, SoilType, SoilHeight, reward_graph::EffectChange};
 
 use super::{ComponentMap, IDComponent, LocationComponent, HealthComponent, NameComponent, StarvationComponent, REPRODUCE_STARTING_CALORIES_MULTIPLIER};
 
@@ -59,7 +59,7 @@ impl CreatureState {
         }
     }
 
-    pub fn get_variable_change_on_death(&self, drop_not_have: bool) -> Vec<VariableChange> {
+    pub fn get_variable_change_on_death(&self, drop_not_have: bool) -> Vec<EffectChange> {
         self.get_items_on_death().into_iter().map(|item| item.get_variable_change(drop_not_have)).collect()
     }
 

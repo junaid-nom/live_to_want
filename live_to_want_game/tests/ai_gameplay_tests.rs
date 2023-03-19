@@ -2,19 +2,19 @@ extern crate rayon;
 use std::{rc::Rc, cell::RefCell, collections::HashSet};
 
 use rayon::prelude::*;
-use live_to_want_game::{*, reward_graph::{RootNode, Node, RewardNode, RewardResult, RequirementResult, VariableChange, CostResult, RewardNodeConnection, Variable, ConnectionResult, RewardNodeList, NodeTargetType, NodeTarget}};
+use live_to_want_game::{*, reward_graph::{RootNode, Node, RewardNode, RewardResult, RequirementResult, EffectChange, CostResult, RewardNodeConnection, Effect, ConnectionResult, RewardNodeList, NodeTargetType, NodeTarget}};
 use strum::IntoEnumIterator;
 
 #[test]
 fn test_eat_soil_creatures() {
     // Create reward graph that has:
-    // Move to Food (creature list) -> attack food (creature list) -> pick up food items -> eat items
-    // eat items should be only thing with reward. rest use the connection stuff minus by their effort level
+    // Move to Food (creature list) -> attack food (creature list) -> pick up food items -> eat items. Need to also be able to pick up items on the ground
+    // eat items should be only thing with reward. rest use the connection stuff minus by their costs
     let use_food = Node::Reward(RewardNode {
         description: "use_eat_PSiltGrass".to_string(),
         index: 0,
-        static_requirements: vec![vec![VariableChange{
-            variable: reward_graph::Variable::HaveItem(ItemType::PSiltGrass), 
+        static_requirements: vec![vec![EffectChange{
+            effect: reward_graph::Effect::HaveItem(ItemType::PSiltGrass), 
             change: 1,
         }]],
         static_children: vec![], 
@@ -49,9 +49,7 @@ fn test_eat_soil_creatures() {
     );
 
 
-    // TODO: could turn this into an NodeList with itemType target.
-    // then it would work with ALL items instead of just grass
-    // but would need to make an item target first.
+    // This would work with any item, but this example only has PSiltGrass items
     let pick_up_from_ground = Node::ListNode(RewardNodeList { 
         description: "pickup".to_string(),
         index: 1,
@@ -104,7 +102,7 @@ fn test_eat_soil_creatures() {
             let (loc, itype) = item_loc.as_location_item();
             let victim = m.location_to_map_location(&loc);
             let quantity = victim.get_inventory_of_item(ItemType::PSiltGrass);
-            return vec![VariableChange::new(Variable::HaveItem(*itype), quantity as i32)]
+            return vec![EffectChange::new(Effect::HaveItem(*itype), quantity as i32)]
         })),
         }
     );
@@ -161,23 +159,7 @@ fn test_eat_soil_creatures() {
         }
     );
 
-    // using requirements to make connections, BUT ALSO they are used
-    // for the fucking limit-algo. So I think it can conflict a lot. Need to make separate stuff?
-    // or maybe its already a bit separate cause of the VariableChange in RewardConnection?
-    // only when an item is added to inventory should it have requirements (pickup/craft)?
-    // OKAY the issue is nodes that use an item to craft. So for example, if we can use
-    // siltGrass to make a String item. then StringItem needs the SiltGrass requirement but
-    // that would make it connect to Kill node instead of pickup node!
-    // need to have two separate requirements? One for auto connections one for consuming requirements?
-    // wait why not get rid of the pickup Node? oh because we need its action?
-    // OR make a new Variable that is "Pickup"? so effect of kill is: Pickup(X)
-    // then pickup effect is SiltGrass.
-    // EffectEnum: Produce(Variable), Inventory(Variable)
-    // Change all requirement stuff uses to this?
-    // Wait can I just make Variable take in a fucking item as an enum? then can simplify conversions?
-    // can wrap that in Produce/Inventory too.
-
-    // move to creaturelist node. requirement is none. but reward is based on child of attack node.
+    // move to creaturelist node. requirement is none. but reward is based on child connections
     let move_to_node = Node::ListNode(RewardNodeList {
         static_requirements: vec![vec![]],
         target_types: HashSet::from([NodeTargetType::CreatureTarget, NodeTargetType::LocationItemTarget]),
@@ -187,14 +169,14 @@ fn test_eat_soil_creatures() {
                 base_multiplier: Some(1.0), 
                 child_index: 2, 
                 parent_index: 3, 
-                category: Variable::None,
+                category: Effect::None,
                 dont_match_targets: false,
             },
             RewardNodeConnection { 
                 base_multiplier: Some(1.0), 
                 child_index: 1, 
                 parent_index: 3, 
-                category: Variable::None,
+                category: Effect::None,
                 dont_match_targets: false,
             }
         ],
@@ -263,7 +245,7 @@ fn test_eat_soil_creatures() {
                 base_multiplier: Some(1.), 
                 child_index: 3, 
                 parent_index: 0,
-                category: Variable::None,
+                category: Effect::None,
                 dont_match_targets: false,
             },
             // Need to add a root node to the use item node as well so that you don't
@@ -272,7 +254,7 @@ fn test_eat_soil_creatures() {
                 base_multiplier: Some(1.), 
                 child_index: 0, 
                 parent_index: 0,
-                category: Variable::None,
+                category: Effect::None,
                 dont_match_targets: false,
             },
         ],
@@ -300,7 +282,7 @@ fn test_eat_soil_creatures() {
     };
 
     // Now make a region with a bunch of plants and a deer with:
-    // a starving component, ai component, and evolving traits component, movement component
+    // a starving component, ai component, and evolving traits component, movement componentm vision... etc
     // The deer should run around eating plants
     // maybe make it so the plants don't bud so its simpler to predict
 
@@ -459,9 +441,7 @@ fn test_eat_soil_creatures() {
 
         let creatures_map = game_state.map_state.get_creatures_hashmap();
         println!("Calories: {:#?} adult percent: {}", &creatures_map.get(&deer_id).unwrap().components.starvation_component.as_ref().unwrap().calories,  &creatures_map.get(&deer_id).unwrap().get_adult_percent(game_state.map_state.frame_count));
-        // TODONEXT: Attack range seems too far wtf? can hit 2 tiles away.
-        // also the above is awkward because what if an item is dropped too far away from you to pick up, need to be able to move to item->pickup. Maybe can just put it in the command itself for pickup. If too far to pickup->move to.
-        // both grass killed and eaten by frame 69.
+        // both grass killed and eaten by frame ~69? rest is to move to the ground item.
     }
     println!("{}", game_state.map_state.get_creature_map_strings(Vu2 { x: 0, y: 0 }));
     println!("{:#?}", game_state.map_state.debug_info.as_ref().unwrap().ai[0]);
@@ -473,235 +453,13 @@ fn test_eat_soil_creatures() {
     println!("Calories: {:#?} expected: {}", calories, expected_calories);
     assert!(expected_calories < calories as f32);
 
-
-    // TODONEXT: Add to the ai to move to items on the ground.
-    // place a siltgrass in the far corner it can move to and just pick up.
-    // Will probably need a new type of list-node for Notable-Locations?
-    // So basically for each ground-item-> add its location to notable-locations
-    // list in creature vision. Then have a location-list node that goes through them.
-    // maybe instead make a generic "ListNodeTarget" enum that can be a creature or location.
-    // then the functions take in ListNodeTarget not &CreatureState.
-    // can expand easily then. if its not the expected target type _=> panic!() in all our functions 
+    // NOTE we only have 1 useItem node for our specific grass item. 
+    // in the future we may want to make a "ItemType" List node that will
+    // foreach on all item types and essentially be UseItem on all item types.
+    // Issue though is do we want all that code in 1 node? Might be better to keep
+    // them split, especially if many items cannot even be used anyway.
 }
 
-// Put some budding blockers. Also some deer. Watch the deer be moved around because of the trees
-// Might be easiest to test by having a narrow region only 1 open wide
-#[test]
-fn test_chain_budding_system_blockers<'a>() {
-    // make a mapstate with some budders
-    let openr = RegionCreationStruct::new(10,3, 0, vec![]);
-    let rgrid = vec![
-        vec![openr.clone()],
-    ];
-    //create map
-    let mut map = MapState::new(rgrid, 0);
-    let  region: &mut MapRegion = &mut map.regions[0][0];
 
-    let soil_component = Some(SoilComponent{
-        soil_height: SoilHeight::All,
-        soil_type_cannot_grow: SoilType::Clay,
-        soil_type_spread: SoilType::Sand,
-        frame_ready_to_spread: 0,
-        spread_rate: Some(1),
-    });
-
-    let mut tree = CreatureState{
-        components: ComponentMap::default(),
-        inventory: Vec::new(),
-        memory: CreatureMemory::default(),
-    };
-    tree.components.block_space_component = Some(BlockSpaceComponent {});
-    tree.components.region_component = RegionComponent {
-        region: Vu2{x: 0, y: 0},
-    };
-    tree.components.location_component = LocationComponent {
-        location: Vu2{x: 3, y: 1}
-    };
-    tree.components.health_component = Some(HealthComponent {
-        health:  1,
-        max_health: 1,
-    });
-    tree.components.budding_component = Some(BuddingComponent {
-        reproduction_rate: 3,
-        frame_ready_to_reproduce: 3,
-        seed_creature_differences: Box::new(ComponentMap::fake_default()),
-    });
-    tree.components.soil_component = soil_component.clone();
-
-    let mut tree2 = CreatureState{
-        components: ComponentMap::default(),
-        inventory: Vec::new(),
-        memory: CreatureMemory::default(),
-    };
-    tree2.components.block_space_component = Some(BlockSpaceComponent {});
-    tree2.components.region_component = RegionComponent {
-        region: Vu2{x: 0, y: 0},
-    };
-    tree2.components.location_component = LocationComponent {
-        location: Vu2{x: 8, y: 1}
-    };
-    tree2.components.health_component = Some(HealthComponent {
-        health:  1,
-        max_health: 1,
-    });
-    tree2.components.budding_component = Some(BuddingComponent {
-        reproduction_rate: 3,
-        frame_ready_to_reproduce: 3,
-        seed_creature_differences: Box::new(ComponentMap::fake_default()),
-    });
-    tree2.components.soil_component = soil_component.clone();
-
-    let mut tree3 = CreatureState{
-        components: ComponentMap::default(),
-        inventory: Vec::new(),
-        memory: CreatureMemory::default(),
-    };
-    tree3.components.block_space_component = Some(BlockSpaceComponent {});
-    tree3.components.region_component = RegionComponent {
-        region: Vu2{x: 0, y: 0},
-    };
-    tree3.components.location_component = LocationComponent {
-        location: Vu2{x: 4, y: 1}
-    };
-    tree3.components.health_component = Some(HealthComponent {
-        health:  1,
-        max_health: 1,
-    });
-    tree3.components.budding_component = Some(BuddingComponent {
-        reproduction_rate: 3,
-        frame_ready_to_reproduce: 3,
-        seed_creature_differences: Box::new(ComponentMap::fake_default()),
-    });
-    tree3.components.soil_component = soil_component.clone();
-
-    let mut tree4 = CreatureState{
-        components: ComponentMap::default(),
-        inventory: Vec::new(),
-        memory: CreatureMemory::default(),
-    };
-    tree4.components.block_space_component = Some(BlockSpaceComponent {});
-    tree4.components.region_component = RegionComponent {
-        region: Vu2{x: 0, y: 0},
-    };
-    tree4.components.location_component = LocationComponent {
-        location: Vu2{x: 8, y: 1} // PURPOSELY put 2 in the same loc at the end to test blockers on same spot auto moving
-    };
-    tree4.components.health_component = Some(HealthComponent {
-        health:  1,
-        max_health: 1,
-    });
-    tree4.components.budding_component = Some(BuddingComponent {
-        reproduction_rate: 3,
-        frame_ready_to_reproduce: 3,
-        seed_creature_differences: Box::new(ComponentMap::fake_default()),
-    });
-    tree4.components.soil_component = soil_component.clone();
-
-    let mut deer1 = CreatureState{
-        components: ComponentMap::default(),
-        inventory: Vec::new(),
-        memory: CreatureMemory::default(),
-    };
-    deer1.components.region_component = RegionComponent {
-        region: Vu2{x: 0, y: 0},
-    };
-    deer1.components.location_component = LocationComponent {
-        location: Vu2{x: 2, y: 1}
-    };
-    deer1.components.health_component = Some(HealthComponent {
-        health:  10,
-        max_health: 10,
-    });
-    // See if it falls on death?
-    deer1.inventory.push(Item{
-        item_type: ItemType::Berry,
-        quantity: 1,
-    });
-
-    let mut deer2 = CreatureState{
-        components: ComponentMap::default(),
-        inventory: Vec::new(),
-        memory: CreatureMemory::default(),
-    };
-    deer2.components.region_component = RegionComponent {
-        region: Vu2{x: 0, y: 0},
-    };
-    deer2.components.location_component = LocationComponent {
-        location: Vu2{x: 5, y: 1}
-    };
-    deer2.components.health_component = Some(HealthComponent {
-        health:  10,
-        max_health: 10,
-    });
-    deer2.inventory.push(Item{
-        item_type: ItemType::Berry,
-        quantity: 1,
-    });
-
-
-    region.grid[tree.components.location_component.location].creatures.add_creature(
-        tree, 0
-    );
-    region.grid[tree2.components.location_component.location].creatures.add_creature(
-        tree2, 0
-    );
-    region.grid[tree3.components.location_component.location].creatures.add_creature(
-        tree3, 0
-    );
-    region.grid[tree4.components.location_component.location].creatures.add_creature(
-        tree4, 0
-    );
-    
-    region.grid[deer1.components.location_component.location].creatures.add_creature(
-        deer1, 0
-    );
-    region.grid[deer2.components.location_component.location].creatures.add_creature(
-        deer2, 0
-    );
-    
-    let nothing = GoalNode::generate_single_node_graph();
-
-    let mut game_state = GameState {
-        map_state:map
-    };
-    assert_eq!(game_state.map_state.get_creature_list().len(), 6);
-    assert_eq!(game_state.map_state.get_ground_item_list().len(), 0);
-    assert_eq!(game_state.map_state.get_creature_item_list().len(), 2);
-
-    println!("replicated {}\nAll:\n{}\nBlockers:\n{}", game_state.map_state.frame_count/3, game_state.map_state.get_creature_map_strings(Vu2::new(0,0)), 
-        game_state.map_state.get_creature_map_strings_filtered(Vu2::new(0,0), &|c: &&CreatureState| c.components.block_space_component.is_some()));
-
-    for _ in 0..3 {
-        game_state = run_frame(game_state, Some(&nothing), None);
-    }
-
-    println!("replicated {}\nAll:\n{}\nBlockers:\n{}", game_state.map_state.frame_count/3, game_state.map_state.get_creature_map_strings(Vu2::new(0,0)), 
-        game_state.map_state.get_creature_map_strings_filtered(Vu2::new(0,0), &|c: &&CreatureState| c.components.block_space_component.is_some()));
-
-    //assert_eq!(game_state.map_state.get_creature_list().len(), 8);
-    assert_eq!(game_state.map_state.get_ground_item_list().len(), 0);
-    assert_eq!(game_state.map_state.get_creature_item_list().len(), 2);
-
-    for _ in 0..3 {
-        game_state = run_frame(game_state, Some(&nothing), None);
-    }
-    
-    println!("replicated {}\nAll:\n{}\nBlockers:\n{}", game_state.map_state.frame_count/3, game_state.map_state.get_creature_map_strings(Vu2::new(0,0)), 
-        game_state.map_state.get_creature_map_strings_filtered(Vu2::new(0,0), &|c: &&CreatureState| c.components.block_space_component.is_some()));
-    println!("\ncreatures all:{}", game_state.map_state.get_creature_strings());
-    //assert_eq!(game_state.map_state.get_creature_list().len(), 9);
-
-    for _ in 0..3 {
-        game_state = run_frame(game_state, Some(&nothing), None);
-    }
-    
-    println!("replicated {}\nAll:\n{}\nBlockers:\n{}", game_state.map_state.frame_count/3, game_state.map_state.get_creature_map_strings(Vu2::new(0,0)), 
-        game_state.map_state.get_creature_map_strings_filtered(Vu2::new(0,0), &|c: &&CreatureState| c.components.block_space_component.is_some()));
-    println!("\ncreatures all:{}", game_state.map_state.get_creature_strings());
-
-    assert_eq!(game_state.map_state.get_creature_list().len(), 8);
-    assert_eq!(game_state.map_state.get_ground_item_list()[0].0.quantity, 2);
-    assert_eq!(game_state.map_state.get_creature_item_list().len(), 0);
-}
 
 
