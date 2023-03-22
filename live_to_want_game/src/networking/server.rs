@@ -102,24 +102,61 @@ async fn start_server(ip_port: String, send_to_server: Sender<GameMessageWrap>, 
         });
         tokio::spawn(async move {
             let mut buf = String::new();
-            // In a loop, read data from the socket and write the data back.
+            // In a loop, read data from the socket and write the data to the server thread.
             loop {
                 let _ = match socket_read.read_line(&mut buf).await {
+                //let _ = match socket_read.read_to_end(&mut bufu8).await {
                     // socket closed
-                    Ok(n) if n == 0 => {println!("Got n == 0 in socket read"); return},
+                    Ok(n) if n == 0 => {
+                        println!("Got n == 0 in socket read (empty)");
+                        buf.clear();
+                        return
+                    },
                     Ok(n) => n,
                     Err(_) => {
+                        buf.clear();
                         return;
                     }
                 };
 
                 //println!("Got message from client {} : {:?}", client_uid, std::str::from_utf8(msg).unwrap());
-                buf.pop();
-                let mut message: GameMessageWrap = serde_json::from_str(&buf).unwrap();
-                buf.clear();
-                message.conn_id = client_uid;
 
-                thread_sender_server.send(message).unwrap();
+                // Note we MUST put newline because TCP sucks and you need to separate
+                // msgs yourself: https://users.rust-lang.org/t/beginner-reading-tcpstream-messages/28048
+                // Serde is too dumb to read in two messgaes at once like: "{validJSON}{validJSON}"
+                // super annoying. But good to seperate by newlines anyway.
+                // So need to pop the newline at the end that separates files or serde is mad.
+                buf.pop();
+                let message = serde_json::from_str::<GameMessageWrap>(&buf);
+
+                match message {
+                    Ok(mut m) => {
+                        m.conn_id = client_uid;
+                        thread_sender_server.send(m).unwrap();
+                    }
+                    Err(e) => {
+                        eprintln!("Could not deserialize message: {:#?} err: {}", buf, e);
+                    }
+                };
+                buf.clear();
+
+                // https://docs.rs/serde_json/1.0.36/serde_json/de/struct.StreamDeserializer.html
+                // Handles multiple messages? But it doesn't work because it doesn't separate
+                // the messages.
+                // let messages: Vec<GameMessageWrap> = serde_json::Deserializer::from_str(&buf)
+                // .into_iter::<GameMessageWrap>().filter_map(|m| {
+                //     match m {
+                //         Ok(m) => Some(m),
+                //         Err(e) => {
+                //             eprintln!("Could not deserialize msg on server: {:#?} buf: {:#?}", e, buf);
+                //             None
+                //         }
+                //     }
+                // }).collect();
+                // for mut message in messages {
+                //     message.conn_id = client_uid;
+                //     thread_sender_server.send(message).unwrap();
+                // }
             }
         });
     }
@@ -145,6 +182,10 @@ pub fn wrap_ser_message(message: GameMessage, conn_id: UID) -> Vec<u8> {
         conn_id
     };
     let mut msg = serde_json::to_vec(&msg).unwrap();
+    // Note we MUST put newline because TCP sucks and you need to separate
+    // msgs yourself: https://users.rust-lang.org/t/beginner-reading-tcpstream-messages/28048
+    // Serde is too dumb to read in two messgaes at once like: "{validJSON}{validJSON}"
+    // super annoying. But good to seperate by newlines anyway.
     msg.push(b'\n');
     
     return msg

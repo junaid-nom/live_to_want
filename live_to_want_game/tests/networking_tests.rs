@@ -16,6 +16,10 @@ use std::{thread, time};
 // Also test logging in and out 
 // Eventually need to also make a scenario where the player attacks and kills something.
 
+static C1_MSG1: &'static str = "Hello There m1 from c1!";
+static C1_MSG2: &'static str = "Hello There m2 from c1!";
+static C2_MSG1: &'static str = "Hello There m1 from c2!";
+static C2_MSG2: &'static str = "Hello There m2 from c2!";
 #[tokio::test]
 async fn run_simple_server_test() {
     let ip_port: String = "127.0.0.1:7727".to_string();
@@ -28,13 +32,13 @@ async fn run_simple_server_test() {
     let mut server = ConnectionManager::new(ip_port.clone()).await;
 
     // First client that sends Hello there then upon reading a reply, sends hello there2
-    test_client_with_func(ip_port.clone(), Box::new(|mut stream: TcpStream| {
-        stream.write(&wrap_ser_message(GameMessage::LoginMsg(User{
+    let c1_handle = test_client_with_func_handle(ip_port.clone(), Box::new(|mut stream: TcpStream| {
+        stream.write_all(&wrap_ser_message(GameMessage::LoginMsg(User{
             username: "test".to_string(),
             password: "poop".to_string(),
         }), 0)).unwrap();
         
-        stream.write(&wrap_ser_message(GameMessage::StringMsg("Hello There\n!".to_string()), 0)).unwrap();
+        stream.write_all(&wrap_ser_message(GameMessage::StringMsg(C1_MSG1.to_string()), 0)).unwrap();
         println!("Sent Hello  From Client1");
 
         let mut stream_reader = BufReader::new(stream.try_clone().unwrap());
@@ -44,23 +48,33 @@ async fn run_simple_server_test() {
                 Ok(_) => {
                     //let msg = &data[0..n];
                     data.pop();
-                    let message: GameMessageWrap = serde_json::from_str(&data).unwrap();
-                    println!("Client1 got msg: {:?}", message);
+
+                    let messages: Vec<GameMessageWrap> = serde_json::Deserializer::from_str(&data).into_iter::<GameMessageWrap>().filter_map(|m| {
+                        match m {
+                            Ok(m) => Some(m),
+                            Err(e) => {
+                                eprintln!("Could not deserialize msg client1: {:#?} buf: {:#?}", e, data);
+                                None
+                            }
+                        }
+                    }).collect();
+                    for message in messages {
+                        println!("Client1 got msg: {:?}", message);
     
-                    match message.message {
-                        GameMessage::StringMsg(_) => {
-                            stream.write(&wrap_ser_message(GameMessage::StringMsg("Hello There2!".to_string()), 0)).unwrap();
-                            println!("Sent hello reply to server from client1");
-                            return;
-                        },
-                        GameMessage::LoginReplyMsg(succ, _) => {
-                            assert!(succ);
-                            println!("Client1 got login reply msg");
-                        },
-                        _ => panic!("Unexpected message type for client1!"),
-                        //GameMessage::DropConnection(_) => todo!(),
+                        match message.message {
+                            GameMessage::StringMsg(_) => {
+                                stream.write_all(&wrap_ser_message(GameMessage::StringMsg(C1_MSG2.to_string()), 0)).unwrap();
+                                println!("Sent hello reply to server from client1 Ending client");
+                                return;
+                            },
+                            GameMessage::LoginReplyMsg(succ, _) => {
+                                assert!(succ);
+                                println!("Client1 got login reply msg");
+                            },
+                            _ => panic!("Unexpected message type for client1!"),
+                            //GameMessage::DropConnection(_) => todo!(),
+                        }
                     }
-                    
                 },
                 Err(e) => {
                     println!("Failed to receive data for client1: {}", e);
@@ -68,21 +82,22 @@ async fn run_simple_server_test() {
             }
         }
     }));
-
+    
     // login as test2 and send a hellothere 2 msg.
-    test_client_with_func(ip_port.clone(), Box::new(|mut stream: TcpStream| {
-        stream.write(&wrap_ser_message(GameMessage::LoginMsg(User{
+    let c2_handle = test_client_with_func_handle(ip_port.clone(), Box::new(|mut stream: TcpStream|{
+        stream.write_all(&wrap_ser_message(GameMessage::LoginMsg(User{
             username: "test2".to_string(),
             password: "poop".to_string(),
         }), 0)).unwrap();
 
-        stream.write(&wrap_ser_message(GameMessage::StringMsg("Hello There2!".to_string()), 0)).unwrap();
+        stream.write_all(&wrap_ser_message(GameMessage::StringMsg(C2_MSG1.to_string()), 0)).unwrap();
+
+        println!("Ending client2");
     }));
 
     let mut got_msg_client1_first = false;
-    let mut got_msg_client1_second = false;
     let mut got_msg_client2_first = false;
-    let mut got_msg_client2_second = false;
+    
     while !got_msg_client1_first || !got_msg_client2_first {
         let msgs = server.process_logins_and_get_messages();
         // login messages should be handled by the process ^ func, so won't be in msgs.
@@ -93,8 +108,8 @@ async fn run_simple_server_test() {
                     assert!(!(got_msg_client1_first && got_msg_client2_first));
                 }
                 let test_string = if g.username == "test".to_string() {
-                    "Hello There\n!".to_string()
-                } else { "Hello There2!".to_string() };
+                    C1_MSG1.to_string()
+                } else { C2_MSG1.to_string() };
 
                 if g.username == "test".to_string() {
                     got_msg_client1_first = true;
@@ -116,15 +131,24 @@ async fn run_simple_server_test() {
             }
         );
     }
+
+    let mut got_msg_client1_second = false;
+    let mut got_msg_client2_second = false;
+
+    //thread::sleep(time::Duration::from_millis(1000));
+    //c1_handle.join().unwrap();
+    //return;
     
-    test_client_with_func(ip_port.clone(), Box::new(|mut stream: TcpStream| {
+
+    // Try logging in incorrectly, then correctly, then send another message.
+    let c2_handle2 = test_client_with_func_handle(ip_port.clone(), Box::new(|mut stream: TcpStream| {
         // below should fail to login b/c wrong password
-        stream.write(&wrap_ser_message(GameMessage::LoginMsg(User{
+        stream.write_all(&wrap_ser_message(GameMessage::LoginMsg(User{
             username: "test2".to_string(),
             password: "poop22".to_string(),
         }), 0)).unwrap();
 
-        stream.write(&wrap_ser_message(GameMessage::StringMsg("fail".to_string()), 0)).unwrap();
+        stream.write_all(&wrap_ser_message(GameMessage::StringMsg("fail".to_string()), 0)).unwrap();
 
         //wait for response first:
         let mut stream_reader = BufReader::new(stream.try_clone().unwrap());
@@ -137,22 +161,22 @@ async fn run_simple_server_test() {
         }
 
         // login correctly
-        stream.write(&wrap_ser_message(GameMessage::LoginMsg(User{
+        stream.write_all(&wrap_ser_message(GameMessage::LoginMsg(User{
             username: "test2".to_string(),
             password: "poop".to_string(),
         }), 0)).unwrap();
 
-        stream.write(&wrap_ser_message(GameMessage::StringMsg("yes".to_string()), 0)).unwrap();
+        stream.write_all(&wrap_ser_message(GameMessage::StringMsg(C2_MSG2.to_string()), 0)).unwrap();
     }));
     
-
+    // wait for the second StringMsgs from c1 and c2
     while !got_msg_client1_second || !got_msg_client2_second {
         let msgs = server.process_logins_and_get_messages();
         msgs.into_iter().for_each(
             |g| {
                 let test_string = if g.username == "test".to_string() {
-                    "Hello There2!".to_string()
-                } else { "yes".to_string() };
+                    C1_MSG2.to_string()
+                } else { C2_MSG2.to_string() };
 
                 if g.username == "test".to_string() {
                     got_msg_client1_second = true;
@@ -173,6 +197,11 @@ async fn run_simple_server_test() {
             }
         );
     }
+    
+    c1_handle.join().unwrap();
+    c2_handle.join().unwrap();
+    c2_handle2.join().unwrap();
+    
     println!("END TEST!");
 }
 
@@ -190,12 +219,12 @@ async fn run_connection_manager_test_send_all_and_multi_login() {
     fn make_client_func(username: String) -> Box<dyn Fn(TcpStream) -> () + Send> {
         return Box::new(move |mut stream: TcpStream| {
             let username = username.clone();
-            stream.write(&wrap_ser_message(GameMessage::LoginMsg(User{
+            stream.write_all(&wrap_ser_message(GameMessage::LoginMsg(User{
                 username: username.clone(),
                 password: "poop".to_string(),
             }), 0)).unwrap();
             
-            stream.write(&wrap_ser_message(GameMessage::StringMsg("h1".to_string()), 0)).unwrap();
+            stream.write_all(&wrap_ser_message(GameMessage::StringMsg("h1".to_string()), 0)).unwrap();
     
             let mut stream_reader = BufReader::new(stream.try_clone().unwrap());
             let mut data = String::new();
@@ -209,7 +238,7 @@ async fn run_connection_manager_test_send_all_and_multi_login() {
     
                         } else {
                             assert_ne!(username, "u9".to_string());
-                            stream.write(&wrap_ser_message(GameMessage::StringMsg("h2".to_string()), 0)).unwrap();
+                            stream.write_all(&wrap_ser_message(GameMessage::StringMsg("h2".to_string()), 0)).unwrap();
                         }
                     },
                     Err(e) => {
@@ -243,7 +272,7 @@ async fn run_connection_manager_test_send_all_and_multi_login() {
     // overwrite one user.
     fn make_overwrite_client_func(username: String) -> Box<dyn Fn(TcpStream) -> () + Send> {
         return Box::new(move |mut stream: TcpStream| {
-            stream.write(&wrap_ser_message(GameMessage::LoginMsg(User{
+            stream.write_all(&wrap_ser_message(GameMessage::LoginMsg(User{
                 username: username.clone(),
                 password: "poop".to_string(),
             }), 0)).unwrap();
@@ -254,7 +283,7 @@ async fn run_connection_manager_test_send_all_and_multi_login() {
                 Ok(_) => {
                     data.pop();
                     let _message_received: GameMessageWrap = serde_json::from_str(&data).unwrap();
-                    stream.write(&wrap_ser_message(GameMessage::StringMsg(username.clone()), 0)).unwrap();
+                    stream.write_all(&wrap_ser_message(GameMessage::StringMsg(username.clone()), 0)).unwrap();
                 },
                 Err(e) => {
                     println!("Failed to receive data: {}", e);
@@ -537,7 +566,7 @@ async fn run_game_server() {
             println!("Sending login message");
 
             let username = username.clone();
-            stream.write(&wrap_ser_message(GameMessage::LoginMsg(User{
+            stream.write_all(&wrap_ser_message(GameMessage::LoginMsg(User{
                 username: username.clone(),
                 password: "poop".to_string(),
             }), 0)).unwrap();

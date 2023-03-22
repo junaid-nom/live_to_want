@@ -136,10 +136,13 @@ impl ConnectionManager {
     pub fn send_message(&mut self, message: GameMessage, username: String) {
         let conn_id = self.login_manager.get_conn_id(&username);
         if let Some(conn_id) = conn_id {
-            self.send_to_clients.send(ConnectionMessageWrap::GameMessageWrap(GameMessageWrap{
+            match self.send_to_clients.send(ConnectionMessageWrap::GameMessageWrap(GameMessageWrap{
                 message,
                 conn_id
-            })).unwrap();
+            })) {
+                Ok(_) => (),
+                Err(e) => eprintln!("Could not send msg to {}, err: {:#?}", username, e),
+            }
         }
     }
 
